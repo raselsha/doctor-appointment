@@ -64,6 +64,7 @@ if ( ! class_exists( 'MDBK_Doctor_Appointment' ) ) {
             require_once MDBK_PATH . 'includes/shortcode.php';
             require_once MDBK_PATH . 'includes/appointment-manager.php';
             require_once MDBK_PATH . 'includes/admin-dashboard.php';
+            require_once MDBK_PATH . 'includes/seeder.php';
         }
 
         /**
@@ -90,13 +91,20 @@ if ( ! class_exists( 'MDBK_Doctor_Appointment' ) ) {
          * Plugin Activation
          */
         public static function activate() {
-
-            update_option( 'rewrite_rules', '' );
-
-            if ( ! get_option( 'mdbk_dummy_import_done' ) ) {
-                update_option( 'mdbk_dummy_import_notice', true );
+            
+            if (!defined('MDBK_PATH')) {
+                define( 'MDBK_PATH', plugin_dir_path( __FILE__ ) );
             }
 
+            self::include_plugin_files();
+            
+            $cpt = new \MDBK\MDBK_CPT();
+            $cpt->create_taxonomy();
+            $cpt->create_post_type();
+            
+            \MDBK\MDBK_Seeder::seed_data();
+
+            update_option( 'rewrite_rules', '' );
             flush_rewrite_rules();
         }
 
