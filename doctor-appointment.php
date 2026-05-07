@@ -84,6 +84,12 @@ if ( ! class_exists( 'MDBK_Doctor_Appointment' ) ) {
         public function enqueue_scripts() {
             wp_enqueue_style( 'mdbk-form-style', MDBK_URL . 'assets/css/form-style.css', array(), MDBK_VERSION );
             wp_enqueue_style( 'mdbk-queue-style', MDBK_URL . 'assets/css/queue-style.css', array(), MDBK_VERSION );
+            
+            wp_enqueue_script( 'mdbk-form-script', MDBK_URL . 'assets/js/form-script.js', array(), MDBK_VERSION, true );
+            wp_localize_script( 'mdbk-form-script', 'mdbk_form_obj', [
+                'ajax_url' => admin_url( 'admin-ajax.php' ),
+                'nonce'    => wp_create_nonce( 'mdbk_form_nonce' )
+            ]);
         }
 
 

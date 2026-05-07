@@ -76,7 +76,7 @@ class MDBK_Shortcode {
                     <div class="mdbk-specialty-options">
                         <?php foreach ($specialties as $index => $spec): ?>
                             <div class="mdbk-specialty-item">
-                                <input type="radio" name="specialty" id="spec-<?php echo $spec->term_id; ?>" value="<?php echo $spec->term_id; ?>" <?php echo $index === 0 ? 'checked' : ''; ?>>
+                                <input type="radio" name="specialty" id="spec-<?php echo $spec->term_id; ?>" class="mdbk-specialty-radio" value="<?php echo $spec->term_id; ?>" <?php echo $index === 0 ? 'checked' : ''; ?>>
                                 <label for="spec-<?php echo $spec->term_id; ?>"><?php echo $spec->name; ?></label>
                             </div>
                         <?php endforeach; ?>
@@ -86,7 +86,7 @@ class MDBK_Shortcode {
                 <!-- Doctor -->
                 <div class="mdbk-form-group">
                     <label><?php _e('Doctor', 'doctor-appointment'); ?></label>
-                    <select name="doctor" class="mdbk-form-control" required>
+                    <select name="doctor" id="mdbk-doctor-select" class="mdbk-form-control" required>
                         <option value=""><?php _e('Select a practitioner', 'doctor-appointment'); ?></option>
                         <?php foreach ($doctors as $doctor): ?>
                             <option value="<?php echo $doctor->ID; ?>"><?php echo $doctor->post_title; ?></option>

@@ -10,6 +10,10 @@ class MDBK_Appointment_Manager {
         add_action('save_post', [$this, 'save_meta_boxes']);
         add_filter('manage_mdbk_appointment_posts_columns', [$this, 'add_columns']);
         add_action('manage_mdbk_appointment_posts_custom_column', [$this, 'render_columns'], 10, 2);
+        
+        // AJAX handlers
+        add_action('wp_ajax_mdbk_get_doctors_by_specialty', [$this, 'get_doctors_by_specialty']);
+        add_action('wp_ajax_nopriv_mdbk_get_doctors_by_specialty', [$this, 'get_doctors_by_specialty']);
     }
 
     /**
@@ -203,6 +207,37 @@ class MDBK_Appointment_Manager {
         update_post_meta($appointment_id, '_mdbk_symptoms', sanitize_textarea_field($data['symptoms']));
 
         return $appointment_id;
+    }
+
+    /**
+     * AJAX: Get Doctors by Specialty
+     */
+    public function get_doctors_by_specialty() {
+        check_ajax_referer('mdbk_form_nonce', 'nonce');
+        
+        $spec_id = intval($_POST['specialty_id']);
+        
+        $doctors = get_posts([
+            'post_type' => 'mdbk_doctor',
+            'numberposts' => -1,
+            'tax_query' => [
+                [
+                    'taxonomy' => 'mdbk_department',
+                    'field'    => 'term_id',
+                    'terms'    => $spec_id
+                ]
+            ]
+        ]);
+
+        $options = '<option value="">' . __('Select a practitioner', 'doctor-appointment') . '</option>';
+        if ($doctors) {
+            foreach ($doctors as $doctor) {
+                $options .= sprintf('<option value="%d">%s</option>', $doctor->ID, $doctor->post_title);
+            }
+            wp_send_json_success($options);
+        } else {
+            wp_send_json_error(__('No doctors found for this specialty.', 'doctor-appointment'));
+        }
     }
 }
 
