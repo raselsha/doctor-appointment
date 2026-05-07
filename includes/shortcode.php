@@ -60,11 +60,11 @@ class MDBK_Shortcode {
             <p class="description"><?php _e('Fill in the details below to schedule your consultation.', 'doctor-appointment'); ?></p>
 
             <?php if ($success_msg): ?>
-                <div class="mdbk-message mdbk-success"><?php echo $success_msg; ?></div>
+                <div class="mdbk-message mdbk-success"><?php echo esc_html($success_msg); ?></div>
             <?php endif; ?>
 
             <?php if ($error_msg): ?>
-                <div class="mdbk-message mdbk-error"><?php echo $error_msg; ?></div>
+                <div class="mdbk-message mdbk-error"><?php echo esc_html($error_msg); ?></div>
             <?php endif; ?>
 
             <form action="" method="POST">
@@ -76,8 +76,8 @@ class MDBK_Shortcode {
                     <div class="mdbk-specialty-options">
                         <?php foreach ($specialties as $index => $spec): ?>
                             <div class="mdbk-specialty-item">
-                                <input type="radio" name="specialty" id="spec-<?php echo $spec->term_id; ?>" class="mdbk-specialty-radio" value="<?php echo $spec->term_id; ?>" <?php echo $index === 0 ? 'checked' : ''; ?>>
-                                <label for="spec-<?php echo $spec->term_id; ?>"><?php echo $spec->name; ?></label>
+                                <input type="radio" name="specialty" id="spec-<?php echo esc_attr($spec->term_id); ?>" class="mdbk-specialty-radio" value="<?php echo esc_attr($spec->term_id); ?>" <?php echo $index === 0 ? 'checked' : ''; ?>>
+                                <label for="spec-<?php echo esc_attr($spec->term_id); ?>"><?php echo esc_html($spec->name); ?></label>
                             </div>
                         <?php endforeach; ?>
                     </div>
@@ -89,7 +89,7 @@ class MDBK_Shortcode {
                     <select name="doctor" id="mdbk-doctor-select" class="mdbk-form-control" required>
                         <option value=""><?php _e('Select a practitioner', 'doctor-appointment'); ?></option>
                         <?php foreach ($doctors as $doctor): ?>
-                            <option value="<?php echo $doctor->ID; ?>"><?php echo $doctor->post_title; ?></option>
+                            <option value="<?php echo esc_attr($doctor->ID); ?>"><?php echo esc_html($doctor->post_title); ?></option>
                         <?php endforeach; ?>
                     </select>
                 </div>
@@ -97,18 +97,18 @@ class MDBK_Shortcode {
                 <!-- Full Name -->
                 <div class="mdbk-form-group">
                     <label><?php _e('Full Name', 'doctor-appointment'); ?></label>
-                    <input type="text" name="full_name" class="mdbk-form-control" placeholder="e.g. John Doe" required>
+                    <input type="text" name="full_name" class="mdbk-form-control" placeholder="<?php esc_attr_e('e.g. John Doe', 'doctor-appointment'); ?>" required>
                 </div>
 
                 <!-- Age & Mobile -->
                 <div class="mdbk-form-row">
                     <div class="mdbk-form-group">
                         <label><?php _e('Age', 'doctor-appointment'); ?></label>
-                        <input type="number" name="age" class="mdbk-form-control" placeholder="Age">
+                        <input type="number" name="age" class="mdbk-form-control" placeholder="<?php esc_attr_e('Age', 'doctor-appointment'); ?>">
                     </div>
                     <div class="mdbk-form-group">
                         <label><?php _e('Mobile Number', 'doctor-appointment'); ?></label>
-                        <input type="text" name="mobile" class="mdbk-form-control" placeholder="+1 (555) 000-0000" required>
+                        <input type="text" name="mobile" class="mdbk-form-control" placeholder="<?php esc_attr_e('+1 (555) 000-0000', 'doctor-appointment'); ?>" required>
                     </div>
                 </div>
 
@@ -140,7 +140,7 @@ class MDBK_Shortcode {
                 <!-- Symptoms -->
                 <div class="mdbk-form-group">
                     <label><?php _e('Description of Symptoms', 'doctor-appointment'); ?></label>
-                    <textarea name="symptoms" class="mdbk-form-control" rows="4" placeholder="Briefly describe your symptoms or reason for visit..."></textarea>
+                    <textarea name="symptoms" class="mdbk-form-control" rows="4" placeholder="<?php esc_attr_e('Briefly describe your symptoms...', 'doctor-appointment'); ?>"></textarea>
                 </div>
 
                 <button type="submit" name="mdbk_submit_appointment" class="mdbk-submit-btn">
@@ -167,7 +167,7 @@ class MDBK_Shortcode {
             update_post_meta($appointment_id, '_mdbk_status', $new_status);
         }
 
-        // Fetch Queue Data (More robust query)
+        // Fetch Queue Data
         $waiting_patients = get_posts([
             'post_type'      => 'mdbk_appointment',
             'meta_query'     => [
@@ -194,12 +194,11 @@ class MDBK_Shortcode {
             'numberposts' => 1
         ]);
 
-        // Auto-promote first waiting to serving if none is serving
         if (empty($serving_patient) && !empty($waiting_patients)) {
             $next_up = $waiting_patients[0];
             update_post_meta($next_up->ID, '_mdbk_status', 'serving');
             $serving_patient = [$next_up];
-            array_shift($waiting_patients); // Remove from upcoming
+            array_shift($waiting_patients);
         }
 
         $serving = !empty($serving_patient) ? $serving_patient[0] : null;
@@ -211,7 +210,6 @@ class MDBK_Shortcode {
                 <p><?php _e('Real-time patient flow.', 'doctor-appointment'); ?></p>
             </div>
 
-            <!-- Stats -->
             <div class="mdbk-queue-stats">
                 <div class="mdbk-stat-content">
                     <h3><?php _e('Active Queue', 'doctor-appointment'); ?></h3>
@@ -220,10 +218,9 @@ class MDBK_Shortcode {
                         <span><?php _e('Patients waiting', 'doctor-appointment'); ?></span>
                     </div>
                 </div>
-                <div class="mdbk-badge-live">Live</div>
+                <div class="mdbk-badge-live"><?php _e('Live', 'doctor-appointment'); ?></div>
             </div>
 
-            <!-- Now Serving -->
             <div class="mdbk-now-serving">
                 <div class="mdbk-serving-label"><?php _e('Now Serving', 'doctor-appointment'); ?></div>
                 <div class="mdbk-serving-info">
@@ -238,25 +235,18 @@ class MDBK_Shortcode {
                         <div class="mdbk-serving-actions">
                             <form action="" method="POST">
                                 <?php wp_nonce_field('mdbk_manage_queue', 'mdbk_queue_nonce'); ?>
-                                <input type="hidden" name="appointment_id" value="<?php echo $serving->ID; ?>">
+                                <input type="hidden" name="appointment_id" value="<?php echo esc_attr($serving->ID); ?>">
                                 <input type="hidden" name="mdbk_update_status" value="1">
-                                <button type="submit" name="new_status" value="completed" class="mdbk-btn-complete">
-                                    <?php _e('Complete', 'doctor-appointment'); ?>
-                                </button>
-                                <button type="submit" name="new_status" value="no-show" class="mdbk-btn-noshow">
-                                    <?php _e('No Show', 'doctor-appointment'); ?>
-                                </button>
+                                <button type="submit" name="new_status" value="completed" class="mdbk-btn-complete"><?php _e('Complete', 'doctor-appointment'); ?></button>
+                                <button type="submit" name="new_status" value="no-show" class="mdbk-btn-noshow"><?php _e('No Show', 'doctor-appointment'); ?></button>
                             </form>
                         </div>
                     <?php else: ?>
-                        <div class="mdbk-empty-serving">
-                            <?php _e('No patient currently being served.', 'doctor-appointment'); ?>
-                        </div>
+                        <div class="mdbk-empty-serving"><?php _e('No patient currently being served.', 'doctor-appointment'); ?></div>
                     <?php endif; ?>
                 </div>
             </div>
 
-            <!-- Upcoming -->
             <div class="mdbk-upcoming-section">
                 <div class="mdbk-section-title">
                     <span><?php _e('Upcoming Patients', 'doctor-appointment'); ?></span>
@@ -277,10 +267,10 @@ class MDBK_Shortcode {
                                 <div class="mdbk-patient-actions">
                                     <form action="" method="POST" style="margin:0;">
                                         <?php wp_nonce_field('mdbk_manage_queue', 'mdbk_queue_nonce'); ?>
-                                        <input type="hidden" name="appointment_id" value="<?php echo $patient->ID; ?>">
+                                        <input type="hidden" name="appointment_id" value="<?php echo esc_attr($patient->ID); ?>">
                                         <input type="hidden" name="mdbk_update_status" value="1">
-                                        <button type="submit" name="new_status" value="serving" class="mdbk-btn-small" title="Serve Now">▶</button>
-                                        <button type="submit" name="new_status" value="no-show" class="mdbk-btn-small mdbk-btn-red" title="No Show">✕</button>
+                                        <button type="submit" name="new_status" value="serving" class="mdbk-btn-small" title="<?php esc_attr_e('Serve Now', 'doctor-appointment'); ?>">▶</button>
+                                        <button type="submit" name="new_status" value="no-show" class="mdbk-btn-small mdbk-btn-red" title="<?php esc_attr_e('No Show', 'doctor-appointment'); ?>">✕</button>
                                     </form>
                                 </div>
                             </div>
@@ -291,13 +281,10 @@ class MDBK_Shortcode {
                 </div>
             </div>
 
-            <a href="?refresh=<?php echo time(); ?>" class="mdbk-refresh-btn">
-                🔄 <?php _e('Refresh Queue', 'doctor-appointment'); ?>
-            </a>
+            <a href="?refresh=<?php echo time(); ?>" class="mdbk-refresh-btn">🔄 <?php _e('Refresh Queue', 'doctor-appointment'); ?></a>
         </div>
         <?php
         return ob_get_clean();
     }
 }
-
 new \MDBK\MDBK_Shortcode();
