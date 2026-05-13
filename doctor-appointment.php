@@ -75,6 +75,7 @@ if ( ! class_exists( 'MDBK_Doctor_Appointment' ) ) {
                 return;
             }
             wp_enqueue_style('mdbk-admin-style', MDBK_URL . 'assets/css/admin-style.css', array(), MDBK_VERSION);
+            wp_enqueue_style('front-end-style', MDBK_URL . 'assets/css/front-end.css', array(), MDBK_VERSION);
             wp_enqueue_script('mdbk-admin-script', MDBK_URL . 'assets/js/admin-script.js', array(), MDBK_VERSION, true);
         }
 

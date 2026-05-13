@@ -8,7 +8,186 @@ class MDBK_Shortcode {
     public function __construct() {
         add_shortcode('mdbk_appointment_form', [$this, 'render_form']);
         add_shortcode('mdbk_queue_management', [$this, 'render_queue']);
+        add_shortcode('mdbk_doctor_list', [$this, 'render_doctor_list']);
     }
+
+    /**
+     * Render Doctor List
+     */
+    public function render_doctor_list($atts = []) {
+
+        $atts = shortcode_atts([
+            'department'  => '',
+            'limit'       => -1,
+            'orderby'     => 'title',
+            'order'       => 'ASC',
+            'booking_url' => '',
+        ], $atts, 'mdbk_doctor_list');
+
+        $args = [
+            'post_type'      => 'mdbk_doctor',
+            'post_status'    => 'publish',
+            'posts_per_page' => intval($atts['limit']),
+            'orderby'        => sanitize_key($atts['orderby']),
+            'order'          => strtoupper($atts['order']) === 'DESC' ? 'DESC' : 'ASC',
+        ];
+
+        if (!empty($atts['department'])) {
+            $args['tax_query'] = [
+                [
+                    'taxonomy' => 'mdbk_department',
+                    'field'    => is_numeric($atts['department']) ? 'term_id' : 'slug',
+                    'terms'    => is_numeric($atts['department']) ? intval($atts['department']) : sanitize_title($atts['department']),
+                ],
+            ];
+        }
+
+        $doctors = new \WP_Query($args);
+
+        $booking_url = !empty($atts['booking_url'])
+            ? esc_url_raw($atts['booking_url'])
+            : get_permalink();
+
+        ob_start();
+    ?>
+
+        <div class="mdbk-doctor-list">
+
+            <?php if ($doctors->have_posts()) : ?>
+
+                <div class="mdbk-doctor-grid">
+
+                    <?php while ($doctors->have_posts()) : $doctors->the_post();
+
+                        $doctor_id   = get_the_ID();
+                        $email       = get_post_meta($doctor_id, '_mdbk_doc_email', true);
+                        $phone       = get_post_meta($doctor_id, '_mdbk_doc_phone', true);
+                        $schedule    = get_post_meta($doctor_id, '_mdbk_schedule', true);
+                        $departments = get_the_terms($doctor_id, 'mdbk_department');
+                        ?>
+
+                        <article class="mdbk-doctor-card">
+
+                            <div class="mdbk-doctor-top">
+
+                                <?php if (has_post_thumbnail()) : ?>
+                                    <div class="mdbk-doctor-photo">
+                                        <?php the_post_thumbnail('medium_large'); ?>
+                                    </div>
+                                <?php endif; ?>
+
+                                <div class="mdbk-doctor-content">
+
+                                    <?php if (!empty($departments) && !is_wp_error($departments)) : ?>
+                                        <div class="mdbk-doctor-departments">
+                                            <?php foreach ($departments as $department) : ?>
+                                                <span><?php echo esc_html($department->name); ?></span>
+                                            <?php endforeach; ?>
+                                        </div>
+                                    <?php endif; ?>
+
+                                    <h3 class="mdbk-doctor-name">
+                                        <?php the_title(); ?>
+                                    </h3>
+
+                                    <?php if (has_excerpt()) : ?>
+                                        <p class="mdbk-doctor-excerpt">
+                                            <?php echo esc_html(get_the_excerpt()); ?>
+                                        </p>
+                                    <?php endif; ?>
+
+                                    <ul class="mdbk-doctor-contact">
+
+                                        <?php if ($phone) : ?>
+                                            <li>
+                                                <span class="label"><?php _e('Phone', 'doctor-appointment'); ?></span>
+                                                <a href="tel:<?php echo esc_attr(preg_replace('/[^0-9+]/', '', $phone)); ?>">
+                                                    <?php echo esc_html($phone); ?>
+                                                </a>
+                                            </li>
+                                        <?php endif; ?>
+
+                                        <?php if ($email) : ?>
+                                            <li>
+                                                <span class="label"><?php _e('Email', 'doctor-appointment'); ?></span>
+                                                <a href="mailto:<?php echo esc_attr($email); ?>">
+                                                    <?php echo esc_html($email); ?>
+                                                </a>
+                                            </li>
+                                        <?php endif; ?>
+
+                                    </ul>
+
+                                </div>
+                            </div>
+
+                            <?php if (is_array($schedule) && !empty($schedule)) : ?>
+
+                                <div class="mdbk-doctor-schedule">
+
+                                    <h4><?php _e('Availability', 'doctor-appointment'); ?></h4>
+
+                                    <ul>
+
+                                        <?php foreach ($schedule as $day => $time) : ?>
+
+                                            <?php if (!empty($time['active'])) : ?>
+
+                                                <li>
+                                                    <span class="day">
+                                                        <?php echo esc_html($day); ?>
+                                                    </span>
+
+                                                    <span class="time">
+                                                        <?php echo esc_html($time['from'] ?? ''); ?>
+                                                        -
+                                                        <?php echo esc_html($time['to'] ?? ''); ?>
+                                                    </span>
+                                                </li>
+
+                                            <?php endif; ?>
+
+                                        <?php endforeach; ?>
+
+                                    </ul>
+
+                                </div>
+
+                            <?php endif; ?>
+
+                            <div class="mdbk-doctor-footer">
+
+                                <a class="mdbk-doctor-book-btn"
+                                href="<?php echo esc_url(add_query_arg('doctor', $doctor_id, $booking_url)); ?>">
+
+                                    <?php _e('Book Appointment', 'doctor-appointment'); ?>
+
+                                </a>
+
+                            </div>
+
+                        </article>
+
+                    <?php endwhile; ?>
+
+                </div>
+
+                <?php wp_reset_postdata(); ?>
+
+            <?php else : ?>
+
+                <p class="mdbk-no-doctors">
+                    <?php _e('No doctors found.', 'doctor-appointment'); ?>
+                </p>
+
+            <?php endif; ?>
+
+        </div>
+
+    <?php
+
+    return ob_get_clean();
+}
 
     /**
      * Render the Appointment Form
@@ -53,6 +232,7 @@ class MDBK_Shortcode {
             'post_type'   => 'mdbk_doctor',
             'numberposts' => -1,
         ]);
+        $selected_doctor = isset($_GET['doctor']) ? absint(wp_unslash($_GET['doctor'])) : 0;
 
         ?>
         <div class="mdbk-booking-form">
@@ -89,7 +269,7 @@ class MDBK_Shortcode {
                     <select name="doctor" id="mdbk-doctor-select" class="mdbk-form-control" required>
                         <option value=""><?php _e('Select a practitioner', 'doctor-appointment'); ?></option>
                         <?php foreach ($doctors as $doctor): ?>
-                            <option value="<?php echo esc_attr($doctor->ID); ?>"><?php echo esc_html($doctor->post_title); ?></option>
+                            <option value="<?php echo esc_attr($doctor->ID); ?>" <?php selected($selected_doctor, $doctor->ID); ?>><?php echo esc_html($doctor->post_title); ?></option>
                         <?php endforeach; ?>
                     </select>
                 </div>
