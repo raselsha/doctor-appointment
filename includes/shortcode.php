@@ -277,7 +277,7 @@ class MDBK_Shortcode {
                 <!-- Full Name -->
                 <div class="mdbk-form-group">
                     <label><?php _e('Full Name', 'doctor-appointment'); ?></label>
-                    <input type="text" name="full_name" class="mdbk-form-control" placeholder="<?php esc_attr_e('e.g. John Doe', 'doctor-appointment'); ?>" required>
+                    <input type="text" name="full_name" class="mdbk-form-control" placeholder="<?php esc_attr_e('e.g. Shafiul Islam', 'doctor-appointment'); ?>" required>
                 </div>
 
                 <!-- Age & Mobile -->
@@ -288,7 +288,7 @@ class MDBK_Shortcode {
                     </div>
                     <div class="mdbk-form-group">
                         <label><?php _e('Mobile Number', 'doctor-appointment'); ?></label>
-                        <input type="text" name="mobile" class="mdbk-form-control" placeholder="<?php esc_attr_e('+1 (555) 000-0000', 'doctor-appointment'); ?>" required>
+                        <input type="text" name="mobile" class="mdbk-form-control" placeholder="<?php esc_attr_e('01737266685', 'doctor-appointment'); ?>" required>
                     </div>
                 </div>
 
@@ -304,10 +304,10 @@ class MDBK_Shortcode {
                             <input type="radio" name="gender" id="gender-female" value="Female">
                             <label for="gender-female"><?php _e('Female', 'doctor-appointment'); ?></label>
                         </div>
-                        <div class="mdbk-gender-item">
+                        <!-- <div class="mdbk-gender-item">
                             <input type="radio" name="gender" id="gender-other" value="Other">
                             <label for="gender-other"><?php _e('Other', 'doctor-appointment'); ?></label>
-                        </div>
+                        </div> -->
                     </div>
                 </div>
 
