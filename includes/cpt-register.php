@@ -8,11 +8,69 @@ namespace MDBK;
 defined('ABSPATH') || exit;
 
 class MDBK_CPT {
-    
+
+    /**
+     * All registered appointment lifecycle statuses.
+     *
+     * Use this instead of post_status => 'any' anywhere mdbk_appointment is
+     * queried by status — 'any' silently excludes exclude_from_search statuses.
+     */
+    const APPOINTMENT_STATUSES = [ 'mdbk_waiting', 'mdbk_serving', 'mdbk_completed', 'mdbk_no_show' ];
+
     public function __construct() {
         add_action( 'init', [$this, 'create_post_type'] );
         add_action( 'init', [$this, 'create_taxonomy'] );
+        add_action( 'init', [$this, 'register_appointment_statuses'] );
         add_action( 'admin_menu', [$this, 'remove_default_menus'], 999 );
+    }
+
+    /**
+     * Register Appointment Lifecycle Statuses
+     *
+     * Note: exclude_from_search => true means WP_Query's post_status => 'any'
+     * silently drops these statuses. Callers must always pass an explicit
+     * status array (see MDBK_APPOINTMENT_STATUSES) instead of relying on 'any'.
+     */
+    public function register_appointment_statuses() {
+        register_post_status( 'mdbk_waiting', [
+            'label'                     => _x( 'Waiting', 'appointment status', 'doctor-appointment' ),
+            'public'                    => false,
+            'internal'                  => true,
+            'exclude_from_search'       => true,
+            'show_in_admin_all_list'    => true,
+            'show_in_admin_status_list' => true,
+            'label_count'               => _n_noop( 'Waiting <span class="count">(%s)</span>', 'Waiting <span class="count">(%s)</span>', 'doctor-appointment' ),
+        ] );
+
+        register_post_status( 'mdbk_serving', [
+            'label'                     => _x( 'Serving', 'appointment status', 'doctor-appointment' ),
+            'public'                    => false,
+            'internal'                  => true,
+            'exclude_from_search'       => true,
+            'show_in_admin_all_list'    => true,
+            'show_in_admin_status_list' => true,
+            'label_count'               => _n_noop( 'Serving <span class="count">(%s)</span>', 'Serving <span class="count">(%s)</span>', 'doctor-appointment' ),
+        ] );
+
+        register_post_status( 'mdbk_completed', [
+            'label'                     => _x( 'Completed', 'appointment status', 'doctor-appointment' ),
+            'public'                    => false,
+            'internal'                  => true,
+            'exclude_from_search'       => true,
+            'show_in_admin_all_list'    => true,
+            'show_in_admin_status_list' => true,
+            'label_count'               => _n_noop( 'Completed <span class="count">(%s)</span>', 'Completed <span class="count">(%s)</span>', 'doctor-appointment' ),
+        ] );
+
+        register_post_status( 'mdbk_no_show', [
+            'label'                     => _x( 'No Show', 'appointment status', 'doctor-appointment' ),
+            'public'                    => false,
+            'internal'                  => true,
+            'exclude_from_search'       => true,
+            'show_in_admin_all_list'    => true,
+            'show_in_admin_status_list' => true,
+            'label_count'               => _n_noop( 'No Show <span class="count">(%s)</span>', 'No Show <span class="count">(%s)</span>', 'doctor-appointment' ),
+        ] );
     }
 
     /**

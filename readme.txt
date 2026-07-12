@@ -4,7 +4,7 @@ Donate link: https://shahadat.com.bd
 Tags: doctor, appointment, booking, medical, clinic, hospital, patient, schedule
 Requires at least: 5.0
 Tested up to: 6.4
-Stable tag: 1.0.0
+Stable tag: 1.1.0
 Requires PHP: 7.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -50,6 +50,16 @@ Look for the "MedBook" icon in your WordPress sidebar. It provides a full-screen
 4. Doctor Availability and Schedule Setup.
 
 == Changelog ==
+
+= 1.1.0 =
+* Added real time-slot booking (per-doctor slot duration) with server-side double-booking prevention.
+* Fixed: frontend bookings now always create/link a Patient CRM record (previously only admin-created bookings did).
+* Appointment lifecycle now uses registered post statuses instead of a plain meta field, enabling reliable status-change notifications.
+* Queue: fixed a bug where simply viewing the queue page could silently advance the line; replaced with an explicit "Call Next" action.
+* Queue: now scoped to today and per-doctor, with real sequential ticket numbers, live AJAX auto-refresh, and truncated patient names on the public display.
+* Added email notifications for booking confirmation, "you're up next", and visit completion.
+* Added a Front Desk role that can run the queue and manage bookings without full admin access.
+* Fixed missing CSRF protection on admin delete actions.
 
 = 1.0.0 =
 * Initial release.

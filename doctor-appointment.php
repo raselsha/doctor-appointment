@@ -3,7 +3,7 @@
  * Plugin Name: Doctor Appointment Booking
  * Plugin URI: https://wordpress.org/plugins/doctor-appointment
  * Description: Create doctor appointment booking forms for clinics, hospitals, and medical centers with an easy scheduling system.
- * Version: 1.0.0
+ * Version: 1.1.0
  * Stable Tag: trunk
  * Requires at least: 5.0
  * Requires PHP: 7.2
@@ -43,6 +43,9 @@ if ( ! class_exists( 'MDBK_Doctor_Appointment' ) ) {
             $this->include_plugin_files();
             add_action( 'wp_enqueue_scripts', array( $this, 'enqueue_scripts' ) );
             add_action( 'admin_enqueue_scripts', array( $this, 'admin_enqueue_scripts' ) );
+            // Self-heals existing installs that pull code updates without
+            // reactivating the plugin (activate() alone would miss them).
+            add_action( 'init', array( '\MDBK\MDBK_Migrations', 'maybe_migrate' ), 20 );
         }
 
         /**
@@ -52,7 +55,8 @@ if ( ! class_exists( 'MDBK_Doctor_Appointment' ) ) {
 
             define( 'MDBK_PATH', plugin_dir_path( __FILE__ ) );
             define( 'MDBK_URL', plugin_dir_url( __FILE__ ) );
-            define( 'MDBK_VERSION', '1.0.0' );
+            define( 'MDBK_VERSION', '1.1.0' );
+            define( 'MDBK_CAP_QUEUE', 'manage_mdbk_queue' );
         }
 
         /**
@@ -61,9 +65,12 @@ if ( ! class_exists( 'MDBK_Doctor_Appointment' ) ) {
         public static function include_plugin_files() {
 
             require_once MDBK_PATH . 'includes/cpt-register.php';
+            require_once MDBK_PATH . 'includes/migrations.php';
+            require_once MDBK_PATH . 'includes/roles.php';
             require_once MDBK_PATH . 'includes/shortcode.php';
             require_once MDBK_PATH . 'includes/appointment-manager.php';
             require_once MDBK_PATH . 'includes/admin-dashboard.php';
+            require_once MDBK_PATH . 'includes/notifications.php';
             require_once MDBK_PATH . 'includes/seeder.php';
         }
 
@@ -74,19 +81,24 @@ if ( ! class_exists( 'MDBK_Doctor_Appointment' ) ) {
             if (strpos($hook, 'mdbk') === false) {
                 return;
             }
+            $admin_js_ver = filemtime(MDBK_PATH . 'assets/js/admin-script.js');
             wp_enqueue_style('mdbk-admin-style', MDBK_URL . 'assets/css/admin-style.css', array(), MDBK_VERSION);
             wp_enqueue_style('front-end-style', MDBK_URL . 'assets/css/front-end.css', array(), MDBK_VERSION);
-            wp_enqueue_script('mdbk-admin-script', MDBK_URL . 'assets/js/admin-script.js', array(), MDBK_VERSION, true);
+            wp_enqueue_script('mdbk-admin-script', MDBK_URL . 'assets/js/admin-script.js', array(), $admin_js_ver, true);
         }
 
         /**
          * Enqueue Styles and Scripts
          */
         public function enqueue_scripts() {
+            $form_js_ver = filemtime(MDBK_PATH . 'assets/js/form-script.js');
+            wp_enqueue_style( 'mdbk-flatpickr', 'https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css', array(), '4.6.13' );
+            wp_enqueue_style( 'mdbk-front-end', MDBK_URL . 'assets/css/front-end.css', array(), MDBK_VERSION );
             wp_enqueue_style( 'mdbk-form-style', MDBK_URL . 'assets/css/form-style.css', array(), MDBK_VERSION );
             wp_enqueue_style( 'mdbk-queue-style', MDBK_URL . 'assets/css/queue-style.css', array(), MDBK_VERSION );
             
-            wp_enqueue_script( 'mdbk-form-script', MDBK_URL . 'assets/js/form-script.js', array(), MDBK_VERSION, true );
+            wp_enqueue_script( 'mdbk-flatpickr', 'https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.js', array(), '4.6.13', true );
+            wp_enqueue_script( 'mdbk-form-script', MDBK_URL . 'assets/js/form-script.js', array( 'mdbk-flatpickr' ), $form_js_ver, true );
             wp_localize_script( 'mdbk-form-script', 'mdbk_form_obj', [
                 'ajax_url' => admin_url( 'admin-ajax.php' ),
                 'nonce'    => wp_create_nonce( 'mdbk_form_nonce' )
@@ -104,11 +116,14 @@ if ( ! class_exists( 'MDBK_Doctor_Appointment' ) ) {
             }
 
             self::include_plugin_files();
-            
+
             $cpt = new \MDBK\MDBK_CPT();
             $cpt->create_taxonomy();
             $cpt->create_post_type();
-            
+            $cpt->register_appointment_statuses();
+
+            \MDBK\MDBK_Roles::activate();
+            \MDBK\MDBK_Migrations::maybe_migrate();
             \MDBK\MDBK_Seeder::seed_data();
 
             update_option( 'rewrite_rules', '' );
@@ -128,6 +143,12 @@ if ( ! class_exists( 'MDBK_Doctor_Appointment' ) ) {
          */
         public static function uninstall() {
 
+            if (!defined('MDBK_PATH')) {
+                define( 'MDBK_PATH', plugin_dir_path( __FILE__ ) );
+            }
+            require_once MDBK_PATH . 'includes/roles.php';
+            \MDBK\MDBK_Roles::uninstall();
+
             unregister_post_type( 'mdbk_appointment' );
 
             delete_option( 'mdbk_archive_template_lists' );
@@ -136,6 +157,8 @@ if ( ! class_exists( 'MDBK_Doctor_Appointment' ) ) {
             delete_option( 'mdbk_archive_template' );
             delete_option( 'mdbk_archive_booking' );
             delete_option( 'mdbk_css_colors' );
+            delete_option( 'mdbk_db_version' );
+            delete_option( 'mdbk_dummy_data_seeded' );
         }
     }
 }

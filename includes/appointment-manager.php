@@ -5,15 +5,49 @@ defined('ABSPATH') || exit;
 
 class MDBK_Appointment_Manager {
 
+    /**
+     * Map between the plugin's user-facing status vocabulary and the
+     * registered post_status slugs (see MDBK_CPT::register_appointment_statuses).
+     */
+    const STATUS_SLUG_TO_POST_STATUS = [
+        'waiting'   => 'mdbk_waiting',
+        'serving'   => 'mdbk_serving',
+        'completed' => 'mdbk_completed',
+        'no-show'   => 'mdbk_no_show',
+    ];
+
     public function __construct() {
         add_action('add_meta_boxes', [$this, 'register_meta_boxes']);
         add_action('save_post', [$this, 'save_meta_boxes']);
         add_filter('manage_mdbk_appointment_posts_columns', [$this, 'add_columns']);
         add_action('manage_mdbk_appointment_posts_custom_column', [$this, 'render_columns'], 10, 2);
-        
+
         // AJAX handlers
         add_action('wp_ajax_mdbk_get_doctors_by_specialty', [$this, 'get_doctors_by_specialty']);
         add_action('wp_ajax_nopriv_mdbk_get_doctors_by_specialty', [$this, 'get_doctors_by_specialty']);
+        add_action('wp_ajax_mdbk_get_doctor_schedule', [$this, 'get_doctor_schedule']);
+        add_action('wp_ajax_nopriv_mdbk_get_doctor_schedule', [$this, 'get_doctor_schedule']);
+        add_action('wp_ajax_mdbk_get_doctor_slots', [$this, 'ajax_get_doctor_slots']);
+        add_action('wp_ajax_nopriv_mdbk_get_doctor_slots', [$this, 'ajax_get_doctor_slots']);
+        add_action('wp_ajax_mdbk_submit_appointment', [$this, 'ajax_handle_submission']);
+        add_action('wp_ajax_nopriv_mdbk_submit_appointment', [$this, 'ajax_handle_submission']);
+    }
+
+    /**
+     * Convert a user-facing status slug (waiting/serving/completed/no-show)
+     * to its registered post_status (mdbk_waiting/...). Unknown input falls
+     * back to 'mdbk_waiting'.
+     */
+    public static function status_slug_to_post_status($slug) {
+        return isset(self::STATUS_SLUG_TO_POST_STATUS[$slug]) ? self::STATUS_SLUG_TO_POST_STATUS[$slug] : 'mdbk_waiting';
+    }
+
+    /**
+     * Convert a registered post_status back to the user-facing slug.
+     */
+    public static function post_status_to_slug($post_status) {
+        $flipped = array_flip(self::STATUS_SLUG_TO_POST_STATUS);
+        return isset($flipped[$post_status]) ? $flipped[$post_status] : 'waiting';
     }
 
     /**
@@ -40,9 +74,11 @@ class MDBK_Appointment_Manager {
         $patient_age  = get_post_meta($post->ID, '_mdbk_patient_age', true);
         $patient_phone = get_post_meta($post->ID, '_mdbk_patient_phone', true);
         $patient_gender = get_post_meta($post->ID, '_mdbk_patient_gender', true);
-        $status         = get_post_meta($post->ID, '_mdbk_status', true);
-        $status         = $status ? $status : 'waiting';
+        $current_status = get_post_status($post);
+        $status         = in_array($current_status, \MDBK\MDBK_CPT::APPOINTMENT_STATUSES, true) ? self::post_status_to_slug($current_status) : 'waiting';
         $app_date      = get_post_meta($post->ID, '_mdbk_appointment_date', true);
+        $slot_time     = get_post_meta($post->ID, '_mdbk_slot_time', true);
+        $ticket_number = get_post_meta($post->ID, '_mdbk_ticket_number', true);
         $doctor_id     = get_post_meta($post->ID, '_mdbk_doctor_id', true);
         $symptoms      = get_post_meta($post->ID, '_mdbk_symptoms', true);
 
@@ -102,10 +138,23 @@ class MDBK_Appointment_Manager {
                 </select>
             </div>
 
-            <div class="mdbk-meta-field">
-                <label><?php _e('Appointment Date', 'doctor-appointment'); ?></label>
-                <input type="date" name="mdbk_appointment_date" value="<?php echo esc_attr($app_date); ?>">
+            <div style="display: flex; gap: 20px;">
+                <div class="mdbk-meta-field" style="flex: 1;">
+                    <label><?php _e('Appointment Date', 'doctor-appointment'); ?></label>
+                    <input type="date" name="mdbk_appointment_date" value="<?php echo esc_attr($app_date); ?>">
+                </div>
+                <div class="mdbk-meta-field" style="flex: 1;">
+                    <label><?php _e('Slot Time', 'doctor-appointment'); ?></label>
+                    <input type="time" name="mdbk_slot_time" value="<?php echo esc_attr($slot_time); ?>">
+                </div>
             </div>
+
+            <?php if ($ticket_number) : ?>
+            <div class="mdbk-meta-field">
+                <label><?php _e('Ticket Number', 'doctor-appointment'); ?></label>
+                <input type="text" value="<?php echo esc_attr($ticket_number); ?>" disabled>
+            </div>
+            <?php endif; ?>
 
             <div class="mdbk-meta-field">
                 <label><?php _e('Symptoms', 'doctor-appointment'); ?></label>
@@ -124,14 +173,15 @@ class MDBK_Appointment_Manager {
         }
 
         if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) return;
+        if (get_post_type($post_id) !== 'mdbk_appointment') return;
 
         $fields = [
             'mdbk_patient_name'   => '_mdbk_patient_name',
             'mdbk_patient_age'    => '_mdbk_patient_age',
             'mdbk_patient_phone'  => '_mdbk_patient_phone',
             'mdbk_patient_gender' => '_mdbk_patient_gender',
-            'mdbk_status'         => '_mdbk_status',
             'mdbk_appointment_date' => '_mdbk_appointment_date',
+            'mdbk_slot_time'      => '_mdbk_slot_time',
             'mdbk_doctor_id'      => '_mdbk_doctor_id',
             'mdbk_symptoms'       => '_mdbk_symptoms'
         ];
@@ -139,6 +189,16 @@ class MDBK_Appointment_Manager {
         foreach ($fields as $key => $meta_key) {
             if (isset($_POST[$key])) {
                 update_post_meta($post_id, $meta_key, sanitize_text_field($_POST[$key]));
+            }
+        }
+
+        if (isset($_POST['mdbk_status'])) {
+            $post_status = self::status_slug_to_post_status(sanitize_text_field($_POST['mdbk_status']));
+            if ($post_status !== get_post_status($post_id)) {
+                // Avoid re-entering save_post (wp_update_post triggers it again).
+                remove_action('save_post', [$this, 'save_meta_boxes']);
+                wp_update_post(['ID' => $post_id, 'post_status' => $post_status]);
+                add_action('save_post', [$this, 'save_meta_boxes']);
             }
         }
     }
@@ -175,38 +235,328 @@ class MDBK_Appointment_Manager {
                 echo $doctor_id ? get_the_title($doctor_id) : '—';
                 break;
             case 'app_date':
-                echo get_post_meta($post_id, '_mdbk_appointment_date', true);
+                $date = get_post_meta($post_id, '_mdbk_appointment_date', true);
+                $slot = get_post_meta($post_id, '_mdbk_slot_time', true);
+                echo esc_html($date . ($slot ? ' ' . $slot : ''));
                 break;
             case 'status':
-                $status = get_post_meta($post_id, '_mdbk_status', true);
-                $status = $status ? $status : 'waiting';
-                echo ucfirst($status);
+                $current_status = get_post_status($post_id);
+                $status = in_array($current_status, \MDBK\MDBK_CPT::APPOINTMENT_STATUSES, true) ? self::post_status_to_slug($current_status) : 'waiting';
+                echo esc_html(ucfirst(str_replace('-', ' ', $status)));
                 break;
         }
     }
 
     /**
-     * Handle Frontend Submission
+     * Find an existing patient by phone, or create one. Central place for
+     * frontend booking, admin booking, and migration backfill to link a
+     * patient record so the CRM is actually complete (not just admin-created
+     * appointments).
      */
-    public static function handle_submission($data) {
-        $appointment_id = wp_insert_post([
+    public static function find_or_create_patient($name, $phone, $extra = []) {
+        $name  = sanitize_text_field($name);
+        $phone = sanitize_text_field($phone);
+
+        $existing = $phone ? get_posts([
+            'post_type'   => 'mdbk_patient',
+            'meta_query'  => [['key' => '_mdbk_patient_phone', 'value' => $phone]],
+            'numberposts' => 1,
+        ]) : [];
+
+        if ($existing) {
+            $patient_id = $existing[0]->ID;
+        } else {
+            $patient_id = wp_insert_post([
+                'post_title'  => $name,
+                'post_type'   => 'mdbk_patient',
+                'post_status' => 'publish',
+            ]);
+            if (is_wp_error($patient_id) || !$patient_id) return 0;
+            update_post_meta($patient_id, '_mdbk_patient_phone', $phone);
+        }
+
+        if (!empty($extra['email'])) {
+            update_post_meta($patient_id, '_mdbk_patient_email', sanitize_email($extra['email']));
+        }
+        if (!empty($extra['address'])) {
+            update_post_meta($patient_id, '_mdbk_patient_address', sanitize_textarea_field($extra['address']));
+        }
+
+        return $patient_id;
+    }
+
+    /**
+     * Generate the doctor's time slots for a given date from their day-level
+     * schedule + slot duration, flagging which are already booked.
+     */
+    public static function get_available_slots($doctor_id, $date) {
+        $doctor_id = intval($doctor_id);
+        if (!$doctor_id || !$date) return [];
+
+        $schedule = get_post_meta($doctor_id, '_mdbk_schedule', true);
+        if (!is_array($schedule)) return [];
+
+        $timestamp = strtotime($date);
+        if (!$timestamp) return [];
+        $day_name = date('l', $timestamp);
+
+        if (empty($schedule[$day_name]['active'])) return [];
+
+        $from = isset($schedule[$day_name]['from']) ? $schedule[$day_name]['from'] : '';
+        $to   = isset($schedule[$day_name]['to']) ? $schedule[$day_name]['to'] : '';
+        if (!$from || !$to) return [];
+
+        $duration = intval(get_post_meta($doctor_id, '_mdbk_slot_duration', true));
+        if (!$duration) $duration = intval(get_option('mdbk_default_slot_duration', 30));
+        if ($duration <= 0) $duration = 30;
+
+        $start = strtotime($date . ' ' . $from);
+        $end   = strtotime($date . ' ' . $to);
+        if (!$start || !$end || $start >= $end) return [];
+
+        $booked = self::get_booked_slot_times($doctor_id, $date);
+
+        $slots = [];
+        for ($t = $start; $t < $end; $t += $duration * 60) {
+            $time_str = date('H:i', $t);
+            $slots[]  = [
+                'time'      => $time_str,
+                'available' => !in_array($time_str, $booked, true),
+            ];
+        }
+        return $slots;
+    }
+
+    /**
+     * Slot times already booked for a doctor+date. no-show frees a slot back
+     * up (excluded here), waiting/serving/completed hold it.
+     */
+    private static function get_booked_slot_times($doctor_id, $date) {
+        $ids = get_posts([
             'post_type'   => 'mdbk_appointment',
-            'post_title'  => sprintf(__('Booking: %s', 'doctor-appointment'), sanitize_text_field($data['full_name'])),
-            'post_status' => 'publish',
+            'post_status' => ['mdbk_waiting', 'mdbk_serving', 'mdbk_completed'],
+            'numberposts' => -1,
+            'fields'      => 'ids',
+            'meta_query'  => [
+                'relation' => 'AND',
+                ['key' => '_mdbk_doctor_id', 'value' => $doctor_id],
+                ['key' => '_mdbk_appointment_date', 'value' => $date],
+            ],
         ]);
 
-        if (is_wp_error($appointment_id)) return false;
+        $times = [];
+        foreach ($ids as $id) {
+            $t = get_post_meta($id, '_mdbk_slot_time', true);
+            if ($t) $times[] = $t;
+        }
+        return $times;
+    }
 
-        update_post_meta($appointment_id, '_mdbk_patient_name', sanitize_text_field($data['full_name']));
-        update_post_meta($appointment_id, '_mdbk_patient_age', sanitize_text_field($data['age']));
-        update_post_meta($appointment_id, '_mdbk_patient_phone', sanitize_text_field($data['mobile']));
-        update_post_meta($appointment_id, '_mdbk_patient_gender', sanitize_text_field($data['gender']));
-        update_post_meta($appointment_id, '_mdbk_status', 'waiting');
-        update_post_meta($appointment_id, '_mdbk_appointment_date', sanitize_text_field($data['date']));
-        update_post_meta($appointment_id, '_mdbk_doctor_id', intval($data['doctor']));
-        update_post_meta($appointment_id, '_mdbk_symptoms', sanitize_textarea_field($data['symptoms']));
+    /**
+     * Whether a doctor+date+slot is already booked. $exclude_id lets an
+     * appointment being edited ignore its own existing booking.
+     */
+    public static function is_slot_taken($doctor_id, $date, $slot_time, $exclude_id = 0) {
+        if (!$slot_time) return false;
 
-        return $appointment_id;
+        $args = [
+            'post_type'   => 'mdbk_appointment',
+            'post_status' => ['mdbk_waiting', 'mdbk_serving', 'mdbk_completed'],
+            'numberposts' => 1,
+            'fields'      => 'ids',
+            'meta_query'  => [
+                'relation' => 'AND',
+                ['key' => '_mdbk_doctor_id', 'value' => $doctor_id],
+                ['key' => '_mdbk_appointment_date', 'value' => $date],
+                ['key' => '_mdbk_slot_time', 'value' => $slot_time],
+            ],
+        ];
+        if ($exclude_id) $args['post__not_in'] = [intval($exclude_id)];
+
+        return !empty(get_posts($args));
+    }
+
+    /**
+     * Next sequential ticket number for a doctor+date. Counts every status
+     * (not just active ones) so a rebooked no-show slot never reuses a
+     * number. $exclude_id must be passed as the appointment's own ID when
+     * its doctor_id/date meta has already been written before this is
+     * called — otherwise it would count itself and be off by one.
+     */
+    public static function next_ticket_number($doctor_id, $date, $exclude_id = 0) {
+        $args = [
+            'post_type'   => 'mdbk_appointment',
+            'post_status' => \MDBK\MDBK_CPT::APPOINTMENT_STATUSES,
+            'numberposts' => -1,
+            'fields'      => 'ids',
+            'meta_query'  => [
+                'relation' => 'AND',
+                ['key' => '_mdbk_doctor_id', 'value' => $doctor_id],
+                ['key' => '_mdbk_appointment_date', 'value' => $date],
+            ],
+        ];
+        if ($exclude_id) $args['post__not_in'] = [intval($exclude_id)];
+
+        return count(get_posts($args)) + 1;
+    }
+
+    /**
+     * Best-effort soft lock around the slot-conflict-check + insert critical
+     * section. Not a hard atomicity guarantee (no new table for a real
+     * mutex) — good enough for realistic front-desk concurrency.
+     */
+    private static function acquire_slot_lock($doctor_id, $date, $slot_time) {
+        if (!$slot_time) return true;
+
+        $key = 'mdbk_slot_lock_' . md5($doctor_id . '|' . $date . '|' . $slot_time);
+        for ($i = 0; $i < 5; $i++) {
+            if (false === get_transient($key)) {
+                set_transient($key, 1, 10);
+                return true;
+            }
+            usleep(100000);
+        }
+        return false;
+    }
+
+    private static function release_slot_lock($doctor_id, $date, $slot_time) {
+        if (!$slot_time) return;
+        delete_transient('mdbk_slot_lock_' . md5($doctor_id . '|' . $date . '|' . $slot_time));
+    }
+
+    /**
+     * Handle Frontend Submission
+     *
+     * Single source of truth for creating an appointment — used by the AJAX
+     * booking modal, the legacy plain-POST form, and (for new bookings only)
+     * the admin dashboard's appointment save handler. Returns the new
+     * appointment ID, or a WP_Error on validation/conflict failure.
+     *
+     * @return int|\WP_Error
+     */
+    public static function handle_submission($data) {
+        $doctor_id = isset($data['doctor']) ? intval($data['doctor']) : 0;
+        $date      = isset($data['date']) ? sanitize_text_field($data['date']) : '';
+        $slot_time = isset($data['slot_time']) ? sanitize_text_field($data['slot_time']) : '';
+        $name      = isset($data['full_name']) ? sanitize_text_field($data['full_name']) : '';
+        $phone     = isset($data['mobile']) ? sanitize_text_field($data['mobile']) : '';
+        $email     = isset($data['email']) ? sanitize_email($data['email']) : '';
+
+        if (!self::acquire_slot_lock($doctor_id, $date, $slot_time)) {
+            return new \WP_Error('mdbk_slot_locked', __('This slot is being booked by someone else right now. Please try again.', 'doctor-appointment'));
+        }
+
+        try {
+            if (self::is_slot_taken($doctor_id, $date, $slot_time)) {
+                return new \WP_Error('mdbk_slot_taken', __('That time slot is no longer available. Please choose another.', 'doctor-appointment'));
+            }
+
+            $patient_id = self::find_or_create_patient($name, $phone, ['email' => $email]);
+
+            // Insert as a plain draft first — inserting directly with
+            // post_status 'mdbk_waiting' would fire transition_post_status
+            // (and thus the booking-confirmation email) before any of the
+            // meta below exists, leaving the notification with nothing to
+            // send to/about. Meta first, then transition to mdbk_waiting.
+            $appointment_id = wp_insert_post([
+                'post_type'   => 'mdbk_appointment',
+                'post_title'  => sprintf(__('Booking: %s', 'doctor-appointment'), $name),
+                'post_status' => 'draft',
+            ]);
+
+            if (is_wp_error($appointment_id)) {
+                return $appointment_id;
+            }
+
+            update_post_meta($appointment_id, '_mdbk_patient_id', $patient_id);
+            update_post_meta($appointment_id, '_mdbk_patient_name', $name);
+            update_post_meta($appointment_id, '_mdbk_patient_age', isset($data['age']) ? sanitize_text_field($data['age']) : '');
+            update_post_meta($appointment_id, '_mdbk_patient_phone', $phone);
+            update_post_meta($appointment_id, '_mdbk_patient_gender', isset($data['gender']) ? sanitize_text_field($data['gender']) : '');
+            update_post_meta($appointment_id, '_mdbk_patient_email', $email);
+            update_post_meta($appointment_id, '_mdbk_appointment_date', $date);
+            update_post_meta($appointment_id, '_mdbk_slot_time', $slot_time);
+            update_post_meta($appointment_id, '_mdbk_doctor_id', $doctor_id);
+            update_post_meta($appointment_id, '_mdbk_symptoms', isset($data['symptoms']) ? sanitize_textarea_field($data['symptoms']) : '');
+            update_post_meta($appointment_id, '_mdbk_ticket_number', self::next_ticket_number($doctor_id, $date, $appointment_id));
+
+            wp_update_post(['ID' => $appointment_id, 'post_status' => 'mdbk_waiting']);
+
+            return $appointment_id;
+        } finally {
+            self::release_slot_lock($doctor_id, $date, $slot_time);
+        }
+    }
+
+    /**
+     * AJAX: Handle Frontend Form Submission
+     */
+    public function ajax_handle_submission() {
+        check_ajax_referer('mdbk_form_nonce', 'nonce');
+
+        $required = ['full_name', 'mobile', 'doctor', 'date', 'slot_time', 'email'];
+        foreach ($required as $field) {
+            if (empty($_POST[$field])) {
+                wp_send_json_error(__('Please fill in all required fields.', 'doctor-appointment'));
+                return;
+            }
+        }
+
+        if (!is_email($_POST['email'])) {
+            wp_send_json_error(__('Please enter a valid email address.', 'doctor-appointment'));
+            return;
+        }
+
+        $appointment_id = self::handle_submission($_POST);
+
+        if (is_wp_error($appointment_id)) {
+            wp_send_json_error($appointment_id->get_error_message());
+        } elseif ($appointment_id) {
+            wp_send_json_success(__('Appointment booked successfully! We will contact you soon.', 'doctor-appointment'));
+        } else {
+            wp_send_json_error(__('Something went wrong. Please try again.', 'doctor-appointment'));
+        }
+    }
+
+    /**
+     * AJAX: Get Doctor's Available Time Slots for a Date
+     */
+    public function ajax_get_doctor_slots() {
+        check_ajax_referer('mdbk_form_nonce', 'nonce');
+
+        $doctor_id = intval($_POST['doctor_id']);
+        $date      = isset($_POST['date']) ? sanitize_text_field($_POST['date']) : '';
+
+        wp_send_json_success(self::get_available_slots($doctor_id, $date));
+    }
+
+    /**
+     * AJAX: Get Doctor Schedule (off days for calendar)
+     */
+    public function get_doctor_schedule() {
+        check_ajax_referer('mdbk_form_nonce', 'nonce');
+
+        $doctor_id = intval($_POST['doctor_id']);
+        $schedule = get_post_meta($doctor_id, '_mdbk_schedule', true);
+
+        if (!is_array($schedule)) {
+            wp_send_json_success([]);
+            return;
+        }
+
+        $day_map = [
+            'Sunday' => 0, 'Monday' => 1, 'Tuesday' => 2, 'Wednesday' => 3,
+            'Thursday' => 4, 'Friday' => 5, 'Saturday' => 6
+        ];
+
+        $off_days = [];
+        foreach ($day_map as $day_name => $day_num) {
+            if (!isset($schedule[$day_name]) || empty($schedule[$day_name]['active'])) {
+                $off_days[] = $day_num;
+            }
+        }
+
+        wp_send_json_success($off_days);
     }
 
     /**
@@ -217,24 +567,48 @@ class MDBK_Appointment_Manager {
         
         $spec_id = intval($_POST['specialty_id']);
         
-        $doctors = get_posts([
+        $args = [
             'post_type' => 'mdbk_doctor',
             'numberposts' => -1,
-            'tax_query' => [
+        ];
+        if ($spec_id > 0) {
+            $args['tax_query'] = [
                 [
                     'taxonomy' => 'mdbk_department',
                     'field'    => 'term_id',
                     'terms'    => $spec_id
                 ]
-            ]
-        ]);
+            ];
+        }
+        $doctors = get_posts($args);
 
-        $options = '<option value="">' . __('Select a practitioner', 'doctor-appointment') . '</option>';
+        $doctor_data = [];
         if ($doctors) {
             foreach ($doctors as $doctor) {
-                $options .= sprintf('<option value="%d">%s</option>', $doctor->ID, $doctor->post_title);
+                $departments = get_the_terms($doctor->ID, 'mdbk_department');
+                $dept_names = $departments && !is_wp_error($departments) ? wp_list_pluck($departments, 'name') : [];
+                
+                $schedule = get_post_meta($doctor->ID, '_mdbk_schedule', true);
+                $available_days = [];
+                if (is_array($schedule)) {
+                    foreach ($schedule as $day => $time) {
+                        if (!empty($time['active'])) {
+                            $available_days[] = $day;
+                        }
+                    }
+                }
+
+                $doctor_data[] = [
+                    'id'              => $doctor->ID,
+                    'name'            => $doctor->post_title,
+                    'specialties'     => $dept_names,
+                    'available_days'  => $available_days,
+                ];
             }
-            wp_send_json_success($options);
+        }
+
+        if ($doctor_data) {
+            wp_send_json_success($doctor_data);
         } else {
             wp_send_json_error(__('No doctors found for this specialty.', 'doctor-appointment'));
         }

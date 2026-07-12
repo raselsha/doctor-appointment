@@ -69,28 +69,32 @@ class MDBK_Seeder {
                 update_post_meta($id, '_mdbk_patient_phone', $p['phone']);
                 update_post_meta($id, '_mdbk_patient_email', $p['email']);
                 update_post_meta($id, '_mdbk_patient_address', $p['address']);
-                $patient_ids[] = ['id' => $id, 'name' => $p['name'], 'phone' => $p['phone']];
+                $patient_ids[] = ['id' => $id, 'name' => $p['name'], 'phone' => $p['phone'], 'email' => $p['email']];
             }
         }
 
         // 4. Seed Appointments (today and tomorrow)
         $statuses = ['waiting', 'serving', 'completed', 'waiting', 'waiting', 'waiting'];
+        $slot_times = ['09:00', '09:30', '10:00', '10:30', '11:00', '11:30'];
         foreach ($patient_ids as $i => $p) {
-            $date = ($i < 3) ? date('Y-m-d') : date('Y-m-d', strtotime('+1 day'));
+            $date = ($i < 3) ? current_time('Y-m-d') : date('Y-m-d', strtotime(current_time('Y-m-d') . ' +1 day'));
             $doc_id = $doctor_ids[$i % count($doctor_ids)];
-            
+            $slot_time = $slot_times[$i % count($slot_times)];
+
             $app_id = wp_insert_post([
-                'post_title' => "Booking: " . $p['name'],
-                'post_type' => 'mdbk_appointment',
-                'post_status' => 'publish'
+                'post_title'  => "Booking: " . $p['name'],
+                'post_type'   => 'mdbk_appointment',
+                'post_status' => MDBK_Appointment_Manager::status_slug_to_post_status($statuses[$i]),
             ]);
             if ($app_id) {
                 update_post_meta($app_id, '_mdbk_patient_id', $p['id']);
                 update_post_meta($app_id, '_mdbk_patient_name', $p['name']);
                 update_post_meta($app_id, '_mdbk_patient_phone', $p['phone']);
+                update_post_meta($app_id, '_mdbk_patient_email', $p['email']);
                 update_post_meta($app_id, '_mdbk_doctor_id', $doc_id);
                 update_post_meta($app_id, '_mdbk_appointment_date', $date);
-                update_post_meta($app_id, '_mdbk_status', $statuses[$i]);
+                update_post_meta($app_id, '_mdbk_slot_time', $slot_time);
+                update_post_meta($app_id, '_mdbk_ticket_number', MDBK_Appointment_Manager::next_ticket_number($doc_id, $date, $app_id));
             }
         }
 

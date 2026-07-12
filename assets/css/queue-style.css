@@ -287,4 +287,35 @@
     padding: 20px;
     border: 2px dashed rgba(255, 255, 255, 0.3);
     border-radius: 12px;
+    margin-bottom: 12px;
+}
+
+.mdbk-queue-doctor-switch {
+    margin: 0 24px 10px 24px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.mdbk-queue-doctor-switch label {
+    font-size: 12px;
+    font-weight: 700;
+    color: #64748b;
+    text-transform: uppercase;
+}
+
+.mdbk-queue-doctor-switch select {
+    flex: 1;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid #e2e8f0;
+    font-size: 14px;
+    background: #fff;
+}
+
+.mdbk-queue-updated {
+    text-align: center;
+    font-size: 11px;
+    color: #94a3b8;
+    padding: 0 24px 24px 24px;
 }

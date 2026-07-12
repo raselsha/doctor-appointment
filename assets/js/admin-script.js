@@ -31,7 +31,20 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('mdbk-doc-name').value = row.dataset.name;
             document.getElementById('mdbk-doc-email').value = row.dataset.email;
             document.getElementById('mdbk-doc-phone').value = row.dataset.phone;
-            
+            (function() {
+                var el = document.getElementById('mdbk-doc-bio');
+                if (el) {
+                    var val = row.getAttribute('data-bio') || '';
+                    el.value = val;
+                }
+            })();
+            var showPhone = document.getElementById('mdbk-show-phone');
+            if (showPhone) showPhone.checked = row.dataset.showPhone !== 'no';
+            var showEmail = document.getElementById('mdbk-show-email');
+            if (showEmail) showEmail.checked = row.dataset.showEmail !== 'no';
+            var slotDuration = document.getElementById('mdbk-doc-slot-duration');
+            if (slotDuration) slotDuration.value = row.dataset.slotDuration || 30;
+
             // Populate Day-wise Schedule
             try {
                 const schedule = JSON.parse(row.dataset.schedule);
@@ -67,8 +80,10 @@ document.addEventListener('DOMContentLoaded', function() {
         if (row) {
             document.getElementById('mdbk-app-patient').value = row.dataset.patient;
             document.getElementById('mdbk-app-phone').value = row.dataset.phone;
+            document.getElementById('mdbk-app-email').value = row.dataset.email || '';
             document.getElementById('mdbk-app-doctor').value = row.dataset.doctor;
             document.getElementById('mdbk-app-date').value = row.dataset.date;
+            document.getElementById('mdbk-app-slot-time').value = row.dataset.slotTime || '';
             document.getElementById('mdbk-app-status').value = row.dataset.status;
         }
     });
