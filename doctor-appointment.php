@@ -82,9 +82,14 @@ if ( ! class_exists( 'MDBK_Doctor_Appointment' ) ) {
                 return;
             }
             $admin_js_ver = filemtime(MDBK_PATH . 'assets/js/admin-script.js');
-            wp_enqueue_style('mdbk-admin-style', MDBK_URL . 'assets/css/admin-style.css', array(), MDBK_VERSION);
-            wp_enqueue_style('front-end-style', MDBK_URL . 'assets/css/front-end.css', array(), MDBK_VERSION);
+            wp_enqueue_media(); // needed for the doctor photo picker's wp.media() uploader
+            wp_enqueue_style('mdbk-admin-style', MDBK_URL . 'assets/css/admin-style.css', array(), filemtime( MDBK_PATH . 'assets/css/admin-style.css' ));
+            wp_enqueue_style('front-end-style', MDBK_URL . 'assets/css/front-end.css', array(), filemtime( MDBK_PATH . 'assets/css/front-end.css' ));
             wp_enqueue_script('mdbk-admin-script', MDBK_URL . 'assets/js/admin-script.js', array(), $admin_js_ver, true);
+            wp_localize_script( 'mdbk-admin-script', 'mdbk_admin_obj', [
+                'ajax_url' => admin_url( 'admin-ajax.php' ),
+                'nonce'    => wp_create_nonce( 'mdbk_admin_nonce' )
+            ]);
         }
 
         /**
@@ -92,13 +97,14 @@ if ( ! class_exists( 'MDBK_Doctor_Appointment' ) ) {
          */
         public function enqueue_scripts() {
             $form_js_ver = filemtime(MDBK_PATH . 'assets/js/form-script.js');
-            wp_enqueue_style( 'mdbk-flatpickr', 'https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css', array(), '4.6.13' );
-            wp_enqueue_style( 'mdbk-front-end', MDBK_URL . 'assets/css/front-end.css', array(), MDBK_VERSION );
-            wp_enqueue_style( 'mdbk-form-style', MDBK_URL . 'assets/css/form-style.css', array(), MDBK_VERSION );
-            wp_enqueue_style( 'mdbk-queue-style', MDBK_URL . 'assets/css/queue-style.css', array(), MDBK_VERSION );
-            
-            wp_enqueue_script( 'mdbk-flatpickr', 'https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.js', array(), '4.6.13', true );
-            wp_enqueue_script( 'mdbk-form-script', MDBK_URL . 'assets/js/form-script.js', array( 'mdbk-flatpickr' ), $form_js_ver, true );
+            wp_enqueue_style( 'mdbk-front-end', MDBK_URL . 'assets/css/front-end.css', array(), filemtime( MDBK_PATH . 'assets/css/front-end.css' ) );
+            wp_enqueue_style( 'mdbk-form-style', MDBK_URL . 'assets/css/form-style.css', array(), filemtime( MDBK_PATH . 'assets/css/form-style.css' ) );
+            wp_enqueue_style( 'mdbk-queue-style', MDBK_URL . 'assets/css/queue-style.css', array(), filemtime( MDBK_PATH . 'assets/css/queue-style.css' ) );
+
+            // Hand-built calendar (no flatpickr) — sidesteps the active theme's
+            // aggressive button/select/input[type=number] resets entirely by
+            // using <span> day cells instead of form controls.
+            wp_enqueue_script( 'mdbk-form-script', MDBK_URL . 'assets/js/form-script.js', array(), $form_js_ver, true );
             wp_localize_script( 'mdbk-form-script', 'mdbk_form_obj', [
                 'ajax_url' => admin_url( 'admin-ajax.php' ),
                 'nonce'    => wp_create_nonce( 'mdbk_form_nonce' )

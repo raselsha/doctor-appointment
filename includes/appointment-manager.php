@@ -16,6 +16,15 @@ class MDBK_Appointment_Manager {
         'no-show'   => 'mdbk_no_show',
     ];
 
+    /**
+     * Bangladeshi mobile number: 11 digits starting 01[3-9], optionally
+     * prefixed with 880 or +880. Enforced on the frontend booking form only
+     * (see ajax_handle_submission()) — not on the shared handle_submission()
+     * static, since the admin dashboard's new-booking flow also routes
+     * through it and shouldn't be constrained to BD numbers.
+     */
+    const BD_MOBILE_REGEX = '/^(?:\+?880|0)1[3-9]\d{8}$/';
+
     public function __construct() {
         add_action('add_meta_boxes', [$this, 'register_meta_boxes']);
         add_action('save_post', [$this, 'save_meta_boxes']);
@@ -25,6 +34,8 @@ class MDBK_Appointment_Manager {
         // AJAX handlers
         add_action('wp_ajax_mdbk_get_doctors_by_specialty', [$this, 'get_doctors_by_specialty']);
         add_action('wp_ajax_nopriv_mdbk_get_doctors_by_specialty', [$this, 'get_doctors_by_specialty']);
+        add_action('wp_ajax_mdbk_get_doctor_info', [$this, 'ajax_get_doctor_info']);
+        add_action('wp_ajax_nopriv_mdbk_get_doctor_info', [$this, 'ajax_get_doctor_info']);
         add_action('wp_ajax_mdbk_get_doctor_schedule', [$this, 'get_doctor_schedule']);
         add_action('wp_ajax_nopriv_mdbk_get_doctor_schedule', [$this, 'get_doctor_schedule']);
         add_action('wp_ajax_mdbk_get_doctor_slots', [$this, 'ajax_get_doctor_slots']);
@@ -307,8 +318,8 @@ class MDBK_Appointment_Manager {
         if (!$from || !$to) return [];
 
         $duration = intval(get_post_meta($doctor_id, '_mdbk_slot_duration', true));
-        if (!$duration) $duration = intval(get_option('mdbk_default_slot_duration', 30));
-        if ($duration <= 0) $duration = 30;
+        if (!$duration) $duration = intval(get_option('mdbk_default_slot_duration', 20));
+        if ($duration <= 0) $duration = 20;
 
         $start = strtotime($date . ' ' . $from);
         $end   = strtotime($date . ' ' . $to);
@@ -494,7 +505,7 @@ class MDBK_Appointment_Manager {
     public function ajax_handle_submission() {
         check_ajax_referer('mdbk_form_nonce', 'nonce');
 
-        $required = ['full_name', 'mobile', 'doctor', 'date', 'slot_time', 'email'];
+        $required = ['full_name', 'mobile', 'doctor', 'date', 'slot_time'];
         foreach ($required as $field) {
             if (empty($_POST[$field])) {
                 wp_send_json_error(__('Please fill in all required fields.', 'doctor-appointment'));
@@ -502,7 +513,12 @@ class MDBK_Appointment_Manager {
             }
         }
 
-        if (!is_email($_POST['email'])) {
+        if (!preg_match(self::BD_MOBILE_REGEX, sanitize_text_field($_POST['mobile']))) {
+            wp_send_json_error(__('Please enter a valid Bangladeshi mobile number (e.g. 01XXXXXXXXX).', 'doctor-appointment'));
+            return;
+        }
+
+        if (!empty($_POST['email']) && !is_email($_POST['email'])) {
             wp_send_json_error(__('Please enter a valid email address.', 'doctor-appointment'));
             return;
         }
@@ -570,6 +586,13 @@ class MDBK_Appointment_Manager {
         $args = [
             'post_type' => 'mdbk_doctor',
             'numberposts' => -1,
+            // Doctors default to active — the meta only ever gets written (to 'no')
+            // once someone flips a card's toggle off in wp-admin.
+            'meta_query' => [
+                'relation' => 'OR',
+                ['key' => '_mdbk_doctor_active', 'compare' => 'NOT EXISTS'],
+                ['key' => '_mdbk_doctor_active', 'value' => 'no', 'compare' => '!='],
+            ],
         ];
         if ($spec_id > 0) {
             $args['tax_query'] = [
@@ -587,7 +610,8 @@ class MDBK_Appointment_Manager {
             foreach ($doctors as $doctor) {
                 $departments = get_the_terms($doctor->ID, 'mdbk_department');
                 $dept_names = $departments && !is_wp_error($departments) ? wp_list_pluck($departments, 'name') : [];
-                
+                $dept_ids   = $departments && !is_wp_error($departments) ? wp_list_pluck($departments, 'term_id') : [];
+
                 $schedule = get_post_meta($doctor->ID, '_mdbk_schedule', true);
                 $available_days = [];
                 if (is_array($schedule)) {
@@ -602,7 +626,9 @@ class MDBK_Appointment_Manager {
                     'id'              => $doctor->ID,
                     'name'            => $doctor->post_title,
                     'specialties'     => $dept_names,
+                    'department_ids'  => $dept_ids,
                     'available_days'  => $available_days,
+                    'thumbnail'       => get_the_post_thumbnail_url($doctor->ID, 'thumbnail') ?: '',
                 ];
             }
         }
@@ -612,6 +638,52 @@ class MDBK_Appointment_Manager {
         } else {
             wp_send_json_error(__('No doctors found for this specialty.', 'doctor-appointment'));
         }
+    }
+
+    /**
+     * AJAX: Get a Single Doctor's Info
+     *
+     * Used to preselect a doctor (e.g. from the doctor grid's "Book
+     * Appointment" button) without fetching/rendering the full doctor list
+     * first — lets the modal jump straight to the details step.
+     */
+    public function ajax_get_doctor_info() {
+        check_ajax_referer('mdbk_form_nonce', 'nonce');
+
+        $doctor_id = intval($_POST['doctor_id']);
+        $doctor    = $doctor_id ? get_post($doctor_id) : null;
+
+        if (!$doctor || $doctor->post_type !== 'mdbk_doctor' || $doctor->post_status !== 'publish') {
+            wp_send_json_error(__('Doctor not found.', 'doctor-appointment'));
+            return;
+        }
+        if (get_post_meta($doctor->ID, '_mdbk_doctor_active', true) === 'no') {
+            wp_send_json_error(__('Doctor not found.', 'doctor-appointment'));
+            return;
+        }
+
+        $departments = get_the_terms($doctor->ID, 'mdbk_department');
+        $dept_names  = $departments && !is_wp_error($departments) ? wp_list_pluck($departments, 'name') : [];
+        $dept_ids    = $departments && !is_wp_error($departments) ? wp_list_pluck($departments, 'term_id') : [];
+
+        $schedule = get_post_meta($doctor->ID, '_mdbk_schedule', true);
+        $available_days = [];
+        if (is_array($schedule)) {
+            foreach ($schedule as $day => $time) {
+                if (!empty($time['active'])) {
+                    $available_days[] = $day;
+                }
+            }
+        }
+
+        wp_send_json_success([
+            'id'              => $doctor->ID,
+            'name'            => $doctor->post_title,
+            'specialties'     => $dept_names,
+            'department_ids'  => $dept_ids,
+            'available_days'  => $available_days,
+            'thumbnail'       => get_the_post_thumbnail_url($doctor->ID, 'thumbnail') ?: '',
+        ]);
     }
 }
 

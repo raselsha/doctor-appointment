@@ -148,7 +148,15 @@
     padding: 12px 20px 16px;
 }
 
-.mdbk-doctor-book-btn {
+/*
+ * `button.` element qualifier (not just `.mdbk-doctor-book-btn`) is required
+ * here: Hello Elementor's reset.css styles `[type="button"], button` with
+ * the same specificity as a single class selector, and — being a theme
+ * stylesheet — it's enqueued after plugin styles, so it wins ties on source
+ * order. Qualifying with the element bumps specificity just enough to win
+ * without resorting to !important.
+ */
+button.mdbk-doctor-book-btn {
     display: flex;
     align-items: center;
     justify-content: center;
@@ -165,7 +173,7 @@
     transition: background .2s ease;
 }
 
-.mdbk-doctor-book-btn:hover {
+button.mdbk-doctor-book-btn:hover {
     background: #1d4ed8;
     color: #fff;
 }

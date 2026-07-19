@@ -1,79 +1,170 @@
-.mdbk-booking-form {
-    max-width: 500px;
-    margin: 20px auto;
-    padding: 30px;
-    background: #ffffff;
-    border-radius: 16px;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    color: #1a1a1a;
-}
-
-.mdbk-booking-form h2 {
-    font-size: 28px;
-    font-weight: 800;
-    margin-bottom: 8px;
-    color: #000;
-}
-
-.mdbk-booking-form p.description {
-    color: #666;
-    font-size: 14px;
-    margin-bottom: 24px;
-}
+/*
+ * `button.` element qualifier below is required: the active theme's
+ * reset.css styles [type="button"]/button with the same specificity as a
+ * bare class selector and, being a theme stylesheet, wins ties on source
+ * order. Bumping to element+class beats it without !important.
+ */
 
 .mdbk-form-group {
-    margin-bottom: 20px;
+    margin-bottom: 14px;
+}
+
+.mdbk-form-group-last {
+    margin-bottom: 0;
+}
+
+/* Same cream card treatment used for the calendar/time area — keeps every
+   section of the modal (specialty, date/time, patient info) reading as one
+   consistent design instead of the date/time area looking like the only
+   "designed" part. */
+.mdbk-card-section {
+    background: rgba(0, 97, 213, .05);
+    border: 1px solid rgba(0, 97, 213, .15);
+    border-radius: 16px;
+    padding: 14px;
 }
 
 .mdbk-form-group label {
     display: block;
     font-weight: 600;
-    font-size: 14px;
-    margin-bottom: 8px;
-    color: #333;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .5px;
+    margin-bottom: 6px;
+    color: #64748b;
 }
 
-/* Specialty Toggle Buttons */
-.mdbk-specialty-options {
+.mdbk-required {
+    color: #0061d5;
+}
+
+/* Specialty dropdown — custom chevron over a native <select> so it doesn't
+   rely on the browser's own (inconsistent) arrow styling */
+/*
+ * Custom dropdown replacing a native <select> — a native <option> list's
+ * own popup panel (colors, radius, hover state) isn't stylable via CSS in
+ * any browser, so it always looks like bare OS/browser chrome no matter
+ * how the closed control itself is styled. The real <select> stays in the
+ * DOM (display:none) purely as the data model triggers/syncSpecialtySelect()
+ * read and write — everything visual here is this markup instead.
+ */
+.mdbk-custom-select {
+    position: relative;
+}
+
+button.mdbk-custom-select-trigger {
     display: flex;
-    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
     gap: 10px;
-    margin-bottom: 15px;
-}
-
-.mdbk-specialty-item input {
-    display: none;
-}
-
-.mdbk-specialty-item label {
-    display: inline-block;
-    padding: 10px 18px;
-    background: #f4f7fa;
-    border-radius: 10px;
-    font-size: 13px;
+    width: 100%;
+    padding: 10px 14px;
+    border: 1.5px solid rgba(0, 97, 213, .25);
+    border-radius: 8px;
+    background: rgba(0, 97, 213, .06);
+    color: #0f2a4a;
+    font-size: 14px;
     font-weight: 500;
+    text-align: left;
     cursor: pointer;
-    transition: all 0.2s ease;
-    border: 1px solid transparent;
+    transition: border-color .2s ease, box-shadow .2s ease;
 }
 
-.mdbk-specialty-item input:checked + label {
-    background: #0061d5;
-    color: #fff;
-    box-shadow: 0 4px 12px rgba(0, 97, 213, 0.2);
+button.mdbk-custom-select-trigger:hover {
+    border-color: rgba(0, 97, 213, .4);
+    color: #0f2a4a;
+    background: rgba(0, 97, 213, .06);
+}
+
+.mdbk-custom-select.open button.mdbk-custom-select-trigger {
+    outline: none;
+    border-color: #0061d5;
+    box-shadow: 0 0 0 4px rgba(0, 97, 213, .1);
+}
+
+.mdbk-custom-select-chevron {
+    flex-shrink: 0;
+    width: 8px;
+    height: 8px;
+    border-right: 2px solid #0061d5;
+    border-bottom: 2px solid #0061d5;
+    transform: rotate(45deg);
+    transition: transform .2s ease;
+}
+
+.mdbk-custom-select.open .mdbk-custom-select-chevron {
+    transform: rotate(-135deg);
+}
+
+.mdbk-custom-select-panel {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    right: 0;
+    z-index: 20;
+    max-height: 240px;
+    overflow-y: auto;
+    background: #fff;
+    border: 1px solid #e1e8f0;
+    border-radius: 10px;
+    box-shadow: 0 10px 30px rgba(15, 42, 74, .15);
+    padding: 6px;
+}
+
+.mdbk-custom-select-option {
+    padding: 9px 12px;
+    border-radius: 6px;
+    font-size: 14px;
+    color: #1e293b;
+    cursor: pointer;
+}
+
+.mdbk-custom-select-option:hover {
+    background: rgba(0, 97, 213, .08);
+}
+
+.mdbk-custom-select-option.selected {
+    background: rgba(0, 97, 213, .1);
+    color: #0061d5;
+    font-weight: 600;
 }
 
 /* Form Controls */
 .mdbk-form-control {
     width: 100%;
-    padding: 12px 16px;
-    border: 1px solid #e1e8f0;
-    border-radius: 10px;
-    font-size: 15px;
-    transition: all 0.2s ease;
-    background: #fdfdfe;
+    padding: 10px 14px;
+    border: 1.5px solid #e1e8f0;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    color: #1e293b;
+    transition: border-color .2s ease, box-shadow .2s ease;
+    background: #fff;
     box-sizing: border-box;
+}
+
+/*
+ * The active theme's reset.css has a combined
+ * `input[type=text], input[type=tel], input[type=email], input[type=number],
+ * ... { border; border-radius; padding }` rule. Each branch is an element +
+ * attribute selector — same specificity as our bare `.mdbk-form-control`
+ * class on the "class" digit, but it also carries the element digit ours
+ * doesn't, so it wins the tie regardless of stylesheet order. Re-declare
+ * with a matching type-attribute selector to unambiguously outrank it
+ * rather than depend on enqueue order.
+ */
+input[type="text"].mdbk-form-control,
+input[type="tel"].mdbk-form-control,
+input[type="email"].mdbk-form-control,
+input[type="number"].mdbk-form-control {
+    border: 1.5px solid #e1e8f0;
+    border-radius: 8px;
+    padding: 10px 14px;
+}
+
+.mdbk-form-control::placeholder {
+    color: #9aa5b1;
+    font-weight: 400;
 }
 
 .mdbk-form-control:focus {
@@ -82,42 +173,32 @@
     box-shadow: 0 0 0 4px rgba(0, 97, 213, 0.1);
 }
 
-/* Gender Toggle */
-.mdbk-gender-options {
-    display: flex;
-    background: #f4f7fa;
-    padding: 4px;
-    border-radius: 12px;
+/*
+ * The theme also has an `input[type=X]:focus { border-color:#333 }` rule —
+ * same reasoning as above, one specificity notch higher than a bare
+ * `:focus` class rule. Worse, the type-qualified base-state fix just above
+ * this comment is now *also* more specific than a plain `.mdbk-form-control:focus`
+ * (an attribute selector and a pseudo-class both add one specificity point,
+ * but the base rule's extra element qualifier tips it over), so without this
+ * the focus ring would silently stop applying to text inputs specifically.
+ */
+input[type="text"].mdbk-form-control:focus,
+input[type="tel"].mdbk-form-control:focus,
+input[type="email"].mdbk-form-control:focus,
+input[type="number"].mdbk-form-control:focus {
+    outline: none;
+    border-color: #0061d5;
+    box-shadow: 0 0 0 4px rgba(0, 97, 213, 0.1);
 }
 
-.mdbk-gender-item {
-    flex: 1;
-}
-
-.mdbk-gender-item input {
-    display: none;
-}
-
-.mdbk-gender-item label {
-    display: block;
-    text-align: center;
-    padding: 10px;
-    font-size: 13px;
-    font-weight: 500;
-    border-radius: 10px;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    margin: 0;
-}
-
-.mdbk-gender-item input:checked + label {
-    background: #ffffff;
-    color: #0061d5;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+.mdbk-optional {
+    font-weight: 400;
+    color: #94a3b8;
+    font-size: 12px;
 }
 
 /* Submit Button */
-.mdbk-submit-btn {
+button.mdbk-submit-btn {
     width: 100%;
     padding: 16px;
     background: #0061d5;
@@ -131,20 +212,11 @@
     margin-top: 10px;
 }
 
-.mdbk-submit-btn:hover {
+button.mdbk-submit-btn:hover {
     background: #0056bc;
+    color: #fff;
     transform: translateY(-1px);
     box-shadow: 0 6px 20px rgba(0, 97, 213, 0.25);
-}
-
-.mdbk-cancel-link {
-    display: block;
-    text-align: center;
-    margin-top: 20px;
-    color: #0061d5;
-    text-decoration: none;
-    font-weight: 600;
-    font-size: 14px;
 }
 
 /* Grid for Age and Mobile */
@@ -157,15 +229,7 @@
     flex: 1;
 }
 
-/* Messages */
-.mdbk-message {
-    padding: 15px;
-    border-radius: 10px;
-    margin-bottom: 20px;
-    font-size: 14px;
-    font-weight: 500;
-}
-
+/* Message colors — shared by .mdbk-modal-message (padding/layout defined below) */
 .mdbk-success {
     background: #e6f7ed;
     color: #1a7f45;
@@ -236,6 +300,30 @@
     padding: 24px;
 }
 
+/*
+ * The [mdbk_appointment_form] shortcode's inline rendering — the same
+ * specialty/doctor/booking/details widget as the popup modal's
+ * .mdbk-modal-body, just in the page's normal flow instead of a fixed
+ * overlay: no backdrop, no close button, always visible.
+ */
+.mdbk-booking-inline {
+    max-width: 600px;
+    margin: 20px auto;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, .05);
+    padding: 24px;
+    box-sizing: border-box;
+}
+
+@media (max-width: 600px) {
+    .mdbk-booking-inline {
+        margin: 12px;
+        padding: 16px;
+    }
+}
+
 .mdbk-modal-message {
     padding: 12px 16px;
     border-radius: 10px;
@@ -250,55 +338,16 @@
     display: block;
 }
 
-/* Steps indicator */
-.mdbk-steps {
-    margin-bottom: 20px;
+/* Sections (no step gating — everything is one continuous, cascading form) */
+.mdbk-section {
+    margin-bottom: 22px;
 }
 
-.mdbk-step-indicator {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0;
-}
-
-.mdbk-step-dot {
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    background: #e2e8f0;
-    color: #94a3b8;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 13px;
-    font-weight: 700;
-    transition: all .3s ease;
-    flex-shrink: 0;
-}
-
-.mdbk-step-dot.active {
-    background: #0061d5;
-    color: #fff;
-    box-shadow: 0 3px 10px rgba(0, 97, 213, 0.3);
-}
-
-.mdbk-step-line {
-    width: 60px;
-    height: 3px;
-    background: #e2e8f0;
-    flex-shrink: 1;
-}
-
-.mdbk-step-line.active {
-    background: #0061d5;
-}
-
-.mdbk-step-label {
+.mdbk-section-title {
     font-size: 15px;
     font-weight: 600;
     color: #1e293b;
-    margin-bottom: 14px;
+    margin: 0 0 14px;
 }
 
 /* Doctor list in modal */
@@ -325,38 +374,22 @@
     background: #f0f5ff;
 }
 
-.mdbk-doctor-item.selected {
-    border-color: #0061d5;
-    background: #f0f7ff;
-    box-shadow: 0 2px 12px rgba(0, 97, 213, 0.12);
+.mdbk-doc-avatar {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    object-fit: cover;
+    flex-shrink: 0;
 }
 
-.mdbk-doc-check {
-    width: 28px;
-    height: 28px;
-    border-radius: 50%;
-    border: 2px solid #cbd5e1;
+.mdbk-doc-avatar-fallback {
     display: flex;
     align-items: center;
     justify-content: center;
-    flex-shrink: 0;
-    transition: all .25s ease;
-}
-
-.mdbk-doc-check-icon {
-    color: transparent;
-    font-size: 14px;
+    background: #eef6ff;
+    color: #0061d5;
+    font-size: 16px;
     font-weight: 700;
-    transition: color .25s ease;
-}
-
-.mdbk-doctor-item.selected .mdbk-doc-check {
-    background: #0061d5;
-    border-color: #0061d5;
-}
-
-.mdbk-doctor-item.selected .mdbk-doc-check-icon {
-    color: #fff;
 }
 
 .mdbk-doc-info {
@@ -399,111 +432,181 @@
     font-size: 14px;
 }
 
-/* Selected doctor badge */
+/* Selected doctor summary card — dark filled pill, matches the reference
+   "Selected Service" card style: solid brand-color background, white text,
+   Change as a plain underlined link rather than a bordered button. */
 .mdbk-selected-doctor {
-    margin-bottom: 16px;
+    margin: 0;
 }
 
-.mdbk-selected-doc-badge {
-    background: #f0f7ff;
-    color: #0061d5;
-    border: 1px solid #cce4ff;
-    padding: 10px 16px;
-    border-radius: 10px;
+.mdbk-selected-doc-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: #0061d5;
+    padding: 14px 16px;
+    border-radius: 16px;
+}
+
+.mdbk-selected-doc-card .mdbk-doc-avatar {
+    border: 2px solid rgba(255, 255, 255, .5);
+}
+
+.mdbk-selected-doc-card .mdbk-doc-avatar-fallback {
+    background: rgba(255, 255, 255, .2);
+    color: #fff;
+}
+
+.mdbk-selected-doc-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.mdbk-selected-doc-name {
     font-size: 14px;
-    font-weight: 600;
-    text-align: center;
-}
-
-/* Nice Flatpickr styling */
-.mdbk-modal-body .flatpickr-calendar {
-    width: 100% !important;
-    box-shadow: none !important;
-    border: 1px solid #e2e8f0;
-    border-radius: 12px;
-    overflow: hidden;
-    margin-top: 0;
-    background: #fff;
-}
-
-.mdbk-modal-body .flatpickr-months {
-    background: #f8fafc;
-    border-bottom: 1px solid #e2e8f0;
-    padding: 8px 0;
-}
-
-.mdbk-modal-body .flatpickr-current-month {
-    font-size: 16px;
     font-weight: 700;
-    color: #1e293b;
-}
-
-.mdbk-modal-body .flatpickr-monthDropdown-months {
-    font-weight: 600;
-}
-
-.mdbk-modal-body .flatpickr-weekday {
-    color: #64748b;
-    font-weight: 600;
-    font-size: 12px;
-}
-
-.mdbk-modal-body .flatpickr-day {
-    border-radius: 8px;
-    color: #1e293b;
-    font-size: 14px;
-    font-weight: 500;
-    transition: background .15s ease;
-    height: 40px;
-    line-height: 40px;
-}
-
-.mdbk-modal-body .flatpickr-day:hover:not(.flatpickr-disabled):not(.selected) {
-    background: #eef2f6;
-}
-
-.mdbk-modal-body .flatpickr-day.selected {
-    background: #0061d5 !important;
-    border-color: #0061d5 !important;
-    color: #fff !important;
-    font-weight: 700;
-    box-shadow: 0 2px 8px rgba(0, 97, 213, 0.25);
-}
-
-.mdbk-modal-body .flatpickr-day.today {
-    border-color: #0061d5;
-}
-
-.mdbk-modal-body .flatpickr-day.today:hover {
-    border-color: #0061d5;
-}
-
-.mdbk-modal-body .flatpickr-day.today.selected {
-    border-color: #0061d5;
-}
-
-.mdbk-modal-body .flatpickr-day.flatpickr-disabled {
-    color: #cbd5e1 !important;
-    cursor: not-allowed;
-}
-
-.mdbk-modal-body .flatpickr-day.prevMonthDay,
-.mdbk-modal-body .flatpickr-day.nextMonthDay {
-    color: #cbd5e1;
-    visibility: visible;
-}
-
-.mdbk-modal-body .flatpickr-day.prevMonthDay:hover,
-.mdbk-modal-body .flatpickr-day.nextMonthDay:hover {
-    background: transparent;
-}
-
-.mdbk-modal-body .flatpickr-week {
+    color: #fff;
     margin-bottom: 2px;
 }
 
-.mdbk-modal-body .numInputWrapper span {
-    display: none;
+.mdbk-selected-doc-card .mdbk-doc-specs {
+    background: rgba(255, 255, 255, .18);
+    color: #fff;
+}
+
+button.mdbk-selected-doc-change {
+    flex-shrink: 0;
+    background: transparent;
+    color: #fff;
+    border: none;
+    padding: 0;
+    font-size: 13px;
+    font-weight: 600;
+    text-decoration: underline;
+    cursor: pointer;
+    transition: color .2s ease;
+}
+
+button.mdbk-selected-doc-change:hover {
+    background: transparent;
+    color: #cfe3ff;
+}
+
+/*
+ * Hand-built calendar (no flatpickr / no third-party date picker). Day
+ * cells are plain <span>s rather than form controls specifically so the
+ * active theme's blanket button/select/input[type=number] resets have
+ * nothing to grab onto — that fight is what motivated moving away from
+ * flatpickr in the first place. Nav buttons are real <button>s, so their
+ * hover states re-assert `color` explicitly (see the slot-button rules
+ * below for why: theme reset.css has `[type="button"]:hover { color:#fff }`
+ * at higher specificity than a plain base-state color rule).
+ */
+.mdbk-cal-nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+}
+
+.mdbk-cal-title {
+    font-size: 15px;
+    font-weight: 700;
+    color: #1e293b;
+}
+
+button.mdbk-cal-nav-btn {
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
+    background: #fff;
+    color: #64748b;
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+    transition: background .2s ease, color .2s ease, border-color .2s ease;
+}
+
+button.mdbk-cal-nav-btn:hover {
+    background: #0061d5;
+    border-color: #0061d5;
+    color: #fff;
+}
+
+.mdbk-cal-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 2px;
+}
+
+.mdbk-cal-day-header {
+    text-align: center;
+    font-size: 11px;
+    font-weight: 600;
+    color: #64748b;
+    padding: 0 0 6px;
+    text-transform: uppercase;
+    letter-spacing: .4px;
+}
+
+.mdbk-cal-day {
+    display: block;
+    text-align: center;
+    padding: 8px 0;
+    font-size: 13px;
+    font-weight: 500;
+    color: #1e293b;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background .15s ease, color .15s ease;
+    position: relative;
+}
+
+.mdbk-cal-day:hover:not(.empty):not(.past):not(.unavailable):not(.selected) {
+    background: #eef2f6;
+}
+
+.mdbk-cal-day.today {
+    font-weight: 700;
+    color: #0061d5;
+}
+
+.mdbk-cal-day.today::after {
+    content: '';
+    position: absolute;
+    bottom: 3px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: currentColor;
+}
+
+.mdbk-cal-day.selected {
+    background: #0061d5;
+    color: #fff;
+    font-weight: 700;
+    box-shadow: 0 2px 8px rgba(0, 97, 213, .25);
+}
+
+.mdbk-cal-day.selected.today::after {
+    background: #fff;
+}
+
+.mdbk-cal-day.past,
+.mdbk-cal-day.unavailable {
+    color: #cbd5e1;
+    cursor: not-allowed;
+}
+
+.mdbk-cal-day.empty {
+    cursor: default;
 }
 
 @media (max-width: 600px) {
@@ -517,41 +620,107 @@
     }
 }
 
-/* Time Slot Picker */
+/* Date + Time — side by side, each its own white card on a light backdrop;
+   time column starts disabled/placeholder until a date is picked */
+.mdbk-booking-columns {
+    display: flex;
+    gap: 14px;
+    align-items: stretch;
+    background: rgba(0, 97, 213, .05);
+    border: 1px solid rgba(0, 97, 213, .15);
+    border-radius: 16px;
+    padding: 14px;
+}
+
+.mdbk-calendar-col {
+    flex: 1;
+    min-width: 0;
+    background: #fff;
+    border-radius: 8px;
+    padding: 8px;
+}
+
+.mdbk-time-col {
+    width: 120px;
+    flex-shrink: 0;
+    overflow-y: auto;
+    background: #fff;
+    border-radius: 8px;
+    padding: 8px;
+}
+
+@media (max-width: 600px) {
+    .mdbk-booking-columns {
+        flex-direction: column;
+    }
+}
+
+/* Time Slot Picker — one full-width slot per row, stacked */
 .mdbk-slot-picker {
     display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
+    flex-direction: column;
+    gap: 4px;
     min-height: 20px;
 }
 
-.mdbk-slot-btn {
-    padding: 8px 14px;
-    border: 2px solid #e2e8f0;
-    border-radius: 8px;
-    background: #fafbfc;
+.mdbk-slot-picker-disabled {
+    opacity: .5;
+    pointer-events: none;
+}
+
+.mdbk-time-placeholder {
+    width: 100%;
+    text-align: center;
     font-size: 13px;
+    color: #94a3b8;
+    margin: 0;
+    padding: 16px 8px;
+}
+
+button.mdbk-slot-btn {
+    display: block;
+    width: 100%;
+    padding: 5px 10px;
+    border: 1.5px solid #e0e0e0;
+    border-radius: 6px;
+    background: #fff;
+    font-size: 12px;
     font-weight: 600;
-    color: #1e293b;
+    color: #555;
+    line-height: 1.2;
+    text-align: center;
+    box-sizing: border-box;
     cursor: pointer;
     transition: all .2s ease;
 }
 
-.mdbk-slot-btn:hover:not(:disabled) {
-    border-color: #93b8f0;
-    background: #f0f5ff;
-}
-
-.mdbk-slot-btn.selected {
+/*
+ * `color` must be declared here explicitly, not just inherited from the
+ * base .mdbk-slot-btn rule: the active theme's reset.css has a
+ * `[type="button"]:hover { color: #fff }` rule at specificity (0,2,0),
+ * which beats the base rule's (0,1,1) — class/pseudo-class count wins
+ * over element count regardless of the other side's element digit. Without
+ * re-asserting color here, hovering silently reverted the text to white.
+ */
+button.mdbk-slot-btn:hover:not(:disabled) {
     border-color: #0061d5;
     background: #0061d5;
     color: #fff;
 }
 
-.mdbk-slot-btn.mdbk-slot-taken {
+button.mdbk-slot-btn.selected {
+    border-color: #0061d5;
+    background: #0061d5;
+    color: #fff;
+}
+
+button.mdbk-slot-btn.mdbk-slot-taken {
     opacity: .4;
-    text-decoration: line-through;
     cursor: not-allowed;
+    pointer-events: none;
+    border-color: #e0e0e0;
+    background: #f5f5f5;
+    color: #bbb;
 }
 
 .mdbk-slot-loading,

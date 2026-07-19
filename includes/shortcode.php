@@ -41,6 +41,13 @@ class MDBK_Shortcode {
             'posts_per_page' => intval($atts['limit']),
             'orderby'        => sanitize_key($atts['orderby']),
             'order'          => strtoupper($atts['order']) === 'DESC' ? 'DESC' : 'ASC',
+            // Doctors default to active — the meta only ever gets written (to 'no')
+            // once someone flips a card's toggle off in wp-admin.
+            'meta_query'     => [
+                'relation' => 'OR',
+                ['key' => '_mdbk_doctor_active', 'compare' => 'NOT EXISTS'],
+                ['key' => '_mdbk_doctor_active', 'value' => 'no', 'compare' => '!='],
+            ],
         ];
 
         if (!empty($atts['department'])) {
@@ -208,166 +215,39 @@ class MDBK_Shortcode {
 }
 
     /**
-     * Render the Appointment Form
+     * Whether the booking widget (specialty/doctor/booking/details form)
+     * has already been rendered on this page load — by render_form(), the
+     * [mdbk_appointment_form] shortcode. All the widget's JS is written
+     * against fixed element IDs (one instance per page), so render_modal()
+     * checks this and skips its own output entirely when true, rather than
+     * emitting a second, ID-colliding copy in the footer.
      */
-    public function render_form() {
+    private static $widget_rendered = false;
+
+    /**
+     * Render the Appointment Booking form
+     *
+     * Renders the same specialty/doctor/booking/details widget used inside
+     * the shared popup modal (see render_modal()) — but inline, as normal
+     * page content, not inside an overlay. This is for a dedicated booking
+     * page; the popup modal remains available everywhere else via
+     * class="mdbk-book-trigger" (e.g. the doctor grid's per-doctor
+     * buttons), which stays completely separate from this shortcode.
+     */
+    public function render_form($atts = []) {
+        $atts = shortcode_atts([
+            'doctor' => '',
+        ], $atts, 'mdbk_appointment_form');
+
+        $doctor_id = $atts['doctor'] !== '' ? absint($atts['doctor']) : (isset($_GET['doctor']) ? absint(wp_unslash($_GET['doctor'])) : 0);
+
+        self::$widget_rendered = true;
+
         ob_start();
-
-        $success_msg = '';
-        $error_msg   = '';
-
-        // Handle POST Submission
-        if (isset($_POST['mdbk_submit_appointment']) && wp_verify_nonce($_POST['mdbk_form_nonce'], 'mdbk_submit_form')) {
-            $required_fields = ['full_name', 'mobile', 'email', 'doctor', 'date', 'slot_time'];
-            $valid = true;
-            foreach ($required_fields as $field) {
-                if (empty($_POST[$field])) {
-                    $valid = false;
-                    break;
-                }
-            }
-
-            if ($valid && !is_email($_POST['email'])) {
-                $valid = false;
-                $error_msg = __('Please enter a valid email address.', 'doctor-appointment');
-            }
-
-            if ($valid) {
-                $appointment_id = MDBK_Appointment_Manager::handle_submission($_POST);
-                if (is_wp_error($appointment_id)) {
-                    $error_msg = $appointment_id->get_error_message();
-                } elseif ($appointment_id) {
-                    $success_msg = __('Appointment booked successfully! We will contact you soon.', 'doctor-appointment');
-                } else {
-                    $error_msg = __('Something went wrong. Please try again.', 'doctor-appointment');
-                }
-            } elseif (!$error_msg) {
-                $error_msg = __('Please fill in all required fields.', 'doctor-appointment');
-            }
-        }
-
-        // Fetch Specialties
-        $specialties = get_terms([
-            'taxonomy'   => 'mdbk_department',
-            'hide_empty' => false,
-        ]);
-
-        // Fetch Doctors
-        $doctors = get_posts([
-            'post_type'   => 'mdbk_doctor',
-            'numberposts' => -1,
-        ]);
-        $selected_doctor = isset($_GET['doctor']) ? absint(wp_unslash($_GET['doctor'])) : 0;
-
         ?>
-        <div class="mdbk-booking-form">
-            <h2><?php _e('Book Appointment', 'doctor-appointment'); ?></h2>
-            <p class="description"><?php _e('Fill in the details below to schedule your consultation.', 'doctor-appointment'); ?></p>
-
-            <?php if ($success_msg): ?>
-                <div class="mdbk-message mdbk-success"><?php echo esc_html($success_msg); ?></div>
-            <?php endif; ?>
-
-            <?php if ($error_msg): ?>
-                <div class="mdbk-message mdbk-error"><?php echo esc_html($error_msg); ?></div>
-            <?php endif; ?>
-
-            <form action="" method="POST">
-                <?php wp_nonce_field('mdbk_submit_form', 'mdbk_form_nonce'); ?>
-
-                <!-- Specialty -->
-                <div class="mdbk-form-group">
-                    <label><?php _e('Select Specialty', 'doctor-appointment'); ?></label>
-                    <div class="mdbk-specialty-options">
-                        <?php foreach ($specialties as $index => $spec): ?>
-                            <div class="mdbk-specialty-item">
-                                <input type="radio" name="specialty" id="spec-<?php echo esc_attr($spec->term_id); ?>" class="mdbk-specialty-radio" value="<?php echo esc_attr($spec->term_id); ?>" <?php echo $index === 0 ? 'checked' : ''; ?>>
-                                <label for="spec-<?php echo esc_attr($spec->term_id); ?>"><?php echo esc_html($spec->name); ?></label>
-                            </div>
-                        <?php endforeach; ?>
-                    </div>
-                </div>
-
-                <!-- Doctor -->
-                <div class="mdbk-form-group">
-                    <label><?php _e('Doctor', 'doctor-appointment'); ?></label>
-                    <select name="doctor" id="mdbk-doctor-select" class="mdbk-form-control" required>
-                        <option value=""><?php _e('Select a practitioner', 'doctor-appointment'); ?></option>
-                        <?php foreach ($doctors as $doctor): ?>
-                            <option value="<?php echo esc_attr($doctor->ID); ?>" <?php selected($selected_doctor, $doctor->ID); ?>><?php echo esc_html($doctor->post_title); ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-
-                <!-- Full Name -->
-                <div class="mdbk-form-group">
-                    <label><?php _e('Full Name', 'doctor-appointment'); ?></label>
-                    <input type="text" name="full_name" class="mdbk-form-control" placeholder="<?php esc_attr_e('e.g. Shafiul Islam', 'doctor-appointment'); ?>" required>
-                </div>
-
-                <!-- Age & Mobile -->
-                <div class="mdbk-form-row">
-                    <div class="mdbk-form-group">
-                        <label><?php _e('Age', 'doctor-appointment'); ?></label>
-                        <input type="number" name="age" class="mdbk-form-control" placeholder="<?php esc_attr_e('Age', 'doctor-appointment'); ?>">
-                    </div>
-                    <div class="mdbk-form-group">
-                        <label><?php _e('Mobile Number', 'doctor-appointment'); ?></label>
-                        <input type="text" name="mobile" class="mdbk-form-control" placeholder="<?php esc_attr_e('01737266685', 'doctor-appointment'); ?>" required>
-                    </div>
-                </div>
-
-                <!-- Email -->
-                <div class="mdbk-form-group">
-                    <label><?php _e('Email', 'doctor-appointment'); ?></label>
-                    <input type="email" name="email" class="mdbk-form-control" placeholder="<?php esc_attr_e('you@example.com', 'doctor-appointment'); ?>" required>
-                </div>
-
-                <!-- Gender -->
-                <div class="mdbk-form-group">
-                    <label><?php _e('Gender', 'doctor-appointment'); ?></label>
-                    <div class="mdbk-gender-options">
-                        <div class="mdbk-gender-item">
-                            <input type="radio" name="gender" id="gender-male" value="Male" checked>
-                            <label for="gender-male"><?php _e('Male', 'doctor-appointment'); ?></label>
-                        </div>
-                        <div class="mdbk-gender-item">
-                            <input type="radio" name="gender" id="gender-female" value="Female">
-                            <label for="gender-female"><?php _e('Female', 'doctor-appointment'); ?></label>
-                        </div>
-                        <!-- <div class="mdbk-gender-item">
-                            <input type="radio" name="gender" id="gender-other" value="Other">
-                            <label for="gender-other"><?php _e('Other', 'doctor-appointment'); ?></label>
-                        </div> -->
-                    </div>
-                </div>
-
-                <!-- Preferred Date -->
-                <div class="mdbk-form-group">
-                    <label><?php _e('Preferred Date', 'doctor-appointment'); ?></label>
-                    <div id="mdbk-date-picker"></div>
-                    <input type="hidden" name="date" id="mdbk-date-value">
-                </div>
-
-                <!-- Time Slot -->
-                <div class="mdbk-form-group">
-                    <label><?php _e('Preferred Time', 'doctor-appointment'); ?></label>
-                    <div id="mdbk-slot-picker" class="mdbk-slot-picker"></div>
-                    <input type="hidden" name="slot_time" id="mdbk-slot-value">
-                </div>
-
-                <!-- Symptoms -->
-                <div class="mdbk-form-group">
-                    <label><?php _e('Description of Symptoms', 'doctor-appointment'); ?></label>
-                    <textarea name="symptoms" class="mdbk-form-control" rows="4" placeholder="<?php esc_attr_e('Briefly describe your symptoms...', 'doctor-appointment'); ?>"></textarea>
-                </div>
-
-                <button type="submit" name="mdbk_submit_appointment" class="mdbk-submit-btn">
-                    <?php _e('Book Appointment', 'doctor-appointment'); ?>
-                </button>
-
-                <a href="#" class="mdbk-cancel-link"><?php _e('Cancel', 'doctor-appointment'); ?></a>
-            </form>
+        <div id="mdbk-booking-inline" class="mdbk-booking-inline"<?php echo $doctor_id ? ' data-mdbk-doctor-id="' . esc_attr($doctor_id) . '"' : ''; ?>>
+            <div class="mdbk-modal-message"></div>
+            <?php $this->render_booking_widget_fields(); ?>
         </div>
         <?php
         return ob_get_clean();
@@ -375,116 +255,131 @@ class MDBK_Shortcode {
 
     /**
      * Render Booking Modal (injected in footer)
+     *
+     * Skipped when render_form() already put the same widget (same element
+     * IDs) inline on this page — see $widget_rendered.
      */
     public function render_modal() {
-        $specialties = get_terms([
-            'taxonomy'   => 'mdbk_department',
-            'hide_empty' => false,
-        ]);
+        if (self::$widget_rendered) {
+            return;
+        }
         ?>
         <div id="mdbk-booking-modal" class="mdbk-modal-overlay">
             <div class="mdbk-modal-card">
                 <div class="mdbk-modal-header">
-                    <h3 id="mdbk-modal-title"><?php _e('Book Appointment', 'doctor-appointment'); ?></h3>
+                    <h3><?php _e('Book Appointment', 'doctor-appointment'); ?></h3>
                     <span class="mdbk-modal-close">&times;</span>
                 </div>
                 <div class="mdbk-modal-body">
                     <div class="mdbk-modal-message"></div>
-
-                    <div class="mdbk-steps">
-                        <div class="mdbk-step-indicator">
-                            <span class="mdbk-step-dot active" data-step="1">1</span>
-                            <span class="mdbk-step-line"></span>
-                            <span class="mdbk-step-dot" data-step="2">2</span>
-                            <span class="mdbk-step-line"></span>
-                            <span class="mdbk-step-dot" data-step="3">3</span>
-                        </div>
-                    </div>
-
-                    <form id="mdbk-modal-form">
-                        <?php wp_nonce_field('mdbk_submit_form', 'mdbk_form_nonce'); ?>
-
-                        <div class="mdbk-step" id="mdbk-step-1">
-                            <div class="mdbk-step-label"><?php _e('Choose a Specialty', 'doctor-appointment'); ?></div>
-                            <div class="mdbk-specialty-options">
-                                <?php foreach ($specialties as $index => $spec): ?>
-                                    <div class="mdbk-specialty-item">
-                                        <input type="radio" name="specialty" id="modal-spec-<?php echo esc_attr($spec->term_id); ?>" class="mdbk-specialty-radio" value="<?php echo esc_attr($spec->term_id); ?>" <?php echo $index === 0 ? 'checked' : ''; ?>>
-                                        <label for="modal-spec-<?php echo esc_attr($spec->term_id); ?>"><?php echo esc_html($spec->name); ?></label>
-                                    </div>
-                                <?php endforeach; ?>
-                            </div>
-                        </div>
-
-                        <div class="mdbk-step" id="mdbk-step-2" style="display:none">
-                            <div class="mdbk-step-label"><?php _e('Choose a Doctor', 'doctor-appointment'); ?></div>
-                            <div class="mdbk-doctor-list-modal" id="mdbk-doctor-list"></div>
-                            <input type="hidden" name="doctor" id="mdbk-doctor-id" value="">
-                        </div>
-
-                        <div class="mdbk-step" id="mdbk-step-3" style="display:none">
-                            <div class="mdbk-selected-doctor" id="mdbk-selected-doctor"></div>
-
-                            <div class="mdbk-form-group">
-                                <label><?php _e('Full Name', 'doctor-appointment'); ?></label>
-                                <input type="text" name="full_name" class="mdbk-form-control" placeholder="<?php esc_attr_e('e.g. Shafiul Islam', 'doctor-appointment'); ?>" required>
-                            </div>
-
-                            <div class="mdbk-form-row">
-                                <div class="mdbk-form-group">
-                                    <label><?php _e('Age', 'doctor-appointment'); ?></label>
-                                    <input type="number" name="age" class="mdbk-form-control" placeholder="<?php esc_attr_e('Age', 'doctor-appointment'); ?>">
-                                </div>
-                                <div class="mdbk-form-group">
-                                    <label><?php _e('Mobile Number', 'doctor-appointment'); ?></label>
-                                    <input type="text" name="mobile" class="mdbk-form-control" placeholder="<?php esc_attr_e('01737266685', 'doctor-appointment'); ?>" required>
-                                </div>
-                            </div>
-
-                            <div class="mdbk-form-group">
-                                <label><?php _e('Email', 'doctor-appointment'); ?></label>
-                                <input type="email" name="email" class="mdbk-form-control" placeholder="<?php esc_attr_e('you@example.com', 'doctor-appointment'); ?>" required>
-                            </div>
-
-                            <div class="mdbk-form-group">
-                                <label><?php _e('Gender', 'doctor-appointment'); ?></label>
-                                <div class="mdbk-gender-options">
-                                    <div class="mdbk-gender-item">
-                                        <input type="radio" name="gender" id="modal-gender-male" value="Male" checked>
-                                        <label for="modal-gender-male"><?php _e('Male', 'doctor-appointment'); ?></label>
-                                    </div>
-                                    <div class="mdbk-gender-item">
-                                        <input type="radio" name="gender" id="modal-gender-female" value="Female">
-                                        <label for="modal-gender-female"><?php _e('Female', 'doctor-appointment'); ?></label>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div class="mdbk-form-group">
-                                <label><?php _e('Preferred Date', 'doctor-appointment'); ?></label>
-                                <div id="mdbk-modal-date-picker"></div>
-                                <input type="hidden" name="date" id="mdbk-date-value">
-                            </div>
-
-                            <div class="mdbk-form-group">
-                                <label><?php _e('Preferred Time', 'doctor-appointment'); ?></label>
-                                <div id="mdbk-modal-slot-picker" class="mdbk-slot-picker"></div>
-                                <input type="hidden" name="slot_time" id="mdbk-modal-slot-value">
-                            </div>
-
-                            <div class="mdbk-form-group">
-                                <label><?php _e('Description of Symptoms', 'doctor-appointment'); ?></label>
-                                <textarea name="symptoms" class="mdbk-form-control" rows="3" placeholder="<?php esc_attr_e('Briefly describe your symptoms...', 'doctor-appointment'); ?>"></textarea>
-                            </div>
-
-                            <button type="submit" class="mdbk-submit-btn">
-                                <?php _e('Book Appointment', 'doctor-appointment'); ?>
-                            </button>
-                        </div>
-                    </form>
+                    <?php $this->render_booking_widget_fields(); ?>
                 </div>
             </div>
         </div>
+        <?php
+    }
+
+    /**
+     * Shared specialty/doctor/booking/details form markup — identical
+     * whether it ends up inside the popup modal or rendered inline by the
+     * shortcode. Element IDs are fixed (not instance-namespaced): only one
+     * of render_modal()/render_form() ever actually outputs this on a given
+     * page, so there's never a collision to guard against.
+     */
+    private function render_booking_widget_fields() {
+        $specialties = get_terms([
+            'taxonomy'   => 'mdbk_department',
+            'hide_empty' => false,
+        ]);
+        $first_spec_name = !empty($specialties) ? $specialties[0]->name : '';
+        ?>
+        <form id="mdbk-modal-form">
+            <div class="mdbk-section">
+                <h4 class="mdbk-section-title"><?php _e('Choose Specialty', 'doctor-appointment'); ?></h4>
+                <div class="mdbk-custom-select" id="mdbk-specialty-dropdown">
+                    <button type="button" class="mdbk-custom-select-trigger" id="mdbk-specialty-trigger" aria-haspopup="listbox" aria-expanded="false">
+                        <span class="mdbk-custom-select-value"><?php echo esc_html($first_spec_name); ?></span>
+                        <span class="mdbk-custom-select-chevron"></span>
+                    </button>
+                    <div class="mdbk-custom-select-panel" id="mdbk-specialty-panel" role="listbox" hidden>
+                        <?php foreach ($specialties as $index => $spec): ?>
+                            <div class="mdbk-custom-select-option<?php echo $index === 0 ? ' selected' : ''; ?>" role="option" data-value="<?php echo esc_attr($spec->term_id); ?>"><?php echo esc_html($spec->name); ?></div>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
+                <select name="specialty" id="mdbk-specialty-select" style="display:none">
+                    <?php foreach ($specialties as $index => $spec): ?>
+                        <option value="<?php echo esc_attr($spec->term_id); ?>" <?php echo $index === 0 ? 'selected' : ''; ?>><?php echo esc_html($spec->name); ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+
+            <div class="mdbk-section">
+                <h4 class="mdbk-section-title"><?php _e('Choose Doctor', 'doctor-appointment'); ?></h4>
+                <div class="mdbk-doctor-list-modal" id="mdbk-doctor-list"></div>
+                <div class="mdbk-selected-doctor" id="mdbk-selected-doctor" style="display:none"></div>
+                <input type="hidden" name="doctor" id="mdbk-doctor-id" value="">
+            </div>
+
+            <div class="mdbk-section" id="mdbk-booking-section" style="display:none">
+                <h4 class="mdbk-section-title"><?php _e('Pick Date & Time', 'doctor-appointment'); ?></h4>
+                <div class="mdbk-booking-columns">
+                    <div class="mdbk-calendar-col">
+                        <div id="mdbk-calendar"></div>
+                        <input type="hidden" name="date" id="mdbk-date-value">
+                    </div>
+                    <div class="mdbk-time-col">
+                        <div id="mdbk-modal-slot-picker" class="mdbk-slot-picker mdbk-slot-picker-disabled">
+                            <p class="mdbk-time-placeholder"><?php _e('Select a date first', 'doctor-appointment'); ?></p>
+                        </div>
+                        <input type="hidden" name="slot_time" id="mdbk-modal-slot-value">
+                    </div>
+                </div>
+            </div>
+
+            <div class="mdbk-section" id="mdbk-details-section" style="display:none">
+                <div class="mdbk-card-section">
+                    <div class="mdbk-form-group">
+                        <label><?php _e('Full Name', 'doctor-appointment'); ?> <span class="mdbk-required">*</span></label>
+                        <input type="text" name="full_name" class="mdbk-form-control" placeholder="<?php esc_attr_e('e.g. Shafiul Islam', 'doctor-appointment'); ?>" required>
+                    </div>
+
+                    <div class="mdbk-form-row">
+                        <div class="mdbk-form-group">
+                            <label><?php _e('Mobile Number', 'doctor-appointment'); ?> <span class="mdbk-required">*</span></label>
+                            <input type="tel" name="mobile" class="mdbk-form-control" placeholder="<?php esc_attr_e('01XXXXXXXXX', 'doctor-appointment'); ?>" pattern="^(?:\+?880|0)1[3-9]\d{8}$" title="<?php esc_attr_e('Enter a valid Bangladeshi mobile number, e.g. 01XXXXXXXXX', 'doctor-appointment'); ?>" required>
+                        </div>
+                        <div class="mdbk-form-group">
+                            <label><?php _e('Email', 'doctor-appointment'); ?> <span class="mdbk-optional"><?php _e('(optional)', 'doctor-appointment'); ?></span></label>
+                            <input type="email" name="email" class="mdbk-form-control" placeholder="<?php esc_attr_e('you@example.com', 'doctor-appointment'); ?>">
+                        </div>
+                    </div>
+
+                    <div class="mdbk-form-row">
+                        <div class="mdbk-form-group">
+                            <label><?php _e('Age', 'doctor-appointment'); ?></label>
+                            <input type="number" name="age" class="mdbk-form-control" placeholder="<?php esc_attr_e('Age', 'doctor-appointment'); ?>">
+                        </div>
+                        <div class="mdbk-form-group">
+                            <label><?php _e('Gender', 'doctor-appointment'); ?></label>
+                            <select name="gender" class="mdbk-form-control">
+                                <option value="Male"><?php _e('Male', 'doctor-appointment'); ?></option>
+                                <option value="Female"><?php _e('Female', 'doctor-appointment'); ?></option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="mdbk-form-group mdbk-form-group-last">
+                        <label><?php _e('Description of Symptoms', 'doctor-appointment'); ?></label>
+                        <textarea name="symptoms" class="mdbk-form-control" rows="3" placeholder="<?php esc_attr_e('Briefly describe your symptoms...', 'doctor-appointment'); ?>"></textarea>
+                    </div>
+                </div>
+
+                <button type="submit" class="mdbk-submit-btn">
+                    <?php _e('Book Appointment', 'doctor-appointment'); ?>
+                </button>
+            </div>
+        </form>
         <?php
     }
 
