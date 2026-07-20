@@ -159,6 +159,9 @@
 }
 
 .mdbk-stat-card .trend {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
     font-size: 14px;
     color: #10b981;
     font-weight: 600;
@@ -220,6 +223,8 @@
 }
 
 .mdbk-action-btn {
+    display: inline-flex;
+    align-items: center;
     color: #94a3b8;
     cursor: pointer;
     transition: color 0.2s;
@@ -496,4 +501,120 @@
 .mdbk-day-times input[type="time"] { padding: 5px 6px; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 12px; width: 92px; font-family: inherit; }
 .mdbk-day-times input[type="time"]:focus { border-color: #0061d5; outline: none; }
 .mdbk-day-times span { color: #9ca3af; font-size: 11px; }
+
+/* Custom Specialty dropdown (Add/Edit modal) — a native <select> can't be
+   restyled once its option panel is open, and its closed-state height drifts
+   from a plain text input across browsers (extra OS-native chrome). Trigger
+   is a plain <button> sized to match this form's other fields exactly; the
+   native <select> stays in the DOM as the real, submitted form control,
+   hidden and kept in sync by JS (see initCustomSelect() in admin-script.js). */
+#mdbk-doctor-modal .mdbk-custom-select { position: relative; }
+#mdbk-doctor-modal button.mdbk-custom-select-trigger { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; padding: 9px 12px; border: 1px solid #e2e8f0; border-radius: 12px; background: #fff; color: #1e293b; font-size: 13px; font-family: inherit; text-align: left; cursor: pointer; box-sizing: border-box; }
+#mdbk-doctor-modal button.mdbk-custom-select-trigger:hover { border-color: #cbd3e1; }
+#mdbk-doctor-modal .mdbk-custom-select.open button.mdbk-custom-select-trigger { outline: none; border-color: #0061d5; box-shadow: 0 0 0 3px rgba(0, 97, 213, 0.12); }
+#mdbk-doctor-modal .mdbk-custom-select-chevron { flex-shrink: 0; width: 7px; height: 7px; border-right: 1.5px solid #64748b; border-bottom: 1.5px solid #64748b; transform: rotate(45deg); transition: transform 0.2s ease; }
+#mdbk-doctor-modal .mdbk-custom-select.open .mdbk-custom-select-chevron { transform: rotate(-135deg); }
+#mdbk-doctor-modal .mdbk-custom-select-panel { position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 20; max-height: 220px; overflow-y: auto; background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; box-shadow: 0 10px 30px rgba(15, 23, 42, 0.12); padding: 6px; }
+#mdbk-doctor-modal .mdbk-custom-select-option { padding: 8px 12px; border-radius: 6px; font-size: 13px; color: #1e293b; cursor: pointer; }
+#mdbk-doctor-modal .mdbk-custom-select-option:hover { background: rgba(0, 97, 213, 0.08); }
+#mdbk-doctor-modal .mdbk-custom-select-option.selected { background: rgba(0, 97, 213, 0.1); color: #0061d5; font-weight: 600; }
+
+/* ===== Dashboard: "Today's Booked Patients" section title + View All ===== */
+.mdbk-section-header { display: flex; align-items: center; justify-content: space-between; margin: 0 0 12px; }
+.mdbk-section-header h3 { margin: 0; font-size: 18px; font-weight: 700; }
+.mdbk-view-all-link { color: #0061d5; font-weight: 600; font-size: 13px; text-decoration: none; }
+.mdbk-view-all-link:hover { text-decoration: underline; }
+
+/* Dashboard: one card per doctor, stacked */
+.mdbk-dashboard-doctor-groups { display: flex; flex-direction: column; gap: 16px; }
+.mdbk-card-view-all { padding: 10px 30px; border-top: 1px solid #f1f5f9; text-align: right; }
+.mdbk-card-view-all a { color: #0061d5; font-weight: 600; font-size: 13px; text-decoration: none; }
+.mdbk-card-view-all a:hover { text-decoration: underline; }
+
+/* Bookings page: one card per doctor when a single date is selected */
+.mdbk-schedule-doctor-card { margin-bottom: 16px; }
+
+/* Bookings page: Prev/Today/Next date navigation row */
+.mdbk-date-nav { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+.mdbk-date-nav-btn { display: flex; align-items: center; justify-content: center; min-width: 36px; height: 36px; padding: 0 10px; border-radius: 10px; border: 1px solid #e2e8f0; background: #fff; color: #374151; font-size: 16px; font-weight: 600; text-decoration: none; box-sizing: border-box; }
+.mdbk-date-nav-btn:hover { background: #f8fafc; border-color: #cbd3e1; }
+.mdbk-date-nav-today { font-size: 13px; padding: 0 14px; }
+.mdbk-date-nav-input.mdbk-input { width: auto; height: 36px; padding: 0 12px; border-radius: 10px; font-size: 13px; box-sizing: border-box; }
+.mdbk-date-nav-all { margin-left: auto; font-size: 13px; font-weight: 600; color: #64748b; text-decoration: none; }
+.mdbk-date-nav-all:hover { color: #0061d5; text-decoration: underline; }
+
+/* ===== Bookings page: rich patient row — everything (ticket, name, contact
+   chips, visit time, status, actions) on ONE line. Fixed-width items
+   (ticket/time/status/actions) never shrink; name and the contact chips are
+   allowed to truncate under space pressure via flex-basis + ellipsis, and
+   the spacer absorbs any leftover width so time/status/actions stay pinned
+   right. Full contact + intake details were always captured at booking time
+   (see handle_submission()) but the old table only ever surfaced
+   name/time/status. ===== */
+.mdbk-patient-list { display: flex; flex-direction: column; }
+.mdbk-patient-row { display: flex; align-items: center; gap: 10px; padding: 11px 26px 11px 23px; border-bottom: 1px solid #f1f5f9; border-left: 3px solid transparent; transition: background-color .15s ease; }
+.mdbk-patient-row:last-child { border-bottom: none; }
+.mdbk-patient-row:hover { background: #f8fafc; }
+.mdbk-patient-row.mdbk-status-waiting { border-left-color: #6366f1; }
+.mdbk-patient-row.mdbk-status-serving { border-left-color: #10b981; }
+.mdbk-patient-row.mdbk-status-completed { border-left-color: #94a3b8; }
+.mdbk-patient-row.mdbk-status-no-show { border-left-color: #ef4444; }
+
+.mdbk-patient-row-ticket { flex-shrink: 0; background: #f1f5f9; color: #64748b; font-size: 11px; font-weight: 800; letter-spacing: .2px; padding: 3px 8px; border-radius: 6px; cursor: help; }
+/* Patient ID (persistent — the linked mdbk_patient CPT, same across every
+   visit for a returning patient) vs. Queue number (per-doctor, per-day
+   sequence, resets daily) are easy to mix up once both sit side by side, so
+   they get distinct colors: violet for the persistent one, blue for the
+   daily one. */
+.mdbk-patient-row-ticket.mdbk-patient-row-pid { background: #f5f3ff; color: #7c3aed; }
+.mdbk-patient-row-ticket.mdbk-patient-row-queue { background: #eff6ff; color: #1d4ed8; }
+.mdbk-patient-row-name { flex: 0 1 170px; min-width: 50px; font-size: 14px; font-weight: 800; color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.mdbk-patient-row-chip { display: flex; align-items: center; gap: 5px; font-size: 12px; color: #64748b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mdbk-patient-row-chip svg { flex-shrink: 0; }
+.mdbk-chip-phone { flex: 0 1 116px; min-width: 100px; }
+.mdbk-chip-phone svg { color: #16a34a; }
+.mdbk-chip-email { flex: 1 1 220px; min-width: 160px; }
+.mdbk-chip-email svg { color: #2563eb; }
+.mdbk-chip-doctor { flex: 0 1 140px; min-width: 90px; }
+.mdbk-chip-doctor svg { color: #7c3aed; }
+
+/* Small colored pill for the age/gender chip — the one demographic detail
+   that reads as a highlight rather than plain inline text. Combined
+   selectors (not just source order) so these safely win over the plain
+   .mdbk-patient-row-chip color regardless of where either rule is edited
+   later. */
+.mdbk-patient-row-chip.mdbk-meta-pill { flex: 0 0 auto; padding: 3px 9px; border-radius: 999px; }
+.mdbk-patient-row-chip.mdbk-gender-male { background: #eff6ff; color: #1d4ed8; }
+.mdbk-patient-row-chip.mdbk-gender-female { background: #fdf2f8; color: #be185d; }
+.mdbk-patient-row-chip.mdbk-gender-other, .mdbk-patient-row-chip.mdbk-gender-unknown { background: #f5f3ff; color: #7c3aed; }
+
+/* Symptoms/notes — icon-only so a full sentence doesn't derail the one-line
+   layout; the note text is still fully available via the title tooltip. */
+.mdbk-patient-row-note { flex-shrink: 0; display: flex; align-items: center; color: #d97706; cursor: help; }
+
+.mdbk-patient-row-spacer { flex: 1 1 auto; }
+
+.mdbk-patient-row-time { flex-shrink: 0; display: flex; align-items: center; gap: 5px; color: #0061d5; }
+.mdbk-patient-row-time-label { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .3px; color: #93a5c4; }
+.mdbk-patient-row-time-value { font-size: 13px; font-weight: 700; }
+
+.mdbk-patient-row > .mdbk-badge,
+.mdbk-patient-row > .mdbk-actions { flex-shrink: 0; }
+
+/* Status-colored badge — waiting/serving/completed/no-show each read
+   distinctly at a glance instead of every status sharing one blue pill. */
+.mdbk-badge-status-waiting { background: #e0e7ff; color: #4338ca; }
+.mdbk-badge-status-serving { background: #d1fae5; color: #065f46; }
+.mdbk-badge-status-completed { background: #f1f5f9; color: #475569; }
+.mdbk-badge-status-no-show { background: #fee2e2; color: #b91c1c; }
+
+@media (max-width: 1024px) {
+    .mdbk-patient-row { flex-wrap: wrap; row-gap: 6px; }
+    .mdbk-patient-row-spacer { flex-basis: 100%; height: 0; }
+}
+
+/* Reuse the Doctors page's filters-bar/select look on the Bookings page's
+   Doctor/Status filter row, rather than duplicating the same styling. */
+.mdbk-staff-filters-bar form.mdbk-staff-filters-controls { margin-left: 0; }
 

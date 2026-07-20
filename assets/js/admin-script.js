@@ -35,6 +35,47 @@ document.addEventListener('DOMContentLoaded', function() {
         if (removeBtn) removeBtn.style.display = url ? '' : 'none';
     }
 
+    // Generic custom-dropdown controller: a real (hidden) <select> stays the
+    // actual form control everything else reads/writes and submits; this just
+    // keeps a styleable button+panel visually in sync with it. Returns null
+    // if the wrapper isn't on the page, so callers can no-op safely.
+    function initCustomSelect(wrapperId) {
+        const wrapper = document.getElementById(wrapperId);
+        if (!wrapper) return null;
+        const trigger = wrapper.querySelector('.mdbk-custom-select-trigger');
+        const valueEl = wrapper.querySelector('.mdbk-custom-select-value');
+        const panel = wrapper.querySelector('.mdbk-custom-select-panel');
+        const hiddenSelect = wrapper.querySelector('select');
+
+        function close() { wrapper.classList.remove('open'); panel.style.display = 'none'; }
+        function open() { wrapper.classList.add('open'); panel.style.display = 'block'; }
+
+        function setValue(value, label) {
+            hiddenSelect.value = value;
+            if (valueEl) valueEl.textContent = label;
+            panel.querySelectorAll('.mdbk-custom-select-option').forEach(function(o) {
+                o.classList.toggle('selected', String(o.dataset.value) === String(value));
+            });
+        }
+
+        trigger.addEventListener('click', function(e) {
+            e.preventDefault();
+            wrapper.classList.contains('open') ? close() : open();
+        });
+        panel.addEventListener('click', function(e) {
+            const opt = e.target.closest('.mdbk-custom-select-option');
+            if (!opt) return;
+            setValue(opt.dataset.value, opt.textContent);
+            close();
+        });
+        document.addEventListener('click', function(e) { if (!wrapper.contains(e.target)) close(); });
+        document.addEventListener('keydown', function(e) { if (e.key === 'Escape') close(); });
+
+        return { setValue: setValue, wrapper: wrapper, panel: panel };
+    }
+
+    const doctorSpecSelect = initCustomSelect('mdbk-doc-spec-select');
+
     initModal('mdbk-doctor-modal', '.mdbk-add-doctor, .mdbk-edit-doctor', 'mdbk-doctor-form', 'mdbk-edit-doctor', (id, btn) => {
         document.getElementById('mdbk-doctor-id').value = id;
         const row = btn.closest('tr, .mdbk-admin-doctor-card');
@@ -57,8 +98,10 @@ document.addEventListener('DOMContentLoaded', function() {
             if (showEmail) showEmail.checked = row.dataset.showEmail !== 'no';
             var slotDuration = document.getElementById('mdbk-doc-slot-duration');
             if (slotDuration) slotDuration.value = row.dataset.slotDuration || 20;
-            var specSelect = document.getElementById('mdbk-doc-spec');
-            if (specSelect && row.dataset.specialty) specSelect.value = row.dataset.specialty;
+            if (doctorSpecSelect && row.dataset.specialty) {
+                const opt = doctorSpecSelect.panel.querySelector('.mdbk-custom-select-option[data-value="' + row.dataset.specialty + '"]');
+                if (opt) doctorSpecSelect.setValue(opt.dataset.value, opt.textContent);
+            }
             var photoId = document.getElementById('mdbk-doc-photo-id');
             if (photoId) photoId.value = row.dataset.thumbnailId || 0;
             setDoctorPhotoPreview(row.dataset.thumbnail || '');
@@ -94,6 +137,10 @@ document.addEventListener('DOMContentLoaded', function() {
             document.querySelectorAll('#mdbk-doctor-form .mdbk-day-row').forEach(function(row) {
                 row.classList.add('is-off');
             });
+            if (doctorSpecSelect) {
+                const firstOpt = doctorSpecSelect.panel.querySelector('.mdbk-custom-select-option');
+                if (firstOpt) doctorSpecSelect.setValue(firstOpt.dataset.value, firstOpt.textContent);
+            }
         });
     });
 
@@ -200,7 +247,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     initModal('mdbk-appointment-modal', '.mdbk-add-appointment, .mdbk-edit-appointment', 'mdbk-appointment-form', 'mdbk-edit-appointment', (id, btn) => {
         document.getElementById('mdbk-app-id').value = id;
-        const row = btn.closest('tr');
+        const row = btn.closest('tr, .mdbk-patient-row');
         if (row) {
             document.getElementById('mdbk-app-patient').value = row.dataset.patient;
             document.getElementById('mdbk-app-phone').value = row.dataset.phone;
