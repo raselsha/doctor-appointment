@@ -423,9 +423,10 @@ class MDBK_Admin_Dashboard {
         $status = \MDBK\MDBK_Appointment_Manager::post_status_to_slug(get_post_status($a));
         $age_gender = trim($gender . ($age && $gender ? ' · ' : '') . $age);
         $gender_key = $gender ? strtolower($gender) : 'unknown';
+        $app_spec_id = $doc_id ? (get_the_terms($doc_id, 'mdbk_department') ? get_the_terms($doc_id, 'mdbk_department')[0]->term_id : '') : '';
         ob_start();
         ?>
-        <div class="mdbk-patient-row mdbk-status-<?php echo esc_attr($status); ?>" data-id="<?php echo esc_attr($a->ID); ?>" data-patient="<?php echo esc_attr($p_name); ?>" data-phone="<?php echo esc_attr($phone); ?>" data-email="<?php echo esc_attr($email); ?>" data-age="<?php echo esc_attr($age); ?>" data-gender="<?php echo esc_attr($gender); ?>" data-doctor="<?php echo esc_attr($doc_id); ?>" data-date="<?php echo esc_attr($date); ?>" data-slot-time="<?php echo esc_attr($slot_time); ?>" data-status="<?php echo esc_attr($status); ?>">
+        <div class="mdbk-patient-row mdbk-status-<?php echo esc_attr($status); ?>" data-id="<?php echo esc_attr($a->ID); ?>" data-patient="<?php echo esc_attr($p_name); ?>" data-phone="<?php echo esc_attr($phone); ?>" data-email="<?php echo esc_attr($email); ?>" data-age="<?php echo esc_attr($age); ?>" data-gender="<?php echo esc_attr($gender); ?>" data-doctor="<?php echo esc_attr($doc_id); ?>" data-specialty="<?php echo esc_attr($app_spec_id); ?>" data-date="<?php echo esc_attr($date); ?>" data-slot-time="<?php echo esc_attr($slot_time); ?>" data-status="<?php echo esc_attr($status); ?>">
             <?php if ($ticket): ?><span class="mdbk-patient-row-ticket mdbk-patient-row-queue" title="<?php esc_attr_e('Queue number', 'doctor-appointment'); ?>">Q<?php echo esc_html(str_pad($ticket, 2, '0', STR_PAD_LEFT)); ?></span><?php endif; ?>
             <span class="mdbk-patient-row-name"><?php echo esc_html($p_name); ?></span>
             <?php if ($patient_id): ?><span class="mdbk-patient-row-ticket mdbk-patient-row-pid" title="<?php esc_attr_e('Patient ID', 'doctor-appointment'); ?>">P<?php echo esc_html($patient_id); ?></span><?php endif; ?>
@@ -732,23 +733,39 @@ class MDBK_Admin_Dashboard {
 
     private function render_appointment_modal_html() {
         $all_doctors = get_posts(['post_type' => 'mdbk_doctor', 'numberposts' => -1, 'orderby' => 'title', 'order' => 'ASC']);
+
+        $spec_terms = get_terms(['taxonomy' => 'mdbk_department', 'hide_empty' => false]);
+        $doctor_specs = [];
+        foreach ($all_doctors as $d) {
+            $terms = get_the_terms($d->ID, 'mdbk_department');
+            $doctor_specs[$d->ID] = $terms && !is_wp_error($terms) && !empty($terms) ? $terms[0]->term_id : '';
+        }
         ?>
         <div id="mdbk-appointment-modal" class="mdbk-modal mdbk-modal-compact"><div class="mdbk-modal-content">
             <div class="mdbk-modal-head"><h2 id="mdbk-appointment-modal-title"><?php _e('Add Booking', 'doctor-appointment'); ?></h2><span class="mdbk-modal-close">&times;</span></div>
             <form id="mdbk-appointment-form" method="POST"><?php wp_nonce_field('mdbk_save_appointment'); ?><input type="hidden" name="app_id" id="mdbk-app-id">
             <div class="mdbk-modal-body">
                 <div class="mdbk-card-section-admin">
-                <div class="mdbk-form-row">
-                    <label class="mdbk-form-label" for="mdbk-app-patient"><?php _e('Patient Name', 'doctor-appointment'); ?> *</label>
-                    <input type="text" name="patient_name" id="mdbk-app-patient" required>
-                </div>
-
                 <div class="mdbk-form-row mdbk-form-row-duo">
-                    <div><label class="mdbk-form-label" for="mdbk-app-phone"><?php _e('Phone', 'doctor-appointment'); ?></label><input type="text" name="patient_phone" id="mdbk-app-phone"></div>
-                    <div><label class="mdbk-form-label" for="mdbk-app-email"><?php _e('Email', 'doctor-appointment'); ?></label><input type="email" name="patient_email" id="mdbk-app-email"></div>
-                </div>
-
-                <div class="mdbk-form-row mdbk-form-row-duo">
+                    <div>
+                        <label class="mdbk-form-label" for="mdbk-app-spec-trigger"><?php _e('Specialty', 'doctor-appointment'); ?></label>
+                        <div class="mdbk-custom-select" id="mdbk-app-spec-select">
+                            <button type="button" class="mdbk-custom-select-trigger" id="mdbk-app-spec-trigger">
+                                <span class="mdbk-custom-select-value"><?php _e('All Specialties', 'doctor-appointment'); ?></span>
+                                <span class="mdbk-custom-select-chevron"></span>
+                            </button>
+                            <div class="mdbk-custom-select-panel" id="mdbk-app-spec-panel" style="display:none;">
+                                <div class="mdbk-custom-select-option selected" data-value=""><?php _e('All Specialties', 'doctor-appointment'); ?></div>
+                                <?php foreach ($spec_terms as $t): ?>
+                                <div class="mdbk-custom-select-option" data-value="<?php echo esc_attr($t->term_id); ?>"><?php echo esc_html($t->name); ?></div>
+                                <?php endforeach; ?>
+                            </div>
+                            <select name="specialty" id="mdbk-app-spec" style="display:none;">
+                                <option value=""><?php _e('All Specialties', 'doctor-appointment'); ?></option>
+                                <?php foreach ($spec_terms as $t): ?><option value="<?php echo esc_attr($t->term_id); ?>"><?php echo esc_html($t->name); ?></option><?php endforeach; ?>
+                            </select>
+                        </div>
+                    </div>
                     <div>
                         <label class="mdbk-form-label" for="mdbk-app-doctor-trigger"><?php _e('Doctor', 'doctor-appointment'); ?></label>
                         <div class="mdbk-custom-select mdbk-custom-select-highlighted" id="mdbk-app-doctor-select">
@@ -758,7 +775,7 @@ class MDBK_Admin_Dashboard {
                             </button>
                             <div class="mdbk-custom-select-panel" id="mdbk-app-doctor-panel" style="display:none;">
                                 <?php foreach ($all_doctors as $i => $d): ?>
-                                <div class="mdbk-custom-select-option<?php echo $i === 0 ? ' selected' : ''; ?>" data-value="<?php echo esc_attr($d->ID); ?>"><?php echo esc_html($d->post_title); ?></div>
+                                <div class="mdbk-custom-select-option<?php echo $i === 0 ? ' selected' : ''; ?>" data-value="<?php echo esc_attr($d->ID); ?>" data-specialty="<?php echo esc_attr($doctor_specs[$d->ID]); ?>"><?php echo esc_html($d->post_title); ?></div>
                                 <?php endforeach; ?>
                             </div>
                             <select name="doctor_id" id="mdbk-app-doctor" style="display:none;">
@@ -766,7 +783,43 @@ class MDBK_Admin_Dashboard {
                             </select>
                         </div>
                     </div>
-                    <div><label class="mdbk-form-label" for="mdbk-app-status"><?php _e('Status', 'doctor-appointment'); ?></label><select name="status" id="mdbk-app-status"><option value="waiting"><?php _e('Waiting', 'doctor-appointment'); ?></option><option value="serving"><?php _e('Serving', 'doctor-appointment'); ?></option><option value="completed"><?php _e('Completed', 'doctor-appointment'); ?></option><option value="no-show"><?php _e('No Show', 'doctor-appointment'); ?></option></select></div>
+                </div>
+
+                <div class="mdbk-form-row mdbk-form-row-duo">
+                    <div>
+                        <label class="mdbk-form-label" for="mdbk-app-status-trigger"><?php _e('Status', 'doctor-appointment'); ?></label>
+                        <div class="mdbk-custom-select" id="mdbk-app-status-select">
+                            <button type="button" class="mdbk-custom-select-trigger" id="mdbk-app-status-trigger">
+                                <span class="mdbk-custom-select-value"><?php _e('Waiting', 'doctor-appointment'); ?></span>
+                                <span class="mdbk-custom-select-chevron"></span>
+                            </button>
+                            <div class="mdbk-custom-select-panel" id="mdbk-app-status-panel" style="display:none;">
+                                <div class="mdbk-custom-select-option selected" data-value="waiting"><?php _e('Waiting', 'doctor-appointment'); ?></div>
+                                <div class="mdbk-custom-select-option" data-value="serving"><?php _e('Serving', 'doctor-appointment'); ?></div>
+                                <div class="mdbk-custom-select-option" data-value="completed"><?php _e('Completed', 'doctor-appointment'); ?></div>
+                                <div class="mdbk-custom-select-option" data-value="no-show"><?php _e('No Show', 'doctor-appointment'); ?></div>
+                            </div>
+                            <select name="status" id="mdbk-app-status" style="display:none;">
+                                <option value="waiting" selected><?php _e('Waiting', 'doctor-appointment'); ?></option>
+                                <option value="serving"><?php _e('Serving', 'doctor-appointment'); ?></option>
+                                <option value="completed"><?php _e('Completed', 'doctor-appointment'); ?></option>
+                                <option value="no-show"><?php _e('No Show', 'doctor-appointment'); ?></option>
+                            </select>
+                        </div>
+                    </div>
+                    <div></div>
+                </div>
+                </div>
+
+                <div class="mdbk-card-section-admin">
+                <div class="mdbk-form-row">
+                    <label class="mdbk-form-label" for="mdbk-app-patient"><?php _e('Patient Name', 'doctor-appointment'); ?> *</label>
+                    <input type="text" name="patient_name" id="mdbk-app-patient" required>
+                </div>
+
+                <div class="mdbk-form-row mdbk-form-row-duo">
+                    <div><label class="mdbk-form-label" for="mdbk-app-phone"><?php _e('Phone', 'doctor-appointment'); ?></label><input type="text" name="patient_phone" id="mdbk-app-phone"></div>
+                    <div><label class="mdbk-form-label" for="mdbk-app-email"><?php _e('Email', 'doctor-appointment'); ?></label><input type="email" name="patient_email" id="mdbk-app-email"></div>
                 </div>
 
                 <div class="mdbk-form-row mdbk-form-row-duo">

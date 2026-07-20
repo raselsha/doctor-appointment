@@ -246,6 +246,31 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     const appDoctorSelect = initCustomSelect('mdbk-app-doctor-select');
+    const appStatusSelect = initCustomSelect('mdbk-app-status-select');
+    const appSpecSelect = initCustomSelect('mdbk-app-spec-select');
+
+    function filterDoctorsBySpecialty(specId) {
+        if (!appDoctorSelect) return;
+        let firstVisible = null;
+        appDoctorSelect.panel.querySelectorAll('.mdbk-custom-select-option').forEach(function(opt) {
+            const match = !specId || opt.dataset.specialty === specId;
+            opt.style.display = match ? '' : 'none';
+            if (match && !firstVisible) firstVisible = opt;
+        });
+        // Reset to first visible doctor
+        if (firstVisible) {
+            appDoctorSelect.setValue(firstVisible.dataset.value, firstVisible.textContent);
+        } else {
+            appDoctorSelect.setValue('', '');
+        }
+    }
+
+    if (appSpecSelect) {
+        appSpecSelect.panel.addEventListener('click', function(e) {
+            const opt = e.target.closest('.mdbk-custom-select-option');
+            if (opt) filterDoctorsBySpecialty(opt.dataset.value);
+        });
+    }
 
     initModal('mdbk-appointment-modal', '.mdbk-add-appointment, .mdbk-edit-appointment', 'mdbk-appointment-form', 'mdbk-edit-appointment', (id, btn) => {
         document.getElementById('mdbk-app-id').value = id;
@@ -258,13 +283,24 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('mdbk-app-email').value = row.dataset.email || '';
             document.getElementById('mdbk-app-age').value = row.dataset.age || '';
             if (row.dataset.gender) document.getElementById('mdbk-app-gender').value = row.dataset.gender;
+            // Set specialty first, then doctor
+            if (appSpecSelect && row.dataset.specialty) {
+                const specOpt = appSpecSelect.panel.querySelector('.mdbk-custom-select-option[data-value="' + row.dataset.specialty + '"]');
+                if (specOpt) {
+                    appSpecSelect.setValue(specOpt.dataset.value, specOpt.textContent);
+                    filterDoctorsBySpecialty(row.dataset.specialty);
+                }
+            }
             if (appDoctorSelect && row.dataset.doctor) {
                 const opt = appDoctorSelect.panel.querySelector('.mdbk-custom-select-option[data-value="' + row.dataset.doctor + '"]');
                 if (opt) appDoctorSelect.setValue(opt.dataset.value, opt.textContent);
             }
             document.getElementById('mdbk-app-date').value = row.dataset.date;
             document.getElementById('mdbk-app-slot-time').value = row.dataset.slotTime || '';
-            document.getElementById('mdbk-app-status').value = row.dataset.status;
+            if (appStatusSelect && row.dataset.status) {
+                const opt = appStatusSelect.panel.querySelector('.mdbk-custom-select-option[data-value="' + row.dataset.status + '"]');
+                if (opt) appStatusSelect.setValue(opt.dataset.value, opt.textContent);
+            }
         }
     });
 
@@ -272,8 +308,16 @@ document.addEventListener('DOMContentLoaded', function() {
         btn.addEventListener('click', function() {
             const title = document.getElementById('mdbk-appointment-modal-title');
             if (title) title.textContent = 'Add Booking';
+            // Reset specialty to All Specialties
+            if (appSpecSelect) {
+                const allOpt = appSpecSelect.panel.querySelector('.mdbk-custom-select-option[data-value=""]');
+                if (allOpt) {
+                    appSpecSelect.setValue(allOpt.dataset.value, allOpt.textContent);
+                    filterDoctorsBySpecialty('');
+                }
+            }
             if (appDoctorSelect) {
-                const firstOpt = appDoctorSelect.panel.querySelector('.mdbk-custom-select-option');
+                const firstOpt = appDoctorSelect.panel.querySelector('.mdbk-custom-select-option:not([style*="display: none"])');
                 if (firstOpt) appDoctorSelect.setValue(firstOpt.dataset.value, firstOpt.textContent);
             }
         });

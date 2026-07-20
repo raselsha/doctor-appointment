@@ -532,6 +532,7 @@
    the shared .mdbk-modal-compact select-trigger rule above regardless of
    source order. ===== */
 .mdbk-card-section-admin { background: rgba(0, 97, 213, .05); border: 1px solid rgba(0, 97, 213, .15); border-radius: 16px; padding: 14px; }
+.mdbk-card-section-admin + .mdbk-card-section-admin { margin-top: 16px; }
 .mdbk-modal-compact .mdbk-custom-select-highlighted button.mdbk-custom-select-trigger { background: rgba(0, 97, 213, .06); border-color: rgba(0, 97, 213, .25); }
 .mdbk-modal-compact .mdbk-custom-select-highlighted button.mdbk-custom-select-trigger:hover { border-color: rgba(0, 97, 213, .4); }
 .mdbk-modal-compact .mdbk-custom-select-highlighted.open button.mdbk-custom-select-trigger { border-color: #0061d5; box-shadow: 0 0 0 3px rgba(0, 97, 213, .12); }
