@@ -115,65 +115,105 @@ document.addEventListener('DOMContentLoaded', function() {
     var bookingSection = document.getElementById('mdbk-booking-section');
     var detailsSection = document.getElementById('mdbk-details-section');
 
-    // ===== Custom specialty dropdown =====
+    // ===== Custom dropdown (specialty, gender, etc.) =====
     // A native <select>'s open option panel can't be restyled in any
     // browser (no control over its radius, colors, or hover state), so the
     // hidden <select> below stays purely as the data model — this button +
     // panel is the entire visible/interactive surface.
-    function closeSpecialtyDropdown() {
-        if (!specialtyDropdown) return;
-        specialtyDropdown.classList.remove('open');
-        if (specialtyPanel) specialtyPanel.hidden = true;
-        if (specialtyTrigger) specialtyTrigger.setAttribute('aria-expanded', 'false');
-    }
+    function initCustomSelect(container) {
+        if (!container) return null;
+        var trigger = container.querySelector('.mdbk-custom-select-trigger');
+        var panel = container.querySelector('.mdbk-custom-select-panel');
+        var valueSpan = trigger ? trigger.querySelector('.mdbk-custom-select-value') : null;
+        var nativeSelect = container.querySelector('select');
+        if (!trigger || !panel) return null;
 
-    function openSpecialtyDropdown() {
-        if (!specialtyDropdown) return;
-        specialtyDropdown.classList.add('open');
-        if (specialtyPanel) specialtyPanel.hidden = false;
-        if (specialtyTrigger) specialtyTrigger.setAttribute('aria-expanded', 'true');
-    }
+        function close() {
+            container.classList.remove('open');
+            panel.hidden = true;
+            trigger.setAttribute('aria-expanded', 'false');
+        }
 
-    function setSpecialtyValue(value, label) {
-        if (specialtySelect) specialtySelect.value = value;
-        if (specialtyTriggerValue) specialtyTriggerValue.textContent = label;
-        if (specialtyPanel) {
-            specialtyPanel.querySelectorAll('.mdbk-custom-select-option').forEach(function(opt) {
+        function open() {
+            container.classList.add('open');
+            panel.hidden = false;
+            trigger.setAttribute('aria-expanded', 'true');
+        }
+
+        function setValue(value, label) {
+            if (nativeSelect) nativeSelect.value = value;
+            if (valueSpan) valueSpan.textContent = label;
+            panel.querySelectorAll('.mdbk-custom-select-option').forEach(function(opt) {
                 opt.classList.toggle('selected', opt.getAttribute('data-value') === String(value));
             });
         }
-    }
 
-    if (specialtyTrigger) {
-        specialtyTrigger.addEventListener('click', function(e) {
+        trigger.addEventListener('click', function(e) {
             e.stopPropagation();
-            if (specialtyDropdown.classList.contains('open')) {
-                closeSpecialtyDropdown();
+            if (container.classList.contains('open')) {
+                close();
             } else {
-                openSpecialtyDropdown();
+                open();
             }
         });
-    }
 
-    if (specialtyPanel) {
-        specialtyPanel.addEventListener('click', function(e) {
+        panel.addEventListener('click', function(e) {
             var opt = e.target.closest('.mdbk-custom-select-option');
             if (!opt) return;
-            var value = opt.getAttribute('data-value');
-            setSpecialtyValue(value, opt.textContent);
-            closeSpecialtyDropdown();
-            loadDoctors(value);
+            setValue(opt.getAttribute('data-value'), opt.textContent);
+            close();
+        });
+
+        return { close: close, open: open, setValue: setValue };
+    }
+
+    // Keep specialty-specific wrappers for backward compat (syncSpecialtySelect, loadDefaultSpecialty)
+    var specialtyInst = specialtyDropdown ? initCustomSelect(specialtyDropdown) : null;
+    function setSpecialtyValue(value, label) {
+        if (specialtyInst) specialtyInst.setValue(value, label);
+    }
+    function closeSpecialtyDropdown() {
+        if (specialtyInst) specialtyInst.close();
+    }
+    function openSpecialtyDropdown() {
+        if (specialtyInst) specialtyInst.open();
+    }
+
+    if (specialtyInst && specialtyPanel) {
+        // Reload doctors when specialty changes (extra step beyond generic handler)
+        specialtyPanel.addEventListener('click', function(e) {
+            var opt = e.target.closest('.mdbk-custom-select-option');
+            if (opt) loadDoctors(opt.getAttribute('data-value'));
         });
     }
 
+    // Init gender custom dropdown
+    var genderContainer = document.querySelector('[data-custom-select="gender"]');
+    initCustomSelect(genderContainer);
+
+    // Close any open custom select when clicking outside
     document.addEventListener('click', function(e) {
-        if (specialtyDropdown && !specialtyDropdown.contains(e.target)) {
-            closeSpecialtyDropdown();
-        }
+        document.querySelectorAll('.mdbk-custom-select.open').forEach(function(el) {
+            if (!el.contains(e.target)) {
+                var p = el.querySelector('.mdbk-custom-select-panel');
+                var t = el.querySelector('.mdbk-custom-select-trigger');
+                el.classList.remove('open');
+                if (p) p.hidden = true;
+                if (t) t.setAttribute('aria-expanded', 'false');
+            }
+        });
     });
 
     document.addEventListener('keydown', function(e) {
-        if (e.key === 'Escape') closeSpecialtyDropdown();
+        if (e.key === 'Escape') {
+            document.querySelectorAll('.mdbk-custom-select.open').forEach(function(el) {
+                var p = el.querySelector('.mdbk-custom-select-panel');
+                var t = el.querySelector('.mdbk-custom-select-trigger');
+                el.classList.remove('open');
+                if (p) p.hidden = true;
+                if (t) t.setAttribute('aria-expanded', 'false');
+            });
+        }
     });
 
     var calendarEl = document.getElementById('mdbk-calendar');

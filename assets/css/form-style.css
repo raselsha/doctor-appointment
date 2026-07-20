@@ -65,9 +65,18 @@ button.mdbk-custom-select-trigger {
     color: #0f2a4a;
     font-size: 14px;
     font-weight: 500;
+    line-height: normal;
+    box-sizing: border-box;
     text-align: left;
     cursor: pointer;
     transition: border-color .2s ease, box-shadow .2s ease;
+}
+
+button.mdbk-custom-select-trigger:focus {
+    outline: none;
+    border-color: rgba(0, 97, 213, .25);
+    color: #0f2a4a;
+    background: rgba(0, 97, 213, .06);
 }
 
 button.mdbk-custom-select-trigger:hover {
@@ -156,10 +165,12 @@ button.mdbk-custom-select-trigger:hover {
 input[type="text"].mdbk-form-control,
 input[type="tel"].mdbk-form-control,
 input[type="email"].mdbk-form-control,
-input[type="number"].mdbk-form-control {
+input[type="number"].mdbk-form-control,
+select.mdbk-form-control {
     border: 1.5px solid #e1e8f0;
     border-radius: 8px;
     padding: 10px 14px;
+    line-height: normal;
 }
 
 .mdbk-form-control::placeholder {
@@ -185,7 +196,8 @@ input[type="number"].mdbk-form-control {
 input[type="text"].mdbk-form-control:focus,
 input[type="tel"].mdbk-form-control:focus,
 input[type="email"].mdbk-form-control:focus,
-input[type="number"].mdbk-form-control:focus {
+input[type="number"].mdbk-form-control:focus,
+select.mdbk-form-control:focus {
     outline: none;
     border-color: #0061d5;
     box-shadow: 0 0 0 4px rgba(0, 97, 213, 0.1);
@@ -497,6 +509,29 @@ button.mdbk-selected-doc-change {
 button.mdbk-selected-doc-change:hover {
     background: transparent;
     color: #cfe3ff;
+}
+
+/* Specialty + Doctor combined card — rows stacked vertically */
+.mdbk-doctor-columns {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    background: rgba(0, 97, 213, .05);
+    border: 1px solid rgba(0, 97, 213, .15);
+    border-radius: 16px;
+    padding: 14px;
+}
+
+.mdbk-specialty-col {
+    background: #fff;
+    border-radius: 8px;
+    padding: 8px;
+}
+
+.mdbk-doctor-col {
+    background: #fff;
+    border-radius: 8px;
+    padding: 8px;
 }
 
 /*
