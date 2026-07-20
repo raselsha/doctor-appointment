@@ -296,28 +296,30 @@ class MDBK_Shortcode {
         <form id="mdbk-modal-form">
             <div class="mdbk-section">
                 <h4 class="mdbk-section-title"><?php _e('Choose Specialty', 'doctor-appointment'); ?></h4>
-                <div class="mdbk-custom-select" id="mdbk-specialty-dropdown">
-                    <button type="button" class="mdbk-custom-select-trigger" id="mdbk-specialty-trigger" aria-haspopup="listbox" aria-expanded="false">
-                        <span class="mdbk-custom-select-value"><?php echo esc_html($first_spec_name); ?></span>
-                        <span class="mdbk-custom-select-chevron"></span>
-                    </button>
-                    <div class="mdbk-custom-select-panel" id="mdbk-specialty-panel" role="listbox" hidden>
-                        <?php foreach ($specialties as $index => $spec): ?>
-                            <div class="mdbk-custom-select-option<?php echo $index === 0 ? ' selected' : ''; ?>" role="option" data-value="<?php echo esc_attr($spec->term_id); ?>"><?php echo esc_html($spec->name); ?></div>
-                        <?php endforeach; ?>
+                <div class="mdbk-card-section">
+                    <div class="mdbk-custom-select" id="mdbk-specialty-dropdown">
+                        <button type="button" class="mdbk-custom-select-trigger" id="mdbk-specialty-trigger" aria-haspopup="listbox" aria-expanded="false">
+                            <span class="mdbk-custom-select-value"><?php echo esc_html($first_spec_name); ?></span>
+                            <span class="mdbk-custom-select-chevron"></span>
+                        </button>
+                        <div class="mdbk-custom-select-panel" id="mdbk-specialty-panel" role="listbox" hidden>
+                            <?php foreach ($specialties as $index => $spec): ?>
+                                <div class="mdbk-custom-select-option<?php echo $index === 0 ? ' selected' : ''; ?>" role="option" data-value="<?php echo esc_attr($spec->term_id); ?>"><?php echo esc_html($spec->name); ?></div>
+                            <?php endforeach; ?>
+                        </div>
                     </div>
+                    <select name="specialty" id="mdbk-specialty-select" style="display:none">
+                        <?php foreach ($specialties as $index => $spec): ?>
+                            <option value="<?php echo esc_attr($spec->term_id); ?>" <?php echo $index === 0 ? 'selected' : ''; ?>><?php echo esc_html($spec->name); ?></option>
+                        <?php endforeach; ?>
+                    </select>
                 </div>
-                <select name="specialty" id="mdbk-specialty-select" style="display:none">
-                    <?php foreach ($specialties as $index => $spec): ?>
-                        <option value="<?php echo esc_attr($spec->term_id); ?>" <?php echo $index === 0 ? 'selected' : ''; ?>><?php echo esc_html($spec->name); ?></option>
-                    <?php endforeach; ?>
-                </select>
             </div>
 
             <div class="mdbk-section">
                 <h4 class="mdbk-section-title"><?php _e('Choose Doctor', 'doctor-appointment'); ?></h4>
-                <div class="mdbk-doctor-list-modal" id="mdbk-doctor-list"></div>
-                <div class="mdbk-selected-doctor" id="mdbk-selected-doctor" style="display:none"></div>
+                <div class="mdbk-doctor-list-modal mdbk-card-section" id="mdbk-doctor-list"></div>
+                <div class="mdbk-selected-doctor mdbk-card-section" id="mdbk-selected-doctor" style="display:none"></div>
                 <input type="hidden" name="doctor" id="mdbk-doctor-id" value="">
             </div>
 

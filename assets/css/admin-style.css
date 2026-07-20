@@ -437,18 +437,19 @@
 .mdbk-view-day-hours { font-size: 12px; color: #374151; }
 .mdbk-view-day-off { font-size: 11px; color: #9ca3af; font-style: italic; }
 
-/* ===== Add/Edit Doctor modal — compact, scoped to #mdbk-doctor-modal only so
-   the shared .mdbk-modal-content / .mdbk-modal-close rules used by the other
-   (untouched) admin modals — patient, appointment, specialty — keep working
-   exactly as before. ===== */
-#mdbk-doctor-modal .mdbk-modal-content { max-width: 640px; padding: 0; display: flex; flex-direction: column; }
-#mdbk-doctor-modal #mdbk-doctor-form { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+/* ===== Compact modal shell — Add/Edit Doctor and Add/Edit Booking both opt
+   into this via the shared .mdbk-modal-compact class on their outer .mdbk-modal
+   div, so the styling lives in one place instead of being duplicated per
+   modal. Patient/Specialty modals don't have this class and keep their
+   original look untouched. ===== */
+.mdbk-modal-compact .mdbk-modal-content { max-width: 640px; padding: 0; display: flex; flex-direction: column; }
+.mdbk-modal-compact form { display: flex; flex-direction: column; flex: 1; min-height: 0; }
 
 .mdbk-modal-head { display: flex; align-items: center; justify-content: space-between; padding: 18px 24px; border-bottom: 1px solid #e2e8f0; flex-shrink: 0; }
 .mdbk-modal-head h2 { margin: 0; font-size: 17px; font-weight: 700; }
-#mdbk-doctor-modal .mdbk-modal-close { position: static; top: auto; right: auto; font-size: 22px; line-height: 1; }
+.mdbk-modal-compact .mdbk-modal-close { position: static; top: auto; right: auto; font-size: 22px; line-height: 1; }
 
-#mdbk-doctor-modal .mdbk-modal-body { flex: 1; overflow-y: auto; padding: 20px 24px; }
+.mdbk-modal-compact .mdbk-modal-body { flex: 1; overflow-y: auto; padding: 20px 24px; }
 .mdbk-modal-foot { padding: 14px 24px; border-top: 1px solid #e2e8f0; display: flex; justify-content: flex-end; gap: 10px; flex-shrink: 0; }
 
 .mdbk-form-row { margin-bottom: 16px; }
@@ -458,17 +459,21 @@
 .mdbk-form-label-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
 .mdbk-form-label-row .mdbk-form-label { margin-bottom: 0; }
 
-#mdbk-doctor-form input[type="text"],
-#mdbk-doctor-form input[type="email"],
-#mdbk-doctor-form input[type="number"],
-#mdbk-doctor-form textarea { width: 100%; padding: 9px 12px; border: 1px solid #e2e8f0; border-radius: 12px; font-size: 13px; font-family: inherit; color: #1e293b; background: #fff; box-sizing: border-box; }
-#mdbk-doctor-form select { width: 100%; padding: 0 12px; border: 1px solid #e2e8f0; border-radius: 12px; font-size: 13px; font-family: inherit; color: #1e293b; background: #fff; box-sizing: border-box; height: 38px; }
-#mdbk-doctor-form input[type="text"]:focus,
-#mdbk-doctor-form input[type="email"]:focus,
-#mdbk-doctor-form input[type="number"]:focus,
-#mdbk-doctor-form select:focus,
-#mdbk-doctor-form textarea:focus { border-color: #0061d5; outline: none; box-shadow: 0 0 0 3px rgba(0, 97, 213, 0.12); }
-#mdbk-doctor-form textarea { resize: vertical; }
+.mdbk-modal-compact form input[type="text"],
+.mdbk-modal-compact form input[type="email"],
+.mdbk-modal-compact form input[type="number"],
+.mdbk-modal-compact form input[type="date"],
+.mdbk-modal-compact form input[type="time"],
+.mdbk-modal-compact form textarea { width: 100%; padding: 9px 12px; border: 1px solid #e2e8f0; border-radius: 12px; font-size: 13px; font-family: inherit; color: #1e293b; background: #fff; box-sizing: border-box; }
+.mdbk-modal-compact form select { width: 100%; padding: 0 12px; border: 1px solid #e2e8f0; border-radius: 12px; font-size: 13px; font-family: inherit; color: #1e293b; background: #fff; box-sizing: border-box; height: 38px; }
+.mdbk-modal-compact form input[type="text"]:focus,
+.mdbk-modal-compact form input[type="email"]:focus,
+.mdbk-modal-compact form input[type="number"]:focus,
+.mdbk-modal-compact form input[type="date"]:focus,
+.mdbk-modal-compact form input[type="time"]:focus,
+.mdbk-modal-compact form select:focus,
+.mdbk-modal-compact form textarea:focus { border-color: #0061d5; outline: none; box-shadow: 0 0 0 3px rgba(0, 97, 213, 0.12); }
+.mdbk-modal-compact form textarea { resize: vertical; }
 
 .mdbk-btn-outline { display: inline-flex; align-items: center; gap: 6px; padding: 9px 16px; font-size: 13px; font-weight: 600; border-radius: 10px; border: 1px solid #e2e8f0; background: #fff; color: #374151; cursor: pointer; font-family: inherit; }
 .mdbk-btn-outline:hover { background: #f8fafc; border-color: #cbd3e1; }
@@ -508,16 +513,28 @@
    is a plain <button> sized to match this form's other fields exactly; the
    native <select> stays in the DOM as the real, submitted form control,
    hidden and kept in sync by JS (see initCustomSelect() in admin-script.js). */
-#mdbk-doctor-modal .mdbk-custom-select { position: relative; }
-#mdbk-doctor-modal button.mdbk-custom-select-trigger { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; padding: 9px 12px; border: 1px solid #e2e8f0; border-radius: 12px; background: #fff; color: #1e293b; font-size: 13px; font-family: inherit; text-align: left; cursor: pointer; box-sizing: border-box; }
-#mdbk-doctor-modal button.mdbk-custom-select-trigger:hover { border-color: #cbd3e1; }
-#mdbk-doctor-modal .mdbk-custom-select.open button.mdbk-custom-select-trigger { outline: none; border-color: #0061d5; box-shadow: 0 0 0 3px rgba(0, 97, 213, 0.12); }
-#mdbk-doctor-modal .mdbk-custom-select-chevron { flex-shrink: 0; width: 7px; height: 7px; border-right: 1.5px solid #64748b; border-bottom: 1.5px solid #64748b; transform: rotate(45deg); transition: transform 0.2s ease; }
-#mdbk-doctor-modal .mdbk-custom-select.open .mdbk-custom-select-chevron { transform: rotate(-135deg); }
-#mdbk-doctor-modal .mdbk-custom-select-panel { position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 20; max-height: 220px; overflow-y: auto; background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; box-shadow: 0 10px 30px rgba(15, 23, 42, 0.12); padding: 6px; }
-#mdbk-doctor-modal .mdbk-custom-select-option { padding: 8px 12px; border-radius: 6px; font-size: 13px; color: #1e293b; cursor: pointer; }
-#mdbk-doctor-modal .mdbk-custom-select-option:hover { background: rgba(0, 97, 213, 0.08); }
-#mdbk-doctor-modal .mdbk-custom-select-option.selected { background: rgba(0, 97, 213, 0.1); color: #0061d5; font-weight: 600; }
+.mdbk-modal-compact .mdbk-custom-select { position: relative; }
+.mdbk-modal-compact button.mdbk-custom-select-trigger { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; padding: 9px 12px; border: 1px solid #e2e8f0; border-radius: 12px; background: #fff; color: #1e293b; font-size: 13px; font-family: inherit; text-align: left; cursor: pointer; box-sizing: border-box; }
+.mdbk-modal-compact button.mdbk-custom-select-trigger:hover { border-color: #cbd3e1; }
+.mdbk-modal-compact .mdbk-custom-select.open button.mdbk-custom-select-trigger { outline: none; border-color: #0061d5; box-shadow: 0 0 0 3px rgba(0, 97, 213, 0.12); }
+.mdbk-modal-compact .mdbk-custom-select-chevron { flex-shrink: 0; width: 7px; height: 7px; border-right: 1.5px solid #64748b; border-bottom: 1.5px solid #64748b; transform: rotate(45deg); transition: transform 0.2s ease; }
+.mdbk-modal-compact .mdbk-custom-select.open .mdbk-custom-select-chevron { transform: rotate(-135deg); }
+.mdbk-modal-compact .mdbk-custom-select-panel { position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 20; max-height: 220px; overflow-y: auto; background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; box-shadow: 0 10px 30px rgba(15, 23, 42, 0.12); padding: 6px; }
+.mdbk-modal-compact .mdbk-custom-select-option { padding: 8px 12px; border-radius: 6px; font-size: 13px; color: #1e293b; cursor: pointer; }
+.mdbk-modal-compact .mdbk-custom-select-option:hover { background: rgba(0, 97, 213, 0.08); }
+.mdbk-modal-compact .mdbk-custom-select-option.selected { background: rgba(0, 97, 213, 0.1); color: #0061d5; font-weight: 600; }
+
+/* ===== Add/Edit Booking modal — this one specifically matches the public
+   booking form's look (blue-tinted card + blue-tinted dropdown trigger)
+   rather than the plain white fields the Doctor modal uses, since patients
+   fill out that same card-section design on the frontend for this exact
+   data. Scoped with extra specificity (3 classes) so it safely overrides
+   the shared .mdbk-modal-compact select-trigger rule above regardless of
+   source order. ===== */
+.mdbk-card-section-admin { background: rgba(0, 97, 213, .05); border: 1px solid rgba(0, 97, 213, .15); border-radius: 16px; padding: 14px; }
+.mdbk-modal-compact .mdbk-custom-select-highlighted button.mdbk-custom-select-trigger { background: rgba(0, 97, 213, .06); border-color: rgba(0, 97, 213, .25); }
+.mdbk-modal-compact .mdbk-custom-select-highlighted button.mdbk-custom-select-trigger:hover { border-color: rgba(0, 97, 213, .4); }
+.mdbk-modal-compact .mdbk-custom-select-highlighted.open button.mdbk-custom-select-trigger { border-color: #0061d5; box-shadow: 0 0 0 3px rgba(0, 97, 213, .12); }
 
 /* ===== Dashboard: "Today's Booked Patients" section title + View All ===== */
 .mdbk-section-header { display: flex; align-items: center; justify-content: space-between; margin: 0 0 12px; }
@@ -534,14 +551,28 @@
 /* Bookings page: one card per doctor when a single date is selected */
 .mdbk-schedule-doctor-card { margin-bottom: 16px; }
 
-/* Bookings page: Prev/Today/Next date navigation row */
-.mdbk-date-nav { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
-.mdbk-date-nav-btn { display: flex; align-items: center; justify-content: center; min-width: 36px; height: 36px; padding: 0 10px; border-radius: 10px; border: 1px solid #e2e8f0; background: #fff; color: #374151; font-size: 16px; font-weight: 600; text-decoration: none; box-sizing: border-box; }
+/* ===== Bookings page: one unified filter row — date navigation, doctor and
+   status filters, and the Clear/All Dates links all sit in a single card,
+   on a single line on wide screens (wraps gracefully below that). ===== */
+.mdbk-filters-bar { background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; padding: 10px 16px; margin-bottom: 20px; }
+.mdbk-filters-form { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+.mdbk-date-nav-group { display: flex; align-items: center; gap: 8px; }
+.mdbk-date-nav-btn { display: flex; align-items: center; justify-content: center; min-width: 38px; height: 38px; padding: 0 10px; border-radius: 10px; border: 1px solid #e2e8f0; background: #fff; color: #374151; font-size: 16px; font-weight: 600; text-decoration: none; box-sizing: border-box; transition: all .15s ease; }
 .mdbk-date-nav-btn:hover { background: #f8fafc; border-color: #cbd3e1; }
 .mdbk-date-nav-today { font-size: 13px; padding: 0 14px; }
-.mdbk-date-nav-input.mdbk-input { width: auto; height: 36px; padding: 0 12px; border-radius: 10px; font-size: 13px; box-sizing: border-box; }
-.mdbk-date-nav-all { margin-left: auto; font-size: 13px; font-weight: 600; color: #64748b; text-decoration: none; }
+.mdbk-date-nav-input.mdbk-input { width: auto; height: 38px; padding: 0 12px; border-radius: 10px; font-size: 13px; box-sizing: border-box; }
+.mdbk-date-nav-all { font-size: 13px; font-weight: 600; color: #64748b; text-decoration: none; white-space: nowrap; }
 .mdbk-date-nav-all:hover { color: #0061d5; text-decoration: underline; }
+
+/* Thin vertical rule separating the date-nav cluster from the doctor/status
+   filters, so the single row still reads as two logical groups. */
+.mdbk-filters-divider { width: 1px; align-self: stretch; background: #e2e8f0; }
+
+.mdbk-filters-form select { padding: 0 32px 0 12px; height: 38px; border: 1px solid #e2e8f0; border-radius: 12px; font-size: 13px; background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' fill='none'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%236B7280' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat right 12px center; color: #1e293b; min-width: 140px; appearance: none; -webkit-appearance: none; transition: all .15s ease; cursor: pointer; box-sizing: border-box; }
+.mdbk-filters-form select:focus { border-color: #0061d5; outline: none; box-shadow: 0 0 0 2px rgba(0, 97, 213, .2); }
+
+.mdbk-filters-spacer { flex: 1 1 auto; }
 
 /* ===== Bookings page: rich patient row — everything (ticket, name, contact
    chips, visit time, status, actions) on ONE line. Fixed-width items
@@ -613,8 +644,4 @@
     .mdbk-patient-row { flex-wrap: wrap; row-gap: 6px; }
     .mdbk-patient-row-spacer { flex-basis: 100%; height: 0; }
 }
-
-/* Reuse the Doctors page's filters-bar/select look on the Bookings page's
-   Doctor/Status filter row, rather than duplicating the same styling. */
-.mdbk-staff-filters-bar form.mdbk-staff-filters-controls { margin-left: 0; }
 

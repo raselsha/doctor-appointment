@@ -322,6 +322,13 @@ button.mdbk-submit-btn:hover {
         margin: 12px;
         padding: 16px;
     }
+    /* Mobile/Email and Age/Gender were a hard 2-column flex row with no
+       breakpoint at all — at phone widths each column shrank to ~140px,
+       cramming a phone number or email placeholder past readable. */
+    .mdbk-form-row {
+        flex-direction: column;
+        gap: 14px;
+    }
 }
 
 .mdbk-modal-message {
@@ -614,8 +621,21 @@ button.mdbk-cal-nav-btn:hover {
         padding-top: 0;
         align-items: center;
     }
+    /* The base .mdbk-modal-card rule sets overflow:hidden (to clip content
+       to its rounded corners on desktop, where the card just grows to fit).
+       Pairing that with max-height:100vh here meant that once the stacked
+       specialty/doctor/calendar/time-slot content pushed the card past one
+       screen's height, everything past that point — the patient details
+       fields and the submit button — was silently clipped away with no way
+       to scroll to it: overflow:hidden doesn't scroll, and the *outer*
+       .mdbk-modal-overlay's own overflow-y:auto can't reach content clipped
+       by this closer ancestor. overflow-y:auto here lets the card itself
+       scroll once it hits the cap, while overflow-x stays hidden so the
+       rounded-corner clipping this rule was originally for is unaffected. */
     .mdbk-modal-card {
         max-height: 100vh;
+        overflow-y: auto;
+        overflow-x: hidden;
         border-radius: 0;
     }
 }
@@ -652,6 +672,14 @@ button.mdbk-cal-nav-btn:hover {
 @media (max-width: 600px) {
     .mdbk-booking-columns {
         flex-direction: column;
+    }
+    /* .mdbk-time-col's 120px width is sized for sitting *beside* the
+       calendar; stacked underneath it (flex-direction:column above), that
+       fixed width stays locked in via flex's default cross-axis behavior,
+       leaving a narrow, left-aligned slot list under a full-width calendar
+       instead of matching it. */
+    .mdbk-time-col {
+        width: 100%;
     }
 }
 

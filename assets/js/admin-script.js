@@ -245,19 +245,46 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
+    const appDoctorSelect = initCustomSelect('mdbk-app-doctor-select');
+
     initModal('mdbk-appointment-modal', '.mdbk-add-appointment, .mdbk-edit-appointment', 'mdbk-appointment-form', 'mdbk-edit-appointment', (id, btn) => {
         document.getElementById('mdbk-app-id').value = id;
+        const title = document.getElementById('mdbk-appointment-modal-title');
+        if (title) title.textContent = 'Edit Booking';
         const row = btn.closest('tr, .mdbk-patient-row');
         if (row) {
             document.getElementById('mdbk-app-patient').value = row.dataset.patient;
             document.getElementById('mdbk-app-phone').value = row.dataset.phone;
             document.getElementById('mdbk-app-email').value = row.dataset.email || '';
-            document.getElementById('mdbk-app-doctor').value = row.dataset.doctor;
+            document.getElementById('mdbk-app-age').value = row.dataset.age || '';
+            if (row.dataset.gender) document.getElementById('mdbk-app-gender').value = row.dataset.gender;
+            if (appDoctorSelect && row.dataset.doctor) {
+                const opt = appDoctorSelect.panel.querySelector('.mdbk-custom-select-option[data-value="' + row.dataset.doctor + '"]');
+                if (opt) appDoctorSelect.setValue(opt.dataset.value, opt.textContent);
+            }
             document.getElementById('mdbk-app-date').value = row.dataset.date;
             document.getElementById('mdbk-app-slot-time').value = row.dataset.slotTime || '';
             document.getElementById('mdbk-app-status').value = row.dataset.status;
         }
     });
+
+    document.querySelectorAll('.mdbk-add-appointment').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            const title = document.getElementById('mdbk-appointment-modal-title');
+            if (title) title.textContent = 'Add Booking';
+            if (appDoctorSelect) {
+                const firstOpt = appDoctorSelect.panel.querySelector('.mdbk-custom-select-option');
+                if (firstOpt) appDoctorSelect.setValue(firstOpt.dataset.value, firstOpt.textContent);
+            }
+        });
+    });
+
+    const appointmentModalCancel = document.querySelector('#mdbk-appointment-modal .mdbk-modal-cancel');
+    if (appointmentModalCancel) {
+        appointmentModalCancel.addEventListener('click', function() {
+            document.getElementById('mdbk-appointment-modal').style.display = 'none';
+        });
+    }
 
     initModal('mdbk-specialty-modal', '.mdbk-add-specialty, .mdbk-edit-specialty', 'mdbk-specialty-form', 'mdbk-edit-specialty', (id, btn) => {
         document.getElementById('mdbk-spec-id').value = id;
