@@ -584,13 +584,9 @@
    (see handle_submission()) but the old table only ever surfaced
    name/time/status. ===== */
 .mdbk-patient-list { display: flex; flex-direction: column; }
-.mdbk-patient-row { display: flex; align-items: center; gap: 10px; padding: 11px 26px 11px 23px; border-bottom: 1px solid #f1f5f9; border-left: 3px solid transparent; transition: background-color .15s ease; }
+.mdbk-patient-row { display: flex; align-items: center; gap: 10px; padding: 11px 26px 11px 23px; border-bottom: 1px solid #f1f5f9; transition: background-color .15s ease; }
 .mdbk-patient-row:last-child { border-bottom: none; }
 .mdbk-patient-row:hover { background: #f8fafc; }
-.mdbk-patient-row.mdbk-status-waiting { border-left-color: #6366f1; }
-.mdbk-patient-row.mdbk-status-serving { border-left-color: #10b981; }
-.mdbk-patient-row.mdbk-status-completed { border-left-color: #94a3b8; }
-.mdbk-patient-row.mdbk-status-no-show { border-left-color: #ef4444; }
 
 .mdbk-patient-row-ticket { flex-shrink: 0; background: #f1f5f9; color: #64748b; font-size: 11px; font-weight: 800; letter-spacing: .2px; padding: 3px 8px; border-radius: 6px; cursor: help; }
 /* Patient ID (persistent — the linked mdbk_patient CPT, same across every
