@@ -26,6 +26,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
     const DOCTOR_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
     const DOCTOR_PHOTO_PLACEHOLDER = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>';
+    // Availability section header icons — same markup as the ones rendered
+    // server-side for the Edit modal, so the View modal's read-only copy
+    // matches it exactly.
+    const CALENDAR_ICON = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="3"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>';
+    const CALENDAR_MONTH_ICON = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="3"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line><circle cx="12" cy="15" r="2"></circle></svg>';
 
     function setDoctorPhotoPreview(url) {
         const preview = document.getElementById('mdbk-doc-photo-preview');
@@ -35,11 +40,141 @@ document.addEventListener('DOMContentLoaded', function() {
         if (removeBtn) removeBtn.style.display = url ? '' : 'none';
     }
 
+    // Slot Duration only means anything when Time Slot Booking is on —
+    // dim it (purely visual; the value still submits either way, but it's
+    // ignored server-side for a slot-disabled doctor) so it doesn't look
+    // like an active, required field while off.
+    function updateSlotDurationVisibility() {
+        var toggle = document.getElementById('mdbk-doc-slot-enabled');
+        var group = document.getElementById('mdbk-doc-slot-duration-group');
+        if (toggle && group) group.classList.toggle('mdbk-field-disabled', !toggle.checked);
+    }
+    var slotEnabledToggle = document.getElementById('mdbk-doc-slot-enabled');
+    if (slotEnabledToggle) slotEnabledToggle.addEventListener('change', updateSlotDurationVisibility);
+
+    // Monthly Availability's two calendars (extra working dates / off
+    // dates) — a hand-built month grid, click a day to toggle it into that
+    // calendar's own date set. Mirrors the frontend booking form's own
+    // calendar (plain <span> day cells, Prev/Next month nav) rather than a
+    // native date input, for the same reason: nothing here for the theme's
+    // button/input reset CSS to snag on.
+    function createMiniCalendar(containerId, hiddenInputId, getRegularWeekdays) {
+        const container = document.getElementById(containerId);
+        const hiddenInput = document.getElementById(hiddenInputId);
+        if (!container || !hiddenInput) return null;
+
+        const today = new Date();
+        let viewYear = today.getFullYear();
+        let viewMonth = today.getMonth();
+        let selected = [];
+
+        function pad2(n) { return String(n).padStart(2, '0'); }
+        function todayStr() { return today.getFullYear() + '-' + pad2(today.getMonth() + 1) + '-' + pad2(today.getDate()); }
+
+        function sync() { hiddenInput.value = JSON.stringify(selected); }
+
+        function render() {
+            const firstDay = new Date(viewYear, viewMonth, 1).getDay();
+            const days = new Date(viewYear, viewMonth + 1, 0).getDate();
+            const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+            const tStr = todayStr();
+            // Read live off the Weekly Availability checkboxes on every
+            // render (not a one-time snapshot) so toggling a day there
+            // immediately updates which dates read as "regular" here —
+            // that's the whole point: see the normal pattern before
+            // deciding where an extra/off date makes sense against it.
+            const regularWeekdays = getRegularWeekdays ? getRegularWeekdays() : [];
+
+            let html = '<div class="mdbk-mini-cal-nav">' +
+                '<button type="button" class="mdbk-mini-cal-nav-btn" data-action="prev">&lsaquo;</button>' +
+                '<span class="mdbk-mini-cal-title">' + monthNames[viewMonth] + ' ' + viewYear + '</span>' +
+                '<button type="button" class="mdbk-mini-cal-nav-btn" data-action="next">&rsaquo;</button>' +
+                '</div><div class="mdbk-mini-cal-grid">';
+            ['S', 'M', 'T', 'W', 'T', 'F', 'S'].forEach(function(l) { html += '<span class="mdbk-mini-cal-day-header">' + l + '</span>'; });
+            for (let i = 0; i < firstDay; i++) html += '<span class="mdbk-mini-cal-day empty"></span>';
+            for (let d = 1; d <= days; d++) {
+                const dateStr = viewYear + '-' + pad2(viewMonth + 1) + '-' + pad2(d);
+                const dayOfWeek = new Date(viewYear, viewMonth, d).getDay();
+                let classes = 'mdbk-mini-cal-day';
+                if (dateStr < tStr) classes += ' past';
+                const isSelected = selected.indexOf(dateStr) !== -1;
+                if (isSelected) classes += ' selected';
+                else if (regularWeekdays.indexOf(dayOfWeek) !== -1) classes += ' regular';
+                html += '<span class="' + classes + '" data-date="' + dateStr + '">' + d + '</span>';
+            }
+            html += '</div>';
+            container.innerHTML = html;
+        }
+
+        container.addEventListener('click', function(e) {
+            const navBtn = e.target.closest('.mdbk-mini-cal-nav-btn');
+            if (navBtn) {
+                if (navBtn.dataset.action === 'prev') { viewMonth--; if (viewMonth < 0) { viewMonth = 11; viewYear--; } }
+                else { viewMonth++; if (viewMonth > 11) { viewMonth = 0; viewYear++; } }
+                render();
+                return;
+            }
+            const dayEl = e.target.closest('.mdbk-mini-cal-day');
+            if (!dayEl || dayEl.classList.contains('empty') || dayEl.classList.contains('past')) return;
+            const dateStr = dayEl.getAttribute('data-date');
+            const idx = selected.indexOf(dateStr);
+            if (idx === -1) selected.push(dateStr); else selected.splice(idx, 1);
+            sync();
+            render();
+        });
+
+        render();
+
+        return {
+            setSelected: function(dates) {
+                selected = Array.isArray(dates) ? dates.slice() : [];
+                if (selected.length) {
+                    const parts = selected[0].split('-').map(Number);
+                    viewYear = parts[0];
+                    viewMonth = parts[1] - 1;
+                } else {
+                    viewYear = today.getFullYear();
+                    viewMonth = today.getMonth();
+                }
+                sync();
+                render();
+            },
+            reset: function() {
+                selected = [];
+                viewYear = today.getFullYear();
+                viewMonth = today.getMonth();
+                sync();
+                render();
+            },
+            rerender: render
+        };
+    }
+    // Day-of-week indices (JS Date.getDay(): 0=Sunday..6=Saturday) currently
+    // checked on in Weekly Availability — read fresh each time so the mini
+    // calendars' "regular day" highlight always matches what's on screen.
+    const DAY_NAME_TO_INDEX = { Sunday: 0, Monday: 1, Tuesday: 2, Wednesday: 3, Thursday: 4, Friday: 5, Saturday: 6 };
+    function getRegularActiveWeekdays() {
+        const result = [];
+        DOCTOR_DAYS.forEach(function(day) {
+            const check = document.querySelector('input[name="schedule[' + day + '][active]"]');
+            if (check && check.checked) result.push(DAY_NAME_TO_INDEX[day]);
+        });
+        return result;
+    }
+    const docExtraCal = createMiniCalendar('mdbk-doc-extra-cal', 'mdbk-doc-extra-dates-input', getRegularActiveWeekdays);
+    const docOffCal = createMiniCalendar('mdbk-doc-off-cal', 'mdbk-doc-off-dates-input', getRegularActiveWeekdays);
+    document.querySelectorAll('.mdbk-day-check').forEach(function(cb) {
+        cb.addEventListener('change', function() {
+            if (docExtraCal) docExtraCal.rerender();
+            if (docOffCal) docOffCal.rerender();
+        });
+    });
+
     // Generic custom-dropdown controller: a real (hidden) <select> stays the
     // actual form control everything else reads/writes and submits; this just
     // keeps a styleable button+panel visually in sync with it. Returns null
     // if the wrapper isn't on the page, so callers can no-op safely.
-    function initCustomSelect(wrapperId) {
+    function initCustomSelect(wrapperId, onChange) {
         const wrapper = document.getElementById(wrapperId);
         if (!wrapper) return null;
         const trigger = wrapper.querySelector('.mdbk-custom-select-trigger');
@@ -53,9 +188,13 @@ document.addEventListener('DOMContentLoaded', function() {
         function setValue(value, label) {
             hiddenSelect.value = value;
             if (valueEl) valueEl.textContent = label;
+            let selectedOpt = null;
             panel.querySelectorAll('.mdbk-custom-select-option').forEach(function(o) {
-                o.classList.toggle('selected', String(o.dataset.value) === String(value));
+                const isMatch = String(o.dataset.value) === String(value);
+                o.classList.toggle('selected', isMatch);
+                if (isMatch) selectedOpt = o;
             });
+            if (onChange) onChange(selectedOpt, value);
         }
 
         trigger.addEventListener('click', function(e) {
@@ -98,6 +237,8 @@ document.addEventListener('DOMContentLoaded', function() {
             if (showEmail) showEmail.checked = row.dataset.showEmail !== 'no';
             var slotDuration = document.getElementById('mdbk-doc-slot-duration');
             if (slotDuration) slotDuration.value = row.dataset.slotDuration || 20;
+            var slotEnabled = document.getElementById('mdbk-doc-slot-enabled');
+            if (slotEnabled) { slotEnabled.checked = row.dataset.slotEnabled !== 'no'; updateSlotDurationVisibility(); }
             if (doctorSpecSelect && row.dataset.specialty) {
                 const opt = doctorSpecSelect.panel.querySelector('.mdbk-custom-select-option[data-value="' + row.dataset.specialty + '"]');
                 if (opt) doctorSpecSelect.setValue(opt.dataset.value, opt.textContent);
@@ -126,6 +267,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (fromInput) fromInput.value = isActive ? (d.from || '') : '';
                 if (toInput) toInput.value = isActive ? (d.to || '') : '';
             });
+
+            if (docExtraCal) { try { docExtraCal.setSelected(JSON.parse(row.dataset.extraDates) || []); } catch(e) { docExtraCal.reset(); } }
+            if (docOffCal) { try { docOffCal.setSelected(JSON.parse(row.dataset.offDates) || []); } catch(e) { docOffCal.reset(); } }
         }
     });
 
@@ -137,6 +281,9 @@ document.addEventListener('DOMContentLoaded', function() {
             document.querySelectorAll('#mdbk-doctor-form .mdbk-day-row').forEach(function(row) {
                 row.classList.add('is-off');
             });
+            if (slotEnabledToggle) { slotEnabledToggle.checked = true; updateSlotDurationVisibility(); }
+            if (docExtraCal) docExtraCal.reset();
+            if (docOffCal) docOffCal.reset();
             if (doctorSpecSelect) {
                 const firstOpt = doctorSpecSelect.panel.querySelector('.mdbk-custom-select-option');
                 if (firstOpt) doctorSpecSelect.setValue(firstOpt.dataset.value, firstOpt.textContent);
@@ -213,6 +360,29 @@ document.addEventListener('DOMContentLoaded', function() {
             scheduleRows += '<div class="mdbk-view-day-row' + (working ? '' : ' is-off') + '"><span class="mdbk-view-day-name">' + day + '</span><span class="mdbk-view-day-hours">' + hours + '</span></div>';
         });
 
+        function formatDateStr(dateStr) {
+            const parts = dateStr.split('-').map(Number);
+            const d = new Date(parts[0], parts[1] - 1, parts[2]);
+            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            return months[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear();
+        }
+        let extraDates = [];
+        let offDates = [];
+        try { extraDates = JSON.parse(card.dataset.extraDates) || []; } catch (e) {}
+        try { offDates = JSON.parse(card.dataset.offDates) || []; } catch (e) {}
+        // Only shown when this doctor actually has an override — most
+        // doctors won't, and an empty "Monthly Availability" section would
+        // just be noise.
+        let monthlyHtml = '';
+        if (extraDates.length || offDates.length) {
+            monthlyHtml = '<details class="mdbk-availability-section"><summary class="mdbk-availability-header">' + CALENDAR_MONTH_ICON + '<h4>Monthly Availability</h4><span class="mdbk-availability-chevron"></span></summary>' +
+                '<div class="mdbk-view-schedule-list">' +
+                    (extraDates.length ? '<div class="mdbk-view-day-row"><span class="mdbk-view-day-name">Extra Working Dates</span><span class="mdbk-view-day-hours">' + escHtml(extraDates.slice().sort().map(formatDateStr).join(', ')) + '</span></div>' : '') +
+                    (offDates.length ? '<div class="mdbk-view-day-row"><span class="mdbk-view-day-name">Off Dates</span><span class="mdbk-view-day-hours">' + escHtml(offDates.slice().sort().map(formatDateStr).join(', ')) + '</span></div>' : '') +
+                '</div>' +
+            '</details>';
+        }
+
         body.innerHTML =
             '<div class="mdbk-view-top-row">' +
                 '<div class="mdbk-view-hero">' +
@@ -226,17 +396,18 @@ document.addEventListener('DOMContentLoaded', function() {
                 '</div>' +
             '</div>' +
             '<div class="mdbk-view-field mdbk-view-field-full"><label>Bio</label><span>' + escHtml(card.dataset.bio || '—') + '</span></div>' +
-            '<details class="mdbk-modal-schedule" open><summary class="mdbk-modal-schedule-summary">Weekly Availability</summary>' +
+            '<details class="mdbk-availability-section" open><summary class="mdbk-availability-header">' + CALENDAR_ICON + '<h4>Weekly Availability</h4><span class="mdbk-availability-chevron"></span></summary>' +
                 '<div class="mdbk-view-schedule-list">' +
                     '<div class="mdbk-view-day-row mdbk-view-day-header"><span>Day</span><span>Hours</span></div>' +
                     scheduleRows +
                 '</div>' +
-            '</details>';
+            '</details>' +
+            monthlyHtml;
     });
 
     initModal('mdbk-patient-modal', '.mdbk-add-patient, .mdbk-edit-patient', 'mdbk-patient-form', 'mdbk-edit-patient', (id, btn) => {
         document.getElementById('mdbk-patient-id').value = id;
-        const row = btn.closest('tr');
+        const row = btn.closest('tr, .mdbk-patient-row');
         if (row) {
             document.getElementById('mdbk-patient-name').value = row.dataset.name;
             document.getElementById('mdbk-patient-phone').value = row.dataset.phone;
@@ -245,7 +416,20 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    const appDoctorSelect = initCustomSelect('mdbk-app-doctor-select');
+    // A slot-disabled doctor is booked serially (queue number auto-assigned
+    // by the server) — the Slot Time field means nothing for them, so it's
+    // dimmed/disabled and a hint takes its place, mirroring the Doctor
+    // modal's own Slot Duration field.
+    function updateAppSlotTimeAvailability(selectedOpt) {
+        const slotInput = document.getElementById('mdbk-app-slot-time');
+        const hint = document.getElementById('mdbk-app-slot-hint');
+        if (!slotInput) return;
+        const slotEnabled = !selectedOpt || selectedOpt.dataset.slotEnabled !== 'no';
+        slotInput.disabled = !slotEnabled;
+        if (!slotEnabled) slotInput.value = '';
+        if (hint) hint.style.display = slotEnabled ? 'none' : '';
+    }
+    const appDoctorSelect = initCustomSelect('mdbk-app-doctor-select', updateAppSlotTimeAvailability);
     const appStatusSelect = initCustomSelect('mdbk-app-status-select');
     const appSpecSelect = initCustomSelect('mdbk-app-spec-select');
 
@@ -296,7 +480,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (opt) appDoctorSelect.setValue(opt.dataset.value, opt.textContent);
             }
             document.getElementById('mdbk-app-date').value = row.dataset.date;
-            document.getElementById('mdbk-app-slot-time').value = row.dataset.slotTime || '';
+            // updateAppSlotTimeAvailability() already ran (via the doctor
+            // setValue() above) and disabled this field if the doctor is
+            // slot-disabled — don't restore a value into a field that's
+            // about to be dropped from the submit anyway.
+            const appSlotInput = document.getElementById('mdbk-app-slot-time');
+            if (!appSlotInput.disabled) appSlotInput.value = row.dataset.slotTime || '';
             if (appStatusSelect && row.dataset.status) {
                 const opt = appStatusSelect.panel.querySelector('.mdbk-custom-select-option[data-value="' + row.dataset.status + '"]');
                 if (opt) appStatusSelect.setValue(opt.dataset.value, opt.textContent);
@@ -329,6 +518,57 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('mdbk-appointment-modal').style.display = 'none';
         });
     }
+
+    // Per-doctor card "View All" — scoped to one doctor's popup
+    // (one modal per doctor card is pre-rendered server-side; this just
+    // opens/closes whichever one a given link points at). On the Bookings
+    // page this link sits inside a <summary> (the collapsible card
+    // header), so stopPropagation keeps a click here from also toggling
+    // that card open/closed.
+    document.querySelectorAll('[data-doctor-modal]').forEach(function(link) {
+        link.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            const modal = document.getElementById(this.dataset.doctorModal);
+            if (modal) modal.style.display = 'flex';
+        });
+    });
+    document.querySelectorAll('.mdbk-doctor-popup').forEach(function(modal) {
+        const closeBtn = modal.querySelector('.mdbk-modal-close');
+        if (closeBtn) closeBtn.addEventListener('click', () => modal.style.display = 'none');
+        window.addEventListener('click', (e) => { if (e.target === modal) modal.style.display = 'none'; });
+    });
+
+    // Print just this modal's table — window.print() on the main page would
+    // try to print the whole admin screen behind the overlay, so this opens
+    // a small standalone print window with only the modal's own title +
+    // table markup instead.
+    document.querySelectorAll('.mdbk-print-modal').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            const modal = btn.closest('.mdbk-modal');
+            if (!modal) return;
+            const title = modal.querySelector('.mdbk-modal-head h2');
+            const body = modal.querySelector('.mdbk-modal-body');
+            if (!body) return;
+            const win = window.open('', '_blank', 'width=900,height=700');
+            if (!win) return;
+            win.document.write(
+                '<html><head><title>' + (title ? title.textContent : 'Print') + '</title><style>' +
+                'body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;padding:24px;color:#1e293b;}' +
+                'h2{margin:0 0 16px;font-size:18px;}' +
+                'table{width:100%;border-collapse:collapse;font-size:13px;}' +
+                'th,td{padding:8px 10px;border-bottom:1px solid #e2e8f0;text-align:left;}' +
+                'th{background:#f8fafc;text-transform:uppercase;font-size:11px;color:#64748b;}' +
+                '</style></head><body>' +
+                '<h2>' + (title ? title.textContent : '') + '</h2>' +
+                body.innerHTML +
+                '</body></html>'
+            );
+            win.document.close();
+            win.focus();
+            win.print();
+        });
+    });
 
     initModal('mdbk-specialty-modal', '.mdbk-add-specialty, .mdbk-edit-specialty', 'mdbk-specialty-form', 'mdbk-edit-specialty', (id, btn) => {
         document.getElementById('mdbk-spec-id').value = id;

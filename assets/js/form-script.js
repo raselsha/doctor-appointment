@@ -235,6 +235,15 @@ document.addEventListener('DOMContentLoaded', function() {
     var calMonth = today.getMonth();
     var selectedDateStr = '';
     var disabledWeekdays = [];
+    // Date-level overrides on top of the weekday pattern above (set by
+    // updateDisabledDays()): off dates close an otherwise-active weekday
+    // for that one date; extra dates open an otherwise-inactive weekday.
+    var extraDates = [];
+    var offDates = [];
+    // Slot-disabled doctors skip the time picker entirely — patients are
+    // queued serially (ticket number assigned server-side on submit), so
+    // picking a date is enough to reveal the patient-details section.
+    var currentDoctorSlotEnabled = true;
 
     function pad2(n) { return String(n).padStart(2, '0'); }
     function daysInMonth(y, m) { return new Date(y, m + 1, 0).getDate(); }
@@ -269,7 +278,12 @@ document.addEventListener('DOMContentLoaded', function() {
             if (dateStr === todayStr) classes += ' today';
             if (dateStr < todayStr) classes += ' past';
             if (dateStr === selectedDateStr) classes += ' selected';
-            if (disabledWeekdays.indexOf(dayOfWeek) !== -1) classes += ' unavailable';
+            // off_dates always wins (explicitly closed); otherwise fall
+            // back to the weekday pattern unless extra_dates opts this
+            // specific date back in.
+            var weekdayOff = disabledWeekdays.indexOf(dayOfWeek) !== -1;
+            var isUnavailable = offDates.indexOf(dateStr) !== -1 || (weekdayOff && extraDates.indexOf(dateStr) === -1);
+            if (isUnavailable) classes += ' unavailable';
             html += '<span class="' + classes + '" data-date="' + dateStr + '">' + d + '</span>';
         }
 
@@ -309,7 +323,12 @@ document.addEventListener('DOMContentLoaded', function() {
             if (dateValue) dateValue.value = selectedDateStr;
             renderCalendar();
             detailsSection.style.display = 'none';
-            loadModalSlots(selectedDateStr);
+            if (currentDoctorSlotEnabled) {
+                loadModalSlots(selectedDateStr);
+            } else {
+                showSerialBookingNotice();
+                showDetails();
+            }
         });
     }
 
@@ -322,6 +341,18 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     /**
+     * Replaces the time-slot list with a short explanation for slot-
+     * disabled doctors — there's nothing to pick, so an empty/disabled
+     * picker would just look broken instead of intentional.
+     */
+    function showSerialBookingNotice() {
+        if (!modalSlotPicker) return;
+        modalSlotPicker.classList.remove('mdbk-slot-picker-disabled');
+        modalSlotPicker.innerHTML = '<p class="mdbk-time-placeholder">No time slot needed — you\'ll be added to the queue automatically.</p>';
+        if (modalSlotValue) modalSlotValue.value = '';
+    }
+
+    /**
      * Fetch the doctor's inactive weekdays and re-render the calendar with
      * those days marked unavailable. Clears the current date selection if
      * it now falls on a day the newly-selected doctor doesn't work.
@@ -329,6 +360,8 @@ document.addEventListener('DOMContentLoaded', function() {
     function updateDisabledDays(doctorId) {
         if (!doctorId) {
             disabledWeekdays = [];
+            extraDates = [];
+            offDates = [];
             renderCalendar();
             return;
         }
@@ -340,11 +373,16 @@ document.addEventListener('DOMContentLoaded', function() {
         fetch(mdbk_form_obj.ajax_url, { method: 'POST', body: formData })
         .then(function(r) { return r.json(); })
         .then(function(data) {
-            disabledWeekdays = (data.success && data.data.length) ? data.data : [];
+            var payload = (data.success && data.data) ? data.data : {};
+            disabledWeekdays = payload.off_days || [];
+            extraDates = payload.extra_dates || [];
+            offDates = payload.off_dates || [];
             if (selectedDateStr) {
                 var parts = selectedDateStr.split('-').map(Number);
                 var dow = new Date(parts[0], parts[1] - 1, parts[2]).getDay();
-                if (disabledWeekdays.indexOf(dow) !== -1) {
+                var weekdayOff = disabledWeekdays.indexOf(dow) !== -1;
+                var nowUnavailable = offDates.indexOf(selectedDateStr) !== -1 || (weekdayOff && extraDates.indexOf(selectedDateStr) === -1);
+                if (nowUnavailable) {
                     selectedDateStr = '';
                     resetSlotPicker();
                 }
@@ -353,6 +391,8 @@ document.addEventListener('DOMContentLoaded', function() {
         })
         .catch(function() {
             disabledWeekdays = [];
+            extraDates = [];
+            offDates = [];
             renderCalendar();
         });
     }
@@ -403,6 +443,7 @@ document.addEventListener('DOMContentLoaded', function() {
     function selectDoctor(doc) {
         doctorIdInput.value = doc.id;
         syncSpecialtySelect(doc);
+        currentDoctorSlotEnabled = doc.slot_enabled !== false;
 
         var specsHtml = (doc.specialties && doc.specialties.length)
             ? '<span class="mdbk-doc-specs">' + doc.specialties.join(', ') + '</span>' : '';

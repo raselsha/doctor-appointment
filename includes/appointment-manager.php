@@ -305,17 +305,42 @@ class MDBK_Appointment_Manager {
         if (!$doctor_id || !$date) return [];
 
         $schedule = get_post_meta($doctor_id, '_mdbk_schedule', true);
-        if (!is_array($schedule)) return [];
+        if (!is_array($schedule)) $schedule = [];
 
         $timestamp = strtotime($date);
         if (!$timestamp) return [];
         $day_name = date('l', $timestamp);
 
-        if (empty($schedule[$day_name]['active'])) return [];
+        // Off dates close the doctor for that date outright, regardless of
+        // what the weekday pattern says. Otherwise, an extra date opens a
+        // normally-inactive weekday just for that one date — using the
+        // first active weekday's hours as a stand-in, since an extra date
+        // has no from/to of its own.
+        $off_dates = get_post_meta($doctor_id, '_mdbk_off_dates', true);
+        if (is_array($off_dates) && in_array($date, $off_dates, true)) return [];
 
-        $from = isset($schedule[$day_name]['from']) ? $schedule[$day_name]['from'] : '';
-        $to   = isset($schedule[$day_name]['to']) ? $schedule[$day_name]['to'] : '';
-        if (!$from || !$to) return [];
+        $is_extra_date = false;
+        if (empty($schedule[$day_name]['active'])) {
+            $extra_dates = get_post_meta($doctor_id, '_mdbk_extra_dates', true);
+            if (!is_array($extra_dates) || !in_array($date, $extra_dates, true)) return [];
+            $is_extra_date = true;
+        }
+
+        if ($is_extra_date) {
+            $from = $to = '';
+            foreach ($schedule as $day) {
+                if (!empty($day['active']) && !empty($day['from']) && !empty($day['to'])) {
+                    $from = $day['from'];
+                    $to = $day['to'];
+                    break;
+                }
+            }
+            if (!$from || !$to) { $from = '09:00'; $to = '17:00'; }
+        } else {
+            $from = isset($schedule[$day_name]['from']) ? $schedule[$day_name]['from'] : '';
+            $to   = isset($schedule[$day_name]['to']) ? $schedule[$day_name]['to'] : '';
+            if (!$from || !$to) return [];
+        }
 
         $duration = intval(get_post_meta($doctor_id, '_mdbk_slot_duration', true));
         if (!$duration) $duration = intval(get_option('mdbk_default_slot_duration', 20));
@@ -412,6 +437,42 @@ class MDBK_Appointment_Manager {
     }
 
     /**
+     * Whether a doctor takes slot-based bookings at all. Off: the doctor is
+     * booked serially by queue number (next_ticket_number()) instead — no
+     * time slot picker, no slot-conflict checking. Defaults to enabled
+     * (the meta only gets written 'no' the first time someone flips the
+     * toggle off), same convention as _mdbk_doctor_active.
+     */
+    public static function is_slot_enabled($doctor_id) {
+        return get_post_meta(intval($doctor_id), '_mdbk_slot_enabled', true) !== 'no';
+    }
+
+    /**
+     * Whether a doctor is working on a specific date — the weekly schedule
+     * pattern, with that date-level overrides layered on top: an off date
+     * always closes the doctor for that date; an extra date opens an
+     * otherwise-inactive weekday for that one date. Shared by the
+     * dashboard's "who's on shift today" filter and get_available_slots().
+     */
+    public static function is_doctor_working_on($doctor_id, $date) {
+        $doctor_id = intval($doctor_id);
+        if (!$doctor_id || !$date) return false;
+
+        $off_dates = get_post_meta($doctor_id, '_mdbk_off_dates', true);
+        if (is_array($off_dates) && in_array($date, $off_dates, true)) return false;
+
+        $timestamp = strtotime($date);
+        if (!$timestamp) return false;
+        $day_name = date('l', $timestamp);
+
+        $schedule = get_post_meta($doctor_id, '_mdbk_schedule', true);
+        if (!empty($schedule[$day_name]['active'])) return true;
+
+        $extra_dates = get_post_meta($doctor_id, '_mdbk_extra_dates', true);
+        return is_array($extra_dates) && in_array($date, $extra_dates, true);
+    }
+
+    /**
      * Best-effort soft lock around the slot-conflict-check + insert critical
      * section. Not a hard atomicity guarantee (no new table for a real
      * mutex) — good enough for realistic front-desk concurrency.
@@ -505,7 +566,14 @@ class MDBK_Appointment_Manager {
     public function ajax_handle_submission() {
         check_ajax_referer('mdbk_form_nonce', 'nonce');
 
-        $required = ['full_name', 'mobile', 'doctor', 'date', 'slot_time'];
+        $required = ['full_name', 'mobile', 'doctor', 'date'];
+        // Slot time is only required when the selected doctor actually
+        // takes slot-based bookings — a slot-disabled doctor books
+        // patients serially by queue number, with no time picker on the
+        // frontend to even produce a slot_time value.
+        if (self::is_slot_enabled(isset($_POST['doctor']) ? intval($_POST['doctor']) : 0)) {
+            $required[] = 'slot_time';
+        }
         foreach ($required as $field) {
             if (empty($_POST[$field])) {
                 wp_send_json_error(__('Please fill in all required fields.', 'doctor-appointment'));
@@ -555,24 +623,34 @@ class MDBK_Appointment_Manager {
         $doctor_id = intval($_POST['doctor_id']);
         $schedule = get_post_meta($doctor_id, '_mdbk_schedule', true);
 
-        if (!is_array($schedule)) {
-            wp_send_json_success([]);
-            return;
-        }
-
         $day_map = [
             'Sunday' => 0, 'Monday' => 1, 'Tuesday' => 2, 'Wednesday' => 3,
             'Thursday' => 4, 'Friday' => 5, 'Saturday' => 6
         ];
 
         $off_days = [];
-        foreach ($day_map as $day_name => $day_num) {
-            if (!isset($schedule[$day_name]) || empty($schedule[$day_name]['active'])) {
-                $off_days[] = $day_num;
+        if (is_array($schedule)) {
+            foreach ($day_map as $day_name => $day_num) {
+                if (!isset($schedule[$day_name]) || empty($schedule[$day_name]['active'])) {
+                    $off_days[] = $day_num;
+                }
             }
+        } else {
+            $off_days = array_values($day_map);
         }
 
-        wp_send_json_success($off_days);
+        // Date-level overrides on top of the weekday pattern above — off
+        // dates close a normally-active weekday for that one date; extra
+        // dates open a normally-inactive weekday for that one date. The
+        // calendar applies these itself (off_days is still weekday-only).
+        $extra_dates = get_post_meta($doctor_id, '_mdbk_extra_dates', true);
+        $off_dates = get_post_meta($doctor_id, '_mdbk_off_dates', true);
+
+        wp_send_json_success([
+            'off_days'    => $off_days,
+            'extra_dates' => is_array($extra_dates) ? array_values($extra_dates) : [],
+            'off_dates'   => is_array($off_dates) ? array_values($off_dates) : [],
+        ]);
     }
 
     /**
@@ -629,6 +707,7 @@ class MDBK_Appointment_Manager {
                     'department_ids'  => $dept_ids,
                     'available_days'  => $available_days,
                     'thumbnail'       => get_the_post_thumbnail_url($doctor->ID, 'thumbnail') ?: '',
+                    'slot_enabled'    => self::is_slot_enabled($doctor->ID),
                 ];
             }
         }
@@ -683,6 +762,7 @@ class MDBK_Appointment_Manager {
             'department_ids'  => $dept_ids,
             'available_days'  => $available_days,
             'thumbnail'       => get_the_post_thumbnail_url($doctor->ID, 'thumbnail') ?: '',
+            'slot_enabled'    => self::is_slot_enabled($doctor->ID),
         ]);
     }
 }
