@@ -1,5 +1,18 @@
 document.addEventListener('DOMContentLoaded', function() {
-    
+
+    // "Today" for the scheduling calendars below comes from the server
+    // (mdbk_admin_obj.today, set via current_time('Y-m-d') — WP's
+    // configured site timezone), not the admin's own browser clock, so the
+    // past/bookable-date cutoff always matches the clinic's actual today
+    // regardless of which timezone the admin happens to be browsing from.
+    function parseServerDate(str) {
+        if (str) {
+            var parts = str.split('-');
+            return new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+        }
+        return new Date();
+    }
+
     function initModal(modalId, openSelector, formId, editClass, populateFn) {
         const modal = document.getElementById(modalId);
         if (!modal) return;
@@ -63,7 +76,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const hiddenInput = document.getElementById(hiddenInputId);
         if (!container || !hiddenInput) return null;
 
-        const today = new Date();
+        const today = parseServerDate(typeof mdbk_admin_obj !== 'undefined' ? mdbk_admin_obj.today : null);
         let viewYear = today.getFullYear();
         let viewMonth = today.getMonth();
         let selected = [];
@@ -214,6 +227,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     const doctorSpecSelect = initCustomSelect('mdbk-doc-spec-select');
+    const patientGenderSelect = initCustomSelect('mdbk-patient-gender-select');
 
     initModal('mdbk-doctor-modal', '.mdbk-add-doctor, .mdbk-edit-doctor', 'mdbk-doctor-form', 'mdbk-edit-doctor', (id, btn) => {
         document.getElementById('mdbk-doctor-id').value = id;
@@ -407,14 +421,39 @@ document.addEventListener('DOMContentLoaded', function() {
 
     initModal('mdbk-patient-modal', '.mdbk-add-patient, .mdbk-edit-patient', 'mdbk-patient-form', 'mdbk-edit-patient', (id, btn) => {
         document.getElementById('mdbk-patient-id').value = id;
+        const title = document.getElementById('mdbk-patient-modal-title');
+        if (title) title.textContent = 'Edit Patient';
         const row = btn.closest('tr, .mdbk-patient-row');
         if (row) {
             document.getElementById('mdbk-patient-name').value = row.dataset.name;
             document.getElementById('mdbk-patient-phone').value = row.dataset.phone;
             document.getElementById('mdbk-patient-email').value = row.dataset.email;
             document.getElementById('mdbk-patient-address').value = row.dataset.address;
+            var patientAge = document.getElementById('mdbk-patient-age');
+            if (patientAge) patientAge.value = row.dataset.age || '';
+            if (patientGenderSelect && row.dataset.gender) {
+                const opt = patientGenderSelect.panel.querySelector('.mdbk-custom-select-option[data-value="' + row.dataset.gender + '"]');
+                if (opt) patientGenderSelect.setValue(opt.dataset.value, opt.textContent);
+            }
         }
     });
+
+    document.querySelectorAll('.mdbk-add-patient').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            const title = document.getElementById('mdbk-patient-modal-title');
+            if (title) title.textContent = 'Add Patient';
+            if (patientGenderSelect) {
+                const firstOpt = patientGenderSelect.panel.querySelector('.mdbk-custom-select-option');
+                if (firstOpt) patientGenderSelect.setValue(firstOpt.dataset.value, firstOpt.textContent);
+            }
+        });
+    });
+    const patientModalCancel = document.querySelector('#mdbk-patient-modal .mdbk-modal-cancel');
+    if (patientModalCancel) {
+        patientModalCancel.addEventListener('click', function() {
+            document.getElementById('mdbk-patient-modal').style.display = 'none';
+        });
+    }
 
     // A slot-disabled doctor is booked serially (queue number auto-assigned
     // by the server) — the Slot Time field means nothing for them, so it's

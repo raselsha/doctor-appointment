@@ -96,6 +96,8 @@ class MDBK_Admin_Dashboard {
             update_post_meta($id, '_mdbk_patient_phone', sanitize_text_field($_POST['patient_phone']));
             update_post_meta($id, '_mdbk_patient_email', sanitize_email($_POST['patient_email']));
             update_post_meta($id, '_mdbk_patient_address', sanitize_textarea_field($_POST['patient_address']));
+            update_post_meta($id, '_mdbk_patient_age', isset($_POST['patient_age']) ? sanitize_text_field($_POST['patient_age']) : '');
+            update_post_meta($id, '_mdbk_patient_gender', isset($_POST['patient_gender']) ? sanitize_text_field($_POST['patient_gender']) : '');
             wp_redirect(admin_url('admin.php?page=mdbk-patients&success=1'));
             exit;
         }
@@ -144,6 +146,7 @@ class MDBK_Admin_Dashboard {
         $date      = sanitize_text_field($_POST['app_date']);
         $slot_time = isset($_POST['slot_time']) ? sanitize_text_field($_POST['slot_time']) : '';
         $old_date  = get_post_meta($app_id, '_mdbk_appointment_date', true);
+        $old_slot_time = get_post_meta($app_id, '_mdbk_slot_time', true);
         $old_doctor_id = intval(get_post_meta($app_id, '_mdbk_doctor_id', true));
 
         if (\MDBK\MDBK_Appointment_Manager::is_slot_taken($doctor_id, $date, $slot_time, $app_id)) {
@@ -173,6 +176,14 @@ class MDBK_Admin_Dashboard {
             update_post_meta($id, '_mdbk_doctor_id', $doctor_id);
             update_post_meta($id, '_mdbk_appointment_date', $date);
             update_post_meta($id, '_mdbk_slot_time', $slot_time);
+            // A patient checked in for the old date/time shouldn't show as
+            // checked-in for a rescheduled one. The check-in token itself
+            // is a persistent identifier for the appointment and is left
+            // alone — only the "has this happened yet" state resets.
+            if ($date !== $old_date || $slot_time !== $old_slot_time) {
+                delete_post_meta($id, '_mdbk_checked_in');
+                delete_post_meta($id, '_mdbk_checkin_time');
+            }
             // Reassign the ticket number when the date or doctor changed
             // (rescheduling), or when there was never one (legacy record).
             if (!get_post_meta($id, '_mdbk_ticket_number', true) || $date !== $old_date || $doctor_id !== $old_doctor_id) {
@@ -198,10 +209,15 @@ class MDBK_Admin_Dashboard {
         add_menu_page('MedBook', 'MedBook', 'manage_options', 'mdbk-dashboard', [$this, 'render_dashboard'], 'dashicons-plus-alt', 25);
         add_submenu_page('mdbk-dashboard', 'Dashboard', 'Dashboard', 'manage_options', 'mdbk-dashboard', [$this, 'render_dashboard']);
 
-        // Queue/appointments gets its own top-level menu (rather than a
-        // hidden submenu of the manage_options-only MedBook parent) so the
-        // front-desk role, which lacks manage_options, can still reach it.
-        add_menu_page(__('Queue', 'doctor-appointment'), __('Queue', 'doctor-appointment'), MDBK_CAP_QUEUE, 'mdbk-schedule', [$this, 'render_schedule_page'], 'dashicons-groups', 26);
+        // Queue/appointments has no WP-native menu item of its own — same
+        // as Doctors/Patients/Specialties below, it's reachable but hidden,
+        // since the plugin's own full-screen sidebar (see render_sidebar())
+        // is the real navigation between pages once inside any one of
+        // them. Registered with its own MDBK_CAP_QUEUE capability (not
+        // manage_options) rather than folding it into $hidden_pages below,
+        // so the front-desk role — which has that capability but not
+        // manage_options — can still open it.
+        add_submenu_page(null, 'mdbk-schedule', 'mdbk-schedule', MDBK_CAP_QUEUE, 'mdbk-schedule', [$this, 'render_schedule_page']);
 
         $hidden_pages = ['mdbk-doctors' => 'render_doctors_page', 'mdbk-patients' => 'render_patients_page', 'mdbk-specialties' => 'render_specialties_page'];
         foreach($hidden_pages as $slug => $cb) add_submenu_page(null, $slug, $slug, 'manage_options', $slug, [$this, $cb]);
@@ -236,10 +252,30 @@ class MDBK_Admin_Dashboard {
             <div class="mdbk-main-content">
                 <div class="mdbk-header"><div class="mdbk-header-left"><h1><?php _e('Medical Overview', 'doctor-appointment'); ?></h1><p><?php _e('Track your daily operations.', 'doctor-appointment'); ?></p></div><div class="mdbk-header-right"><input type="text" class="mdbk-search-box" placeholder="<?php esc_attr_e('Quick search...', 'doctor-appointment'); ?>"><a href="#" class="mdbk-btn-add mdbk-add-appointment"><?php _e('+ New Booking', 'doctor-appointment'); ?></a></div></div>
                 <div class="mdbk-stats-grid">
-                    <div class="mdbk-stat-card"><h4><?php _e('Doctors', 'doctor-appointment'); ?></h4><div class="value"><?php echo esc_html($stats['doctors']); ?></div><div class="trend positive"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline><polyline points="17 6 23 6 23 12"></polyline></svg> <?php _e('practitioners', 'doctor-appointment'); ?></div></div>
-                    <div class="mdbk-stat-card"><h4><?php _e('Patients', 'doctor-appointment'); ?></h4><div class="value"><?php echo esc_html($stats['patients']); ?></div><div class="trend"><?php _e('Total records', 'doctor-appointment'); ?></div></div>
-                    <div class="mdbk-stat-card"><h4><?php _e('Bookings', 'doctor-appointment'); ?></h4><div class="value"><?php echo esc_html($stats['appointments']); ?></div><div class="trend positive"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline><polyline points="17 6 23 6 23 12"></polyline></svg> <?php _e('Total processed', 'doctor-appointment'); ?></div></div>
-                    <div class="mdbk-stat-card"><h4><?php _e('Rating', 'doctor-appointment'); ?></h4><div class="value">4.9</div><div class="trend"><svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg> <?php _e('score', 'doctor-appointment'); ?></div></div>
+                    <div class="mdbk-stat-card mdbk-stat-card-blue">
+                        <div class="mdbk-stat-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.5 21a8.5 8.5 0 0 0-17 0"></path><circle cx="12" cy="7.5" r="4.5"></circle></svg></div>
+                        <h4><?php _e('Doctors', 'doctor-appointment'); ?></h4>
+                        <div class="value"><?php echo esc_html($stats['doctors']); ?></div>
+                        <div class="trend"><?php _e('practitioners', 'doctor-appointment'); ?></div>
+                    </div>
+                    <div class="mdbk-stat-card mdbk-stat-card-violet">
+                        <div class="mdbk-stat-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg></div>
+                        <h4><?php _e('Patients', 'doctor-appointment'); ?></h4>
+                        <div class="value"><?php echo esc_html($stats['patients']); ?></div>
+                        <div class="trend"><?php _e('Total records', 'doctor-appointment'); ?></div>
+                    </div>
+                    <div class="mdbk-stat-card mdbk-stat-card-green">
+                        <div class="mdbk-stat-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="3"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg></div>
+                        <h4><?php _e('Bookings', 'doctor-appointment'); ?></h4>
+                        <div class="value"><?php echo esc_html($stats['appointments']); ?></div>
+                        <div class="trend"><?php _e('Total processed', 'doctor-appointment'); ?></div>
+                    </div>
+                    <div class="mdbk-stat-card mdbk-stat-card-amber">
+                        <div class="mdbk-stat-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg></div>
+                        <h4><?php _e("Today's Bookings", 'doctor-appointment'); ?></h4>
+                        <div class="value"><?php echo esc_html(count($today_apps)); ?></div>
+                        <div class="trend"><?php echo esc_html(date_i18n('l, M j', strtotime($today))); ?></div>
+                    </div>
                 </div>
 
                 <div class="mdbk-dashboard-grid-container">
@@ -773,6 +809,10 @@ class MDBK_Admin_Dashboard {
         $phone = get_post_meta($p->ID, '_mdbk_patient_phone', true);
         $email = get_post_meta($p->ID, '_mdbk_patient_email', true);
         $address = get_post_meta($p->ID, '_mdbk_patient_address', true);
+        $age = get_post_meta($p->ID, '_mdbk_patient_age', true);
+        $gender = get_post_meta($p->ID, '_mdbk_patient_gender', true);
+        $age_gender = trim($gender . ($age && $gender ? ' · ' : '') . $age);
+        $gender_key = $gender ? strtolower($gender) : 'unknown';
         $visit_count = count(get_posts([
             'post_type'   => 'mdbk_appointment',
             'numberposts' => -1,
@@ -782,12 +822,13 @@ class MDBK_Admin_Dashboard {
         ]));
         ob_start();
         ?>
-        <div class="mdbk-patient-row mdbk-patient-row-directory" data-id="<?php echo esc_attr($p->ID); ?>" data-name="<?php echo esc_attr($p->post_title); ?>" data-phone="<?php echo esc_attr($phone); ?>" data-email="<?php echo esc_attr($email); ?>" data-address="<?php echo esc_attr($address); ?>">
+        <div class="mdbk-patient-row mdbk-patient-row-directory" data-id="<?php echo esc_attr($p->ID); ?>" data-name="<?php echo esc_attr($p->post_title); ?>" data-phone="<?php echo esc_attr($phone); ?>" data-email="<?php echo esc_attr($email); ?>" data-address="<?php echo esc_attr($address); ?>" data-age="<?php echo esc_attr($age); ?>" data-gender="<?php echo esc_attr($gender); ?>">
             <span class="mdbk-patient-row-ticket-slot"><span class="mdbk-patient-row-ticket mdbk-patient-row-pid" title="<?php esc_attr_e('Patient ID', 'doctor-appointment'); ?>">P<?php echo esc_html($p->ID); ?></span></span>
             <span class="mdbk-patient-row-name"><?php echo esc_html($p->post_title); ?></span>
             <span class="mdbk-patient-row-chip-slot"><?php if ($phone): ?><span class="mdbk-patient-row-chip mdbk-chip-phone"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.12.9.34 1.79.66 2.64a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.44-1.44a2 2 0 0 1 2.11-.45c.85.32 1.74.54 2.64.66A2 2 0 0 1 22 16.92z"></path></svg> <?php echo esc_html($phone); ?></span><?php endif; ?></span>
             <span class="mdbk-patient-row-chip-slot"><?php if ($email): ?><span class="mdbk-patient-row-chip mdbk-chip-email"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 6l-10 7L2 6"></path><path d="M2 6h20v12H2z"></path></svg> <?php echo esc_html($email); ?></span><?php endif; ?></span>
             <span class="mdbk-patient-row-chip-slot"><?php if ($address): ?><span class="mdbk-patient-row-chip mdbk-chip-address" title="<?php echo esc_attr($address); ?>"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg> <?php echo esc_html($address); ?></span><?php endif; ?></span>
+            <span class="mdbk-patient-row-chip-slot"><?php if ($age_gender): ?><span class="mdbk-patient-row-chip mdbk-meta-pill mdbk-gender-<?php echo esc_attr($gender_key); ?>"><?php echo esc_html($age_gender); ?></span><?php endif; ?></span>
             <span class="mdbk-badge mdbk-badge-green" title="<?php esc_attr_e('Total visits', 'doctor-appointment'); ?>"><?php echo esc_html($visit_count); ?></span>
             <div class="mdbk-actions">
                 <a href="#" class="mdbk-action-btn mdbk-edit-patient" data-id="<?php echo esc_attr($p->ID); ?>"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"></path><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"></path></svg></a>
@@ -799,13 +840,49 @@ class MDBK_Admin_Dashboard {
     }
 
     public function render_patients_page() {
+        $search = isset($_GET['s']) ? sanitize_text_field(wp_unslash($_GET['s'])) : '';
+        $filter_gender = isset($_GET['filter_gender']) ? sanitize_text_field($_GET['filter_gender']) : '';
+
         $patients = get_posts(['post_type' => 'mdbk_patient', 'numberposts' => -1, 'orderby' => 'title', 'order' => 'ASC']);
+
+        // Filtered in PHP rather than via WP_Query — 's' only matches
+        // post_title for a CPT like this, and phone/email live in postmeta,
+        // so a real name/phone/email search needs to look across all three.
+        if ($search || $filter_gender) {
+            $patients = array_values(array_filter($patients, function($p) use ($search, $filter_gender) {
+                if ($filter_gender && get_post_meta($p->ID, '_mdbk_patient_gender', true) !== $filter_gender) return false;
+                if ($search) {
+                    $haystack = $p->post_title . ' ' . get_post_meta($p->ID, '_mdbk_patient_phone', true) . ' ' . get_post_meta($p->ID, '_mdbk_patient_email', true);
+                    if (stripos($haystack, $search) === false) return false;
+                }
+                return true;
+            }));
+        }
         ?>
         <div id="mdbk-admin-dashboard"><div class="mdbk-admin-wrapper"><?php $this->render_sidebar('patients'); ?>
             <div class="mdbk-main-content">
                 <div class="mdbk-header"><div class="mdbk-header-left"><h1><?php _e('Patient Directory', 'doctor-appointment'); ?></h1><p><?php echo esc_html(sprintf(_n('%d patient', '%d patients', count($patients), 'doctor-appointment'), count($patients))); ?></p></div><a href="#" class="mdbk-btn-add mdbk-add-patient"><?php _e('+ Add Patient', 'doctor-appointment'); ?></a></div>
+
+                <div class="mdbk-filters-bar">
+                    <form method="get" class="mdbk-filters-form">
+                        <input type="hidden" name="page" value="mdbk-patients">
+                        <input type="text" name="s" value="<?php echo esc_attr($search); ?>" placeholder="<?php esc_attr_e('Search name, phone, or email...', 'doctor-appointment'); ?>" class="mdbk-filters-search">
+                        <select name="filter_gender">
+                            <option value=""><?php _e('All Genders', 'doctor-appointment'); ?></option>
+                            <option value="Male" <?php selected($filter_gender, 'Male'); ?>><?php _e('Male', 'doctor-appointment'); ?></option>
+                            <option value="Female" <?php selected($filter_gender, 'Female'); ?>><?php _e('Female', 'doctor-appointment'); ?></option>
+                            <option value="Other" <?php selected($filter_gender, 'Other'); ?>><?php _e('Other', 'doctor-appointment'); ?></option>
+                        </select>
+                        <button type="submit" class="mdbk-btn-add mdbk-btn-sm"><?php _e('Filter', 'doctor-appointment'); ?></button>
+                        <div class="mdbk-filters-spacer"></div>
+                        <?php if ($search || $filter_gender) : ?>
+                            <a href="<?php echo esc_url(admin_url('admin.php?page=mdbk-patients')); ?>" class="mdbk-date-nav-all"><?php _e('Clear', 'doctor-appointment'); ?></a>
+                        <?php endif; ?>
+                    </form>
+                </div>
+
                 <?php if (empty($patients)): ?>
-                    <div class="mdbk-card"><table class="mdbk-table"><tbody><tr><td style="text-align:center; padding:40px; opacity:0.6;"><?php _e('No patients yet.', 'doctor-appointment'); ?></td></tr></tbody></table></div>
+                    <div class="mdbk-card"><table class="mdbk-table"><tbody><tr><td style="text-align:center; padding:40px; opacity:0.6;"><?php echo ($search || $filter_gender) ? esc_html__('No patients match your search.', 'doctor-appointment') : esc_html__('No patients yet.', 'doctor-appointment'); ?></td></tr></tbody></table></div>
                 <?php else: ?>
                     <div class="mdbk-card mdbk-directory-card">
                         <div class="mdbk-patient-row mdbk-patient-row-directory mdbk-directory-list-header">
@@ -814,6 +891,7 @@ class MDBK_Admin_Dashboard {
                             <span><?php _e('Phone', 'doctor-appointment'); ?></span>
                             <span><?php _e('Email', 'doctor-appointment'); ?></span>
                             <span><?php _e('Address', 'doctor-appointment'); ?></span>
+                            <span><?php _e('Age/Gender', 'doctor-appointment'); ?></span>
                             <span><?php _e('Visits', 'doctor-appointment'); ?></span>
                             <span></span>
                         </div>
@@ -843,16 +921,16 @@ class MDBK_Admin_Dashboard {
         ?>
         <div class="mdbk-sidebar"><div class="mdbk-sidebar-logo">MedBook</div><ul class="mdbk-sidebar-menu">
             <?php if (current_user_can('manage_options')) : ?>
-            <li class="mdbk-menu-item <?php echo $active_page == 'dashboard' ? 'active' : ''; ?>" onclick="window.location.href='<?php echo esc_url(admin_url('admin.php?page=mdbk-dashboard')); ?>'"><?php _e('Dashboard', 'doctor-appointment'); ?></li>
-            <li class="mdbk-menu-item <?php echo $active_page == 'doctors' ? 'active' : ''; ?>" onclick="window.location.href='<?php echo esc_url(admin_url('admin.php?page=mdbk-doctors')); ?>'"><?php _e('Doctors', 'doctor-appointment'); ?></li>
+            <li class="mdbk-menu-item <?php echo $active_page == 'dashboard' ? 'active' : ''; ?>" onclick="window.location.href='<?php echo esc_url(admin_url('admin.php?page=mdbk-dashboard')); ?>'"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg><?php _e('Dashboard', 'doctor-appointment'); ?></li>
+            <li class="mdbk-menu-item <?php echo $active_page == 'doctors' ? 'active' : ''; ?>" onclick="window.location.href='<?php echo esc_url(admin_url('admin.php?page=mdbk-doctors')); ?>'"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.5 21a8.5 8.5 0 0 0-17 0"></path><circle cx="12" cy="7.5" r="4.5"></circle></svg><?php _e('Doctors', 'doctor-appointment'); ?></li>
             <?php endif; ?>
             <?php if (current_user_can(MDBK_CAP_QUEUE)) : ?>
-            <li class="mdbk-menu-item <?php echo $active_page == 'schedule' ? 'active' : ''; ?>" onclick="window.location.href='<?php echo esc_url(admin_url('admin.php?page=mdbk-schedule')); ?>'"><?php _e('Booking', 'doctor-appointment'); ?></li>
+            <li class="mdbk-menu-item <?php echo $active_page == 'schedule' ? 'active' : ''; ?>" onclick="window.location.href='<?php echo esc_url(admin_url('admin.php?page=mdbk-schedule')); ?>'"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="3"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg><?php _e('Booking', 'doctor-appointment'); ?></li>
             <?php endif; ?>
             <?php if (current_user_can('manage_options')) : ?>
-            <li class="mdbk-menu-item <?php echo $active_page == 'patients' ? 'active' : ''; ?>" onclick="window.location.href='<?php echo esc_url(admin_url('admin.php?page=mdbk-patients')); ?>'"><?php _e('Patients', 'doctor-appointment'); ?></li>
-            <li class="mdbk-menu-item <?php echo $active_page == 'specialties' ? 'active' : ''; ?>" onclick="window.location.href='<?php echo esc_url(admin_url('admin.php?page=mdbk-specialties')); ?>'"><?php _e('Specialties', 'doctor-appointment'); ?></li>
-            <li class="mdbk-menu-item"><?php _e('Global Settings', 'doctor-appointment'); ?></li>
+            <li class="mdbk-menu-item <?php echo $active_page == 'patients' ? 'active' : ''; ?>" onclick="window.location.href='<?php echo esc_url(admin_url('admin.php?page=mdbk-patients')); ?>'"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg><?php _e('Patients', 'doctor-appointment'); ?></li>
+            <li class="mdbk-menu-item <?php echo $active_page == 'specialties' ? 'active' : ''; ?>" onclick="window.location.href='<?php echo esc_url(admin_url('admin.php?page=mdbk-specialties')); ?>'"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41L13.42 20.58a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path><line x1="7" y1="7" x2="7.01" y2="7"></line></svg><?php _e('Specialties', 'doctor-appointment'); ?></li>
+            <li class="mdbk-menu-item"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg><?php _e('Global Settings', 'doctor-appointment'); ?></li>
             <?php endif; ?>
         </ul><div class="mdbk-sidebar-footer"><div class="mdbk-user-avatar"></div><div class="mdbk-user-info"><div style="font-weight: 700; font-size: 13px;"><?php echo esc_html(wp_get_current_user()->display_name); ?></div><div style="font-size: 11px; opacity: 0.6;"><?php _e('Medical Center', 'doctor-appointment'); ?></div></div></div></div>
         <?php
@@ -974,12 +1052,51 @@ class MDBK_Admin_Dashboard {
     <?php }
 
     private function render_patient_modal_html() { ?>
-        <div id="mdbk-patient-modal" class="mdbk-modal"><div class="mdbk-modal-content"><span class="mdbk-modal-close">&times;</span><h2><?php _e('Patient Record', 'doctor-appointment'); ?></h2><form id="mdbk-patient-form" method="POST"><?php wp_nonce_field('mdbk_save_patient'); ?><input type="hidden" name="patient_id" id="mdbk-patient-id"><div class="mdbk-form-section">
-            <div class="mdbk-input-group"><label><?php _e('Full Name', 'doctor-appointment'); ?></label><input type="text" name="patient_name" id="mdbk-patient-name" class="mdbk-input" required></div>
-            <div class="mdbk-input-group"><label><?php _e('Phone', 'doctor-appointment'); ?></label><input type="text" name="patient_phone" id="mdbk-patient-phone" class="mdbk-input"></div>
-            <div class="mdbk-input-group"><label><?php _e('Email', 'doctor-appointment'); ?></label><input type="email" name="patient_email" id="mdbk-patient-email" class="mdbk-input"></div>
-            <div class="mdbk-input-group"><label><?php _e('Address', 'doctor-appointment'); ?></label><textarea name="patient_address" id="mdbk-patient-address" class="mdbk-input"></textarea></div>
-        </div><button type="submit" name="mdbk_save_patient" class="mdbk-btn-save"><?php _e('Save Record', 'doctor-appointment'); ?></button></form></div></div>
+        <div id="mdbk-patient-modal" class="mdbk-modal mdbk-modal-compact"><div class="mdbk-modal-content">
+            <div class="mdbk-modal-head"><h2 id="mdbk-patient-modal-title"><?php _e('Add Patient', 'doctor-appointment'); ?></h2><span class="mdbk-modal-close">&times;</span></div>
+            <form id="mdbk-patient-form" method="POST"><?php wp_nonce_field('mdbk_save_patient'); ?><input type="hidden" name="patient_id" id="mdbk-patient-id">
+            <div class="mdbk-modal-body">
+                <div class="mdbk-form-row">
+                    <label class="mdbk-form-label" for="mdbk-patient-name"><?php _e('Full Name', 'doctor-appointment'); ?> *</label>
+                    <input type="text" name="patient_name" id="mdbk-patient-name" required>
+                </div>
+                <div class="mdbk-form-row mdbk-form-row-duo">
+                    <div><label class="mdbk-form-label" for="mdbk-patient-phone"><?php _e('Phone', 'doctor-appointment'); ?></label><input type="text" name="patient_phone" id="mdbk-patient-phone"></div>
+                    <div><label class="mdbk-form-label" for="mdbk-patient-email"><?php _e('Email', 'doctor-appointment'); ?></label><input type="email" name="patient_email" id="mdbk-patient-email"></div>
+                </div>
+                <div class="mdbk-form-row mdbk-form-row-duo">
+                    <div><label class="mdbk-form-label" for="mdbk-patient-age"><?php _e('Age', 'doctor-appointment'); ?></label><input type="number" name="patient_age" id="mdbk-patient-age" min="0"></div>
+                    <div>
+                        <label class="mdbk-form-label" for="mdbk-patient-gender-trigger"><?php _e('Gender', 'doctor-appointment'); ?></label>
+                        <div class="mdbk-custom-select" id="mdbk-patient-gender-select">
+                            <button type="button" class="mdbk-custom-select-trigger" id="mdbk-patient-gender-trigger">
+                                <span class="mdbk-custom-select-value"><?php _e('Male', 'doctor-appointment'); ?></span>
+                                <span class="mdbk-custom-select-chevron"></span>
+                            </button>
+                            <div class="mdbk-custom-select-panel" id="mdbk-patient-gender-panel" style="display:none;">
+                                <div class="mdbk-custom-select-option selected" data-value="Male"><?php _e('Male', 'doctor-appointment'); ?></div>
+                                <div class="mdbk-custom-select-option" data-value="Female"><?php _e('Female', 'doctor-appointment'); ?></div>
+                                <div class="mdbk-custom-select-option" data-value="Other"><?php _e('Other', 'doctor-appointment'); ?></div>
+                            </div>
+                            <select name="patient_gender" id="mdbk-patient-gender" style="display:none;">
+                                <option value="Male"><?php _e('Male', 'doctor-appointment'); ?></option>
+                                <option value="Female"><?php _e('Female', 'doctor-appointment'); ?></option>
+                                <option value="Other"><?php _e('Other', 'doctor-appointment'); ?></option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="mdbk-form-row">
+                    <label class="mdbk-form-label" for="mdbk-patient-address"><?php _e('Address', 'doctor-appointment'); ?></label>
+                    <textarea name="patient_address" id="mdbk-patient-address" rows="3"></textarea>
+                </div>
+            </div>
+            <div class="mdbk-modal-foot">
+                <button type="button" class="mdbk-btn-outline mdbk-modal-cancel"><?php _e('Cancel', 'doctor-appointment'); ?></button>
+                <button type="submit" name="mdbk_save_patient" class="mdbk-btn-save"><?php _e('Save Record', 'doctor-appointment'); ?></button>
+            </div>
+            </form>
+        </div></div>
     <?php }
 
     private function render_appointment_modal_html() {

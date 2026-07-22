@@ -42,6 +42,44 @@ class MDBK_Appointment_Manager {
         add_action('wp_ajax_nopriv_mdbk_get_doctor_slots', [$this, 'ajax_get_doctor_slots']);
         add_action('wp_ajax_mdbk_submit_appointment', [$this, 'ajax_handle_submission']);
         add_action('wp_ajax_nopriv_mdbk_submit_appointment', [$this, 'ajax_handle_submission']);
+
+        add_filter('mdbk_email_body', [$this, 'append_checkin_link_to_email'], 10, 4);
+    }
+
+    /**
+     * Appends the patient's check-in link to the "waiting" confirmation
+     * email only. Must NOT fire for the doctor's copy of the same email
+     * (recipient_type check) — the link is a bearer token to the patient's
+     * own booking.
+     */
+    public function append_checkin_link_to_email($body, $event, $appointment_id, $recipient_type) {
+        if ($event !== 'waiting' || $recipient_type !== 'patient') {
+            return $body;
+        }
+
+        $token = get_post_meta($appointment_id, '_mdbk_checkin_token', true);
+        if (!$token) {
+            return $body;
+        }
+
+        $ticket    = self::format_ticket_number(get_post_meta($appointment_id, '_mdbk_ticket_number', true));
+        $date      = get_post_meta($appointment_id, '_mdbk_appointment_date', true);
+        $slot_time = get_post_meta($appointment_id, '_mdbk_slot_time', true);
+        $checkin_url = add_query_arg('mdbk_token', $token, home_url('/'));
+
+        $body .= "\n\n" . __('Your check-in details:', 'doctor-appointment') . "\n";
+        if ($ticket) {
+            $body .= sprintf(__('Ticket: %s', 'doctor-appointment'), $ticket) . "\n";
+        }
+        if ($date) {
+            $body .= sprintf(__('Date: %s', 'doctor-appointment'), date_i18n(get_option('date_format'), strtotime($date))) . "\n";
+        }
+        if ($slot_time) {
+            $body .= sprintf(__('Time: %s', 'doctor-appointment'), date_i18n(get_option('time_format'), strtotime($slot_time))) . "\n";
+        }
+        $body .= "\n" . sprintf(__('View your booking and check in here: %s', 'doctor-appointment'), $checkin_url) . "\n";
+
+        return $body;
     }
 
     /**
@@ -473,6 +511,47 @@ class MDBK_Appointment_Manager {
     }
 
     /**
+     * A fresh check-in token — alnum only (no special chars), so it's safe
+     * to drop straight into a URL query string and to type/paste from a
+     * hardware QR scanner with no escaping concerns. Not checked for
+     * collisions: at realistic booking volume against a 62^20 character
+     * space, the odds are not worth the extra query.
+     */
+    public static function generate_checkin_token() {
+        return wp_generate_password(20, false);
+    }
+
+    /**
+     * The one appointment a check-in token belongs to, or null if the
+     * token doesn't resolve to anything (deleted appointment, bad/expired
+     * link, garbage input from a bogus scan). Shared by the "view my
+     * booking" status view and the Queue Management check-in verify
+     * handler, both in shortcode.php, so the meta_query lives in one place.
+     */
+    public static function find_appointment_by_token($token) {
+        $token = sanitize_text_field((string) $token);
+        if (!$token) return null;
+
+        $found = get_posts([
+            'post_type'   => 'mdbk_appointment',
+            'post_status' => \MDBK\MDBK_CPT::APPOINTMENT_STATUSES,
+            'numberposts' => 1,
+            'meta_query'  => [['key' => '_mdbk_checkin_token', 'value' => $token]],
+        ]);
+        return $found ? $found[0] : null;
+    }
+
+    /**
+     * "Q01"-style display format for a raw ticket number — was inlined
+     * separately in the frontend queue display and the backend patient
+     * row (str_pad($ticket, 2, '0', STR_PAD_LEFT)); pulled out here so the
+     * new booking-success payload doesn't add a third copy.
+     */
+    public static function format_ticket_number($ticket) {
+        return $ticket ? 'Q' . str_pad($ticket, 2, '0', STR_PAD_LEFT) : '';
+    }
+
+    /**
      * Best-effort soft lock around the slot-conflict-check + insert critical
      * section. Not a hard atomicity guarantee (no new table for a real
      * mutex) — good enough for realistic front-desk concurrency.
@@ -551,6 +630,10 @@ class MDBK_Appointment_Manager {
             update_post_meta($appointment_id, '_mdbk_doctor_id', $doctor_id);
             update_post_meta($appointment_id, '_mdbk_symptoms', isset($data['symptoms']) ? sanitize_textarea_field($data['symptoms']) : '');
             update_post_meta($appointment_id, '_mdbk_ticket_number', self::next_ticket_number($doctor_id, $date, $appointment_id));
+            // Token must exist before the status transition below, since that
+            // transition synchronously fires the confirmation email, and the
+            // email's check-in link needs a token to point at.
+            update_post_meta($appointment_id, '_mdbk_checkin_token', self::generate_checkin_token());
 
             wp_update_post(['ID' => $appointment_id, 'post_status' => 'mdbk_waiting']);
 
@@ -596,7 +679,21 @@ class MDBK_Appointment_Manager {
         if (is_wp_error($appointment_id)) {
             wp_send_json_error($appointment_id->get_error_message());
         } elseif ($appointment_id) {
-            wp_send_json_success(__('Appointment booked successfully! We will contact you soon.', 'doctor-appointment'));
+            $doctor_id = intval(get_post_meta($appointment_id, '_mdbk_doctor_id', true));
+            $date      = get_post_meta($appointment_id, '_mdbk_appointment_date', true);
+            $slot_time = get_post_meta($appointment_id, '_mdbk_slot_time', true);
+            $ticket    = get_post_meta($appointment_id, '_mdbk_ticket_number', true);
+            $token     = get_post_meta($appointment_id, '_mdbk_checkin_token', true);
+
+            wp_send_json_success([
+                'message'      => __('Appointment booked successfully! We will contact you soon.', 'doctor-appointment'),
+                'ticket'       => self::format_ticket_number($ticket),
+                'patient_name' => get_post_meta($appointment_id, '_mdbk_patient_name', true),
+                'doctor_name'  => get_the_title($doctor_id),
+                'date'         => $date ? date_i18n(get_option('date_format'), strtotime($date)) : '',
+                'slot_time'    => $slot_time ? date_i18n(get_option('time_format'), strtotime($slot_time)) : '',
+                'checkin_url'  => $token ? add_query_arg('mdbk_token', $token, home_url('/')) : '',
+            ]);
         } else {
             wp_send_json_error(__('Something went wrong. Please try again.', 'doctor-appointment'));
         }

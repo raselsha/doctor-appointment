@@ -88,7 +88,12 @@ if ( ! class_exists( 'MDBK_Doctor_Appointment' ) ) {
             wp_enqueue_script('mdbk-admin-script', MDBK_URL . 'assets/js/admin-script.js', array(), $admin_js_ver, true);
             wp_localize_script( 'mdbk-admin-script', 'mdbk_admin_obj', [
                 'ajax_url' => admin_url( 'admin-ajax.php' ),
-                'nonce'    => wp_create_nonce( 'mdbk_admin_nonce' )
+                'nonce'    => wp_create_nonce( 'mdbk_admin_nonce' ),
+                // The admin scheduling calendar's "today" must follow the
+                // site's configured timezone (Settings > General), not
+                // whatever timezone the admin's own browser happens to be
+                // in — current_time() is WP's timezone-aware clock.
+                'today'    => current_time( 'Y-m-d' ),
             ]);
         }
 
@@ -101,13 +106,27 @@ if ( ! class_exists( 'MDBK_Doctor_Appointment' ) ) {
             wp_enqueue_style( 'mdbk-form-style', MDBK_URL . 'assets/css/form-style.css', array(), filemtime( MDBK_PATH . 'assets/css/form-style.css' ) );
             wp_enqueue_style( 'mdbk-queue-style', MDBK_URL . 'assets/css/queue-style.css', array(), filemtime( MDBK_PATH . 'assets/css/queue-style.css' ) );
 
+            // Vendored qrcode-generator (kazuhikoarase, MIT) — renders the
+            // check-in QR entirely client-side, no third-party service ever
+            // sees patient/appointment data.
+            wp_enqueue_script( 'mdbk-qrcode', MDBK_URL . 'assets/js/vendor/qrcode.js', array(), filemtime( MDBK_PATH . 'assets/js/vendor/qrcode.js' ), true );
+
             // Hand-built calendar (no flatpickr) — sidesteps the active theme's
             // aggressive button/select/input[type=number] resets entirely by
             // using <span> day cells instead of form controls.
-            wp_enqueue_script( 'mdbk-form-script', MDBK_URL . 'assets/js/form-script.js', array(), $form_js_ver, true );
+            wp_enqueue_script( 'mdbk-form-script', MDBK_URL . 'assets/js/form-script.js', array( 'mdbk-qrcode' ), $form_js_ver, true );
             wp_localize_script( 'mdbk-form-script', 'mdbk_form_obj', [
                 'ajax_url' => admin_url( 'admin-ajax.php' ),
-                'nonce'    => wp_create_nonce( 'mdbk_form_nonce' )
+                'nonce'    => wp_create_nonce( 'mdbk_form_nonce' ),
+                // Booking calendar's "today" must follow the site's
+                // configured timezone (Settings > General), not the
+                // visitor's own browser/device timezone — a patient
+                // browsing from a different timezone than the clinic must
+                // still see the clinic's actual "today" as the cutoff for
+                // past/bookable dates. current_time() is WP's
+                // timezone-aware clock (get_option('timezone_string')/
+                // gmt_offset), unlike JS's new Date().
+                'today'    => current_time( 'Y-m-d' ),
             ]);
         }
 

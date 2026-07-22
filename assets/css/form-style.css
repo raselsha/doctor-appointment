@@ -792,3 +792,139 @@ button.mdbk-slot-btn.mdbk-slot-taken {
     color: #64748b;
     padding: 6px 0;
 }
+
+/* Booking Confirmation panel (post-booking summary + QR, and the
+   "view my booking" status view reached via the emailed check-in link) */
+.mdbk-booking-confirmation {
+    text-align: center;
+    padding: 8px 0 4px;
+}
+
+.mdbk-confirmation-icon {
+    width: 56px;
+    height: 56px;
+    line-height: 56px;
+    margin: 0 auto 14px;
+    background: #e6f7ed;
+    color: #1a7f45;
+    border-radius: 50%;
+    font-size: 26px;
+    font-weight: 700;
+}
+
+.mdbk-booking-confirmation h4 {
+    margin: 0 0 18px;
+    font-size: 19px;
+    font-weight: 700;
+    color: #1e293b;
+}
+
+.mdbk-confirmation-details {
+    text-align: left;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 14px 16px;
+    margin-bottom: 18px;
+}
+
+.mdbk-confirmation-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 0;
+    font-size: 14px;
+}
+
+.mdbk-confirmation-row + .mdbk-confirmation-row {
+    border-top: 1px solid #e2e8f0;
+}
+
+.mdbk-confirmation-row span {
+    color: #64748b;
+}
+
+.mdbk-confirmation-row strong {
+    color: #1e293b;
+    font-weight: 600;
+    text-align: right;
+}
+
+.mdbk-confirmation-qr {
+    margin: 6px auto 10px;
+    display: flex;
+    justify-content: center;
+}
+
+.mdbk-confirmation-qr img {
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 8px;
+    background: #fff;
+}
+
+.mdbk-confirmation-hint {
+    font-size: 13px;
+    color: #94a3b8;
+    margin: 0 0 4px;
+}
+
+.mdbk-confirmation-close-btn {
+    margin-top: 14px;
+    padding: 12px 28px;
+    background: #0061d5;
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.mdbk-confirmation-close-btn:hover {
+    background: #0056bc;
+}
+
+.mdbk-confirmation-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 4px;
+}
+
+.mdbk-confirmation-secondary-btn {
+    flex: 1;
+    padding: 11px 14px;
+    background: #fff;
+    color: #0061d5;
+    border: 1px solid #cbd5e1;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.mdbk-confirmation-secondary-btn:hover {
+    background: #f8fafc;
+    border-color: #94a3b8;
+}
+
+/* Printing the confirmation card ("Print / Save as PDF") — hide
+   everything else on the page and let the card fill the printable area. */
+@media print {
+    body * {
+        visibility: hidden;
+    }
+    .mdbk-booking-confirmation,
+    .mdbk-booking-confirmation * {
+        visibility: visible;
+    }
+    .mdbk-booking-confirmation {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+    }
+    .mdbk-confirmation-actions,
+    .mdbk-confirmation-close-btn {
+        display: none !important;
+    }
+}

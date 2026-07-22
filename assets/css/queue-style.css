@@ -319,3 +319,333 @@
     color: #94a3b8;
     padding: 0 24px 24px 24px;
 }
+
+/* Check-In box */
+.mdbk-checkin-box {
+    margin: 0 24px 20px 24px;
+    padding: 16px;
+    background: #fff;
+    border: 1px solid #f1f5f9;
+    border-radius: 16px;
+}
+
+.mdbk-checkin-box label {
+    display: block;
+    font-size: 12px;
+    font-weight: 700;
+    color: #64748b;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+}
+
+.mdbk-checkin-row {
+    display: flex;
+    gap: 8px;
+}
+
+.mdbk-checkin-row input {
+    flex: 1;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid #e2e8f0;
+    font-size: 14px;
+}
+
+.mdbk-checkin-row button {
+    padding: 10px 18px;
+    background: #0061d5;
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    font-weight: 700;
+    font-size: 13px;
+    cursor: pointer;
+}
+
+.mdbk-checkin-row button:hover {
+    background: #0056bc;
+}
+
+#mdbk-checkin-result {
+    margin-top: 10px;
+    font-size: 13px;
+    font-weight: 600;
+    display: none;
+}
+
+#mdbk-checkin-result:not(:empty) {
+    display: block;
+}
+
+#mdbk-checkin-result.mdbk-checkin-success {
+    color: #1a7f45;
+}
+
+#mdbk-checkin-result.mdbk-checkin-error {
+    color: #d93025;
+}
+
+.mdbk-checkedin-badge {
+    font-size: 11px;
+    font-weight: 700;
+    color: #1a7f45;
+    background: #e6f7ed;
+    border-radius: 8px;
+    padding: 4px 8px;
+    white-space: nowrap;
+}
+
+/* Public "Live Queue" single-doctor list — [mdbk_queue_list doctor="X"].
+   A plain arrival board (queue number + name per row), separate from the
+   kiosk's Now-Serving/action-button layout above: a row's only visual
+   state is whether that patient has checked in via the QR flow yet. */
+
+/* Everything — heading and list — lives in one box, .mdbk-queue-list-card.
+   Scoped to .mdbk-queue-app-instance only, so the staff kiosk's own card
+   (render_queue_body(), above) is untouched. */
+.mdbk-queue-app-instance {
+    background: transparent;
+    box-shadow: none;
+    border: none;
+    border-radius: 0;
+    overflow: visible;
+}
+
+.mdbk-queue-list-card {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    padding: 0;
+    /* Clips .mdbk-queue-list-heading's own background to the card's
+       rounded top corners instead of showing square corners under them. */
+    overflow: hidden;
+}
+
+/* Specialty + doctor name on one line, not stacked — the only part of the
+   card with the grey background; the list below sits on the card's own
+   white background. */
+.mdbk-queue-list-heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+    background: #f8fafc;
+    padding: 16px;
+}
+
+.mdbk-queue-list-heading-main {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+    overflow: hidden;
+}
+
+.mdbk-queue-list-specialty {
+    flex-shrink: 0;
+    background: #eef6ff;
+    color: #2563eb;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: 20px;
+    white-space: nowrap;
+}
+
+.mdbk-queue-list-heading h2 {
+    font-size: 18px;
+    font-weight: 800;
+    margin: 0;
+    color: #000;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.mdbk-queue-list-count {
+    flex-shrink: 0;
+    font-size: 13px;
+    font-weight: 700;
+    color: #64748b;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 20px;
+    padding: 4px 12px;
+    white-space: nowrap;
+}
+
+.mdbk-queue-list-columns {
+    margin: 0;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 16px;
+    /* Caps the visible list at ~5 rows; a 6th+ patient scrolls instead of
+       growing the card indefinitely — queue-view-script.js scrolls the
+       currently-serving row into view here on every refresh, so whoever's
+       being seen right now never gets scrolled out of sight. */
+    max-height: 276px;
+    overflow-y: auto;
+    scroll-behavior: smooth;
+}
+
+.mdbk-queue-list-card .mdbk-queue-updated {
+    padding: 0 16px 16px;
+}
+
+.mdbk-queue-list-row {
+    display: grid;
+    grid-template-columns: 56px 1fr auto;
+    align-items: center;
+    gap: 12px;
+    background: #fff;
+    border: 1px solid transparent;
+    border-radius: 10px;
+    padding: 10px 14px;
+    transition: background-color .3s ease, border-color .3s ease, opacity .3s ease, transform .3s ease;
+}
+
+.mdbk-queue-list-number {
+    font-weight: 800;
+    color: #0061d5;
+    font-size: 14px;
+    transition: color .3s ease;
+}
+
+.mdbk-queue-list-name {
+    font-weight: 600;
+    font-size: 14px;
+    color: #1e293b;
+    transition: color .3s ease;
+}
+
+/* Status badge — only shown for "serving"/"waiting" (present) rows; the
+   "normal" not-present state has no badge, just the muted row style. */
+.mdbk-queue-list-badge {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .02em;
+    padding: 4px 10px;
+    border-radius: 20px;
+    white-space: nowrap;
+}
+
+.mdbk-queue-list-row.mdbk-serving .mdbk-queue-list-badge {
+    background: #34c777;
+    color: #fff;
+}
+
+.mdbk-queue-list-row.mdbk-present .mdbk-queue-list-badge {
+    background: #fb923c;
+    color: #fff;
+}
+
+/* Three live states, from most to least "your turn":
+   serving (green, pulsing — the doctor is with this patient right now),
+   present (orange — checked in via QR, waiting their turn),
+   not-present (muted/disabled — hasn't checked in yet). */
+.mdbk-queue-list-row.mdbk-serving {
+    background: #e6f7ed;
+    border-color: #34c777;
+    animation: mdbk-serving-pulse 2s ease-in-out infinite;
+}
+
+.mdbk-queue-list-row.mdbk-serving .mdbk-queue-list-number,
+.mdbk-queue-list-row.mdbk-serving .mdbk-queue-list-name {
+    color: #15803d;
+}
+
+.mdbk-queue-list-row.mdbk-present {
+    background: #fff7ed;
+    border-color: #fb923c;
+}
+
+.mdbk-queue-list-row.mdbk-present .mdbk-queue-list-number,
+.mdbk-queue-list-row.mdbk-present .mdbk-queue-list-name {
+    color: #c2410c;
+}
+
+.mdbk-queue-list-row.mdbk-not-present {
+    opacity: .65;
+    border-color: #cbd5e1;
+    background-color: #f8fafc;
+    background-image: repeating-linear-gradient(
+        45deg,
+        rgba(100, 116, 139, .12),
+        rgba(100, 116, 139, .12) 6px,
+        transparent 6px,
+        transparent 12px
+    );
+}
+
+.mdbk-queue-list-row.mdbk-not-present .mdbk-queue-list-number,
+.mdbk-queue-list-row.mdbk-not-present .mdbk-queue-list-name {
+    color: #94a3b8;
+}
+
+@keyframes mdbk-serving-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(52, 199, 89, .35); }
+    50% { box-shadow: 0 0 0 6px rgba(52, 199, 89, 0); }
+}
+
+/* Live-update entry/exit — applied and removed by queue-view-script.js
+   when a poll adds a newly-booked patient or removes one the doctor just
+   finished with (completed/no-show drop out of the list entirely). */
+.mdbk-queue-list-row.mdbk-row-enter {
+    opacity: 0;
+    transform: translateY(-6px);
+}
+
+.mdbk-queue-list-row.mdbk-row-exit {
+    opacity: 0;
+    transform: translateY(6px);
+}
+
+/* All-doctors mode ([mdbk_queue_list] with no doctor attribute) — a
+   responsive grid instead of one long stacked column. Each instance's own
+   .mdbk-queue-container centering (max-width/auto margins, sized for a
+   standalone kiosk column) is overridden here so it behaves as a normal
+   grid item instead. */
+.mdbk-queue-list-all {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+    align-items: start;
+}
+
+.mdbk-queue-list-all .mdbk-queue-app-instance {
+    margin: 0;
+    max-width: none;
+    width: 100%;
+}
+
+/* Every card reserves the same amount of list space (~5 rows) regardless
+   of how many patients that doctor actually has — a doctor with 1 patient
+   and one with 8 end up the same height in the grid. */
+.mdbk-queue-list-all .mdbk-queue-list-columns {
+    height: 276px;
+}
+
+/* A doctor with zero patients today has nothing to show in the grid, so
+   their card is hidden entirely rather than showing an empty "0 patients"
+   box. queue-view-script.js keeps data-patient-count in sync on every poll
+   (see refreshInstance()), so the moment a booking lands for them the card
+   reappears on its own — no reload needed. */
+.mdbk-queue-list-all .mdbk-queue-app-instance[data-patient-count="0"] {
+    display: none;
+}
+
+@media (max-width: 1024px) {
+    .mdbk-queue-list-all {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 600px) {
+    .mdbk-queue-list-all {
+        grid-template-columns: 1fr;
+    }
+}

@@ -1,3 +1,117 @@
+/**
+ * Draws the booking summary + QR onto an offscreen <canvas> so it can be
+ * saved as a single image. Defined at top level (not inside the
+ * DOMContentLoaded wrapper below) so it's already available the moment
+ * this script tag finishes loading — the footer "view my booking" status
+ * view (shortcode.php render_status_view()) is printed right after this
+ * script and calls this synchronously, before DOMContentLoaded fires.
+ */
+function mdbkBuildBookingCardImage(details, qrImgSrc, callback) {
+    function roundRect(ctx, x, y, w, h, r) {
+        ctx.beginPath();
+        ctx.moveTo(x + r, y);
+        ctx.arcTo(x + w, y, x + w, y + h, r);
+        ctx.arcTo(x + w, y + h, x, y + h, r);
+        ctx.arcTo(x, y + h, x, y, r);
+        ctx.arcTo(x, y, x + w, y, r);
+        ctx.closePath();
+    }
+
+    var W = 400;
+    var rows = [
+        ['Ticket', details.ticket],
+        ['Patient', details.patient_name],
+        ['Doctor', details.doctor_name],
+        ['Date', details.date]
+    ];
+    if (details.slot_time) rows.push(['Time', details.slot_time]);
+
+    var rowH = 34;
+    var boxTop = 140;
+    var boxPad = 16;
+    var boxH = rows.length * rowH + boxPad * 2;
+    var qrSize = 200;
+    var qrY = boxTop + boxH + 24;
+    var H = qrY + qrSize + 60;
+
+    var canvas = document.createElement('canvas');
+    canvas.width = W;
+    canvas.height = H;
+    var ctx = canvas.getContext('2d');
+
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, W, H);
+    ctx.strokeStyle = '#e2e8f0';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(1, 1, W - 2, H - 2);
+
+    ctx.beginPath();
+    ctx.fillStyle = '#e6f7ed';
+    ctx.arc(W / 2, 60, 28, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#1a7f45';
+    ctx.font = 'bold 26px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('✓', W / 2, 61);
+
+    ctx.fillStyle = '#1e293b';
+    ctx.font = 'bold 20px sans-serif';
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillText(details.title || 'Booking Confirmed', W / 2, 112);
+
+    roundRect(ctx, 24, boxTop, W - 48, boxH, 12);
+    ctx.fillStyle = '#f8fafc';
+    ctx.fill();
+    ctx.strokeStyle = '#e2e8f0';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    rows.forEach(function(row, i) {
+        var y = boxTop + boxPad + i * rowH + 20;
+        ctx.font = '14px sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillStyle = '#64748b';
+        ctx.fillText(row[0], 24 + 16, y);
+        ctx.font = 'bold 14px sans-serif';
+        ctx.textAlign = 'right';
+        ctx.fillStyle = '#1e293b';
+        ctx.fillText(String(row[1] || ''), W - 24 - 16, y);
+    });
+
+    if (!qrImgSrc) {
+        callback(canvas);
+        return;
+    }
+
+    var qrImg = new Image();
+    qrImg.onload = function() {
+        ctx.drawImage(qrImg, (W - qrSize) / 2, qrY, qrSize, qrSize);
+        ctx.font = '12px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillStyle = '#94a3b8';
+        ctx.fillText('Show this QR code at check-in.', W / 2, qrY + qrSize + 24);
+        callback(canvas);
+    };
+    qrImg.onerror = function() { callback(canvas); };
+    qrImg.src = qrImgSrc;
+}
+
+/**
+ * Triggers a PNG download of the built canvas — shared by both the
+ * post-booking confirmation panel and the footer status view.
+ */
+function mdbkDownloadBookingCard(details, qrImgSrc) {
+    mdbkBuildBookingCardImage(details, qrImgSrc, function(canvas) {
+        var link = document.createElement('a');
+        link.download = 'booking-' + (details.ticket || 'confirmation').replace(/[^a-z0-9-]/gi, '') + '.png';
+        link.href = canvas.toDataURL('image/png');
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+    });
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     var dateValue = document.getElementById('mdbk-date-value');
 
@@ -223,6 +337,60 @@ document.addEventListener('DOMContentLoaded', function() {
     var modalSlotValue = document.getElementById('mdbk-modal-slot-value');
     var modalForm = document.getElementById('mdbk-modal-form');
     var msgBox = container.querySelector('.mdbk-modal-message');
+    var confirmationEl = document.getElementById('mdbk-booking-confirmation');
+    var confQrEl = document.getElementById('mdbk-confirmation-qr');
+    var confCloseBtn = document.getElementById('mdbk-confirmation-close');
+    var confDownloadBtn = document.getElementById('mdbk-confirmation-download');
+    var confPrintBtn = document.getElementById('mdbk-confirmation-print');
+    var currentBooking = null;
+
+    function showBookingConfirmation(booking) {
+        if (!confirmationEl) return;
+        currentBooking = booking;
+
+        document.getElementById('mdbk-conf-ticket').textContent = booking.ticket || '';
+        document.getElementById('mdbk-conf-patient').textContent = booking.patient_name || '';
+        document.getElementById('mdbk-conf-doctor').textContent = booking.doctor_name || '';
+        document.getElementById('mdbk-conf-date').textContent = booking.date || '';
+
+        var timeRow = document.getElementById('mdbk-conf-time-row');
+        if (booking.slot_time) {
+            document.getElementById('mdbk-conf-time').textContent = booking.slot_time;
+            timeRow.style.display = '';
+        } else if (timeRow) {
+            timeRow.style.display = 'none';
+        }
+
+        if (confQrEl) {
+            confQrEl.innerHTML = '';
+            if (booking.checkin_url && typeof qrcode === 'function') {
+                var qr = qrcode(0, 'M');
+                qr.addData(booking.checkin_url);
+                qr.make();
+                confQrEl.innerHTML = qr.createImgTag(5, 4);
+            }
+        }
+
+        if (modalForm) modalForm.style.display = 'none';
+        confirmationEl.style.display = 'block';
+    }
+
+    if (confDownloadBtn) {
+        confDownloadBtn.addEventListener('click', function() {
+            if (!currentBooking) return;
+            var qrImg = confQrEl ? confQrEl.querySelector('img') : null;
+            mdbkDownloadBookingCard(currentBooking, qrImg ? qrImg.src : '');
+        });
+    }
+    if (confPrintBtn) {
+        confPrintBtn.addEventListener('click', function() {
+            window.print();
+        });
+    }
+
+    if (confCloseBtn) {
+        confCloseBtn.addEventListener('click', resetModal);
+    }
 
     // ===== Hand-built calendar (no third-party date picker) =====
     // A theme's global button/select/input[type=number] resets kept
@@ -230,7 +398,20 @@ document.addEventListener('DOMContentLoaded', function() {
     // <input>, nav buttons) every time this modal was restyled. Rendering
     // day cells as plain <span>s sidesteps that whole class of conflict —
     // there's nothing here for a form-control reset to target.
-    var today = new Date();
+    //
+    // "Today" comes from the server (mdbk_form_obj.today, set via
+    // current_time('Y-m-d') — WP's configured site timezone), not the
+    // visitor's own browser clock. A patient booking from a different
+    // timezone than the clinic must see the clinic's actual today as the
+    // past/bookable-date cutoff, not their own device's.
+    function parseServerDate(str) {
+        if (str) {
+            var parts = str.split('-');
+            return new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+        }
+        return new Date();
+    }
+    var today = parseServerDate(typeof mdbk_form_obj !== 'undefined' ? mdbk_form_obj.today : null);
     var calYear = today.getFullYear();
     var calMonth = today.getMonth();
     var selectedDateStr = '';
@@ -623,6 +804,10 @@ document.addEventListener('DOMContentLoaded', function() {
             modal.style.display = 'none';
             document.body.style.overflow = '';
         }
+        if (confirmationEl) confirmationEl.style.display = 'none';
+        if (confQrEl) confQrEl.innerHTML = '';
+        if (modalForm) modalForm.style.display = '';
+        currentBooking = null;
         doctorIdInput.value = '';
         selectedDoctorEl.innerHTML = '';
         selectedDoctorEl.style.display = 'none';
@@ -686,18 +871,12 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(function(data) {
                 submitBtn.disabled = false;
                 submitBtn.textContent = 'Book Appointment';
-                if (msgBox) {
-                    if (data.success) {
-                        msgBox.className = 'mdbk-modal-message mdbk-success';
-                        msgBox.textContent = data.data;
-                        modalForm.reset();
-                        setTimeout(function() {
-                            resetModal();
-                        }, 2500);
-                    } else {
-                        msgBox.className = 'mdbk-modal-message mdbk-error';
-                        msgBox.textContent = data.data;
-                    }
+                if (data.success) {
+                    modalForm.reset();
+                    showBookingConfirmation(data.data);
+                } else if (msgBox) {
+                    msgBox.className = 'mdbk-modal-message mdbk-error';
+                    msgBox.textContent = data.data;
                 }
             })
             .catch(function() {

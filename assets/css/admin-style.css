@@ -50,6 +50,8 @@
     font-weight: 600;
 }
 
+.mdbk-menu-item svg { flex-shrink: 0; }
+
 .mdbk-menu-item:hover {
     background: rgba(255, 255, 255, 0.05);
     color: #fff;
@@ -142,11 +144,21 @@
     border: 1px solid #e2e8f0;
 }
 
+.mdbk-stat-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 14px;
+}
+
 .mdbk-stat-card h4 {
     font-size: 13px;
     color: #64748b;
     text-transform: uppercase;
-    margin: 0 0 10px 0;
+    margin: 0 0 12px 0;
     letter-spacing: 0.05em;
 }
 
@@ -156,16 +168,31 @@
     display: flex;
     align-items: center;
     gap: 10px;
+    margin-bottom: 10px;
+    color: #1e293b;
 }
 
 .mdbk-stat-card .trend {
     display: inline-flex;
     align-items: center;
     gap: 5px;
-    font-size: 14px;
-    color: #10b981;
+    font-size: 13px;
+    color: #94a3b8;
     font-weight: 600;
 }
+
+/* Each card gets its own accent color (icon badge + value number) so the
+   four numbers read as distinct at a glance instead of all being the same
+   black-on-white — colors reused from elsewhere in the admin (violet =
+   Patient ID badges, green = visit-count badges) rather than invented. */
+.mdbk-stat-card-blue .mdbk-stat-icon { background: rgba(0, 97, 213, .1); color: #0061d5; }
+.mdbk-stat-card-blue .value { color: #0061d5; }
+.mdbk-stat-card-violet .mdbk-stat-icon { background: rgba(124, 58, 237, .1); color: #7c3aed; }
+.mdbk-stat-card-violet .value { color: #7c3aed; }
+.mdbk-stat-card-green .mdbk-stat-icon { background: rgba(22, 163, 74, .1); color: #16a34a; }
+.mdbk-stat-card-green .value { color: #16a34a; }
+.mdbk-stat-card-amber .mdbk-stat-icon { background: rgba(217, 119, 6, .1); color: #d97706; }
+.mdbk-stat-card-amber .value { color: #d97706; }
 
 /* Table */
 .mdbk-card {
@@ -687,6 +714,8 @@ button.mdbk-mini-cal-nav-btn:hover { background: #f1f5f9; }
 .mdbk-filters-form select:focus { border-color: #0061d5; outline: none; box-shadow: 0 0 0 2px rgba(0, 97, 213, .2); }
 
 .mdbk-filters-spacer { flex: 1 1 auto; }
+.mdbk-filters-search { flex: 1 1 240px; min-width: 180px; max-width: 320px; height: 38px; padding: 0 14px; border: 1px solid #e2e8f0; border-radius: 12px; font-size: 13px; color: #1e293b; box-sizing: border-box; transition: all .15s ease; }
+.mdbk-filters-search:focus { border-color: #0061d5; outline: none; box-shadow: 0 0 0 2px rgba(0, 97, 213, .2); }
 
 /* ===== Bookings page: rich patient row — everything (ticket, name, contact
    chips, visit time, status, actions) on ONE line. CSS Grid with FIXED
@@ -721,7 +750,7 @@ button.mdbk-mini-cal-nav-btn:hover { background: #f1f5f9; }
    different column set (no queue/visit-time/status; a patient isn't tied
    to one appointment) plus a derived "total visits" badge in place of a
    stored field. */
-.mdbk-patient-row-directory { grid-template-columns: 50px minmax(140px, 200px) 150px minmax(180px, 1fr) minmax(160px, 1fr) 46px 60px; }
+.mdbk-patient-row-directory { grid-template-columns: 50px minmax(140px, 200px) 150px minmax(180px, 1fr) minmax(160px, 1fr) 90px 46px 60px; }
 .mdbk-chip-address svg { color: #d97706; }
 .mdbk-directory-list { max-height: calc(100vh - 260px); overflow-y: auto; }
 /* Column labels — sits outside the scrollable list (not its first row) so

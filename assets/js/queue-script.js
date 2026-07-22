@@ -77,5 +77,57 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    // Check-In box — a USB/Bluetooth QR scanner just types the decoded
+    // token into whatever input has focus, then sends Enter, exactly like
+    // a keyboard; manual paste + click works the same way.
+    var checkinInput = document.getElementById('mdbk-checkin-input');
+    var checkinBtn = document.getElementById('mdbk-checkin-verify-btn');
+    var checkinResult = document.getElementById('mdbk-checkin-result');
+
+    function verifyCheckin() {
+        var token = checkinInput ? checkinInput.value.trim() : '';
+        if (!token || busy) return;
+        busy = true;
+        if (checkinResult) {
+            checkinResult.className = '';
+            checkinResult.textContent = '';
+        }
+
+        post('mdbk_verify_checkin', { token: token }).then(function(data) {
+            if (checkinResult) {
+                if (data && data.success) {
+                    checkinResult.className = 'mdbk-checkin-success';
+                    checkinResult.textContent = '✓ Checked in: ' + data.data.patient_name +
+                        ' — ' + data.data.ticket + ' — ' + data.data.doctor_name +
+                        (data.data.slot_time ? ' — ' + data.data.slot_time : '');
+                    if (checkinInput) checkinInput.value = '';
+                } else {
+                    checkinResult.className = 'mdbk-checkin-error';
+                    checkinResult.textContent = data && data.data ? data.data : 'Something went wrong.';
+                }
+            }
+            renderFragment(data);
+        }).catch(function() {
+            if (checkinResult) {
+                checkinResult.className = 'mdbk-checkin-error';
+                checkinResult.textContent = 'Something went wrong.';
+            }
+        }).finally(function() {
+            busy = false;
+        });
+    }
+
+    if (checkinBtn) {
+        checkinBtn.addEventListener('click', verifyCheckin);
+    }
+    if (checkinInput) {
+        checkinInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                verifyCheckin();
+            }
+        });
+    }
+
     startPolling();
 });

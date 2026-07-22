@@ -9,7 +9,12 @@ class MDBK_Shortcode {
         add_shortcode('mdbk_appointment_form', [$this, 'render_form']);
         add_shortcode('mdbk_queue_management', [$this, 'render_queue']);
         add_shortcode('mdbk_doctor_list', [$this, 'render_doctor_list']);
+        add_shortcode('mdbk_queue_list', [$this, 'render_queue_list']);
         add_action('wp_footer', [$this, 'render_modal']);
+        // Priority 30: must run after wp_print_footer_scripts (priority 20)
+        // has actually printed the enqueued qrcode.js <script> tag, or the
+        // inline QR-render script below finds `qrcode` undefined.
+        add_action('wp_footer', [$this, 'render_status_view'], 30);
 
         // Queue AJAX endpoints — nopriv because the queue is a public/kiosk
         // display, same trust model the plain-POST version already had
@@ -20,6 +25,8 @@ class MDBK_Shortcode {
         add_action('wp_ajax_nopriv_mdbk_queue_call_next', [$this, 'ajax_queue_call_next']);
         add_action('wp_ajax_mdbk_queue_set_status', [$this, 'ajax_queue_set_status']);
         add_action('wp_ajax_nopriv_mdbk_queue_set_status', [$this, 'ajax_queue_set_status']);
+        add_action('wp_ajax_mdbk_verify_checkin', [$this, 'ajax_verify_checkin']);
+        add_action('wp_ajax_nopriv_mdbk_verify_checkin', [$this, 'ajax_verify_checkin']);
     }
 
     /**
@@ -280,6 +287,113 @@ class MDBK_Shortcode {
     }
 
     /**
+     * "View my booking" status view — reachable from the check-in link in
+     * the confirmation email. Runs on every front-end page (same as
+     * render_modal(), since there's no dedicated booking page to point the
+     * link at) but emits nothing unless ?mdbk_token= is present.
+     */
+    public function render_status_view() {
+        if (!isset($_GET['mdbk_token'])) {
+            return;
+        }
+
+        $token       = sanitize_text_field(wp_unslash($_GET['mdbk_token']));
+        $appointment = \MDBK\MDBK_Appointment_Manager::find_appointment_by_token($token);
+        ?>
+        <div id="mdbk-status-modal" class="mdbk-modal-overlay" style="display:flex">
+            <div class="mdbk-modal-card">
+                <div class="mdbk-modal-header">
+                    <h3><?php _e('Your Booking', 'doctor-appointment'); ?></h3>
+                    <span class="mdbk-modal-close" id="mdbk-status-modal-close">&times;</span>
+                </div>
+                <div class="mdbk-modal-body">
+                <?php if (!$appointment): ?>
+                    <p class="mdbk-modal-message mdbk-error" style="display:block"><?php _e('We could not find that booking. The link may be old or the booking may have been removed.', 'doctor-appointment'); ?></p>
+                <?php else:
+                    $doctor_id = intval(get_post_meta($appointment->ID, '_mdbk_doctor_id', true));
+                    $date      = get_post_meta($appointment->ID, '_mdbk_appointment_date', true);
+                    $slot_time = get_post_meta($appointment->ID, '_mdbk_slot_time', true);
+                    $ticket    = \MDBK\MDBK_Appointment_Manager::format_ticket_number(get_post_meta($appointment->ID, '_mdbk_ticket_number', true));
+                    $checked_in = get_post_meta($appointment->ID, '_mdbk_checked_in', true) === 'yes';
+                    ?>
+                    <div class="mdbk-booking-confirmation" style="display:block">
+                        <div class="mdbk-confirmation-icon">&#10003;</div>
+                        <h4><?php echo $checked_in ? esc_html__('Checked In', 'doctor-appointment') : esc_html__('Booking Confirmed', 'doctor-appointment'); ?></h4>
+                        <div class="mdbk-confirmation-details">
+                            <div class="mdbk-confirmation-row"><span><?php _e('Ticket', 'doctor-appointment'); ?></span><strong><?php echo esc_html($ticket); ?></strong></div>
+                            <div class="mdbk-confirmation-row"><span><?php _e('Patient', 'doctor-appointment'); ?></span><strong><?php echo esc_html(get_post_meta($appointment->ID, '_mdbk_patient_name', true)); ?></strong></div>
+                            <div class="mdbk-confirmation-row"><span><?php _e('Doctor', 'doctor-appointment'); ?></span><strong><?php echo esc_html(get_the_title($doctor_id)); ?></strong></div>
+                            <div class="mdbk-confirmation-row"><span><?php _e('Date', 'doctor-appointment'); ?></span><strong><?php echo $date ? esc_html(date_i18n(get_option('date_format'), strtotime($date))) : ''; ?></strong></div>
+                            <?php if ($slot_time): ?>
+                            <div class="mdbk-confirmation-row"><span><?php _e('Time', 'doctor-appointment'); ?></span><strong><?php echo esc_html(date_i18n(get_option('time_format'), strtotime($slot_time))); ?></strong></div>
+                            <?php endif; ?>
+                        </div>
+                        <div class="mdbk-confirmation-qr" id="mdbk-status-qr" data-checkin-url="<?php echo esc_attr(add_query_arg('mdbk_token', $token, home_url('/'))); ?>"></div>
+                        <p class="mdbk-confirmation-hint"><?php _e('Show this QR code at check-in.', 'doctor-appointment'); ?></p>
+                        <div class="mdbk-confirmation-actions">
+                            <button type="button" class="mdbk-confirmation-secondary-btn" id="mdbk-status-download"
+                                data-title="<?php echo esc_attr($checked_in ? __('Checked In', 'doctor-appointment') : __('Booking Confirmed', 'doctor-appointment')); ?>"
+                                data-ticket="<?php echo esc_attr($ticket); ?>"
+                                data-patient-name="<?php echo esc_attr(get_post_meta($appointment->ID, '_mdbk_patient_name', true)); ?>"
+                                data-doctor-name="<?php echo esc_attr(get_the_title($doctor_id)); ?>"
+                                data-date="<?php echo esc_attr($date ? date_i18n(get_option('date_format'), strtotime($date)) : ''); ?>"
+                                data-slot-time="<?php echo esc_attr($slot_time ? date_i18n(get_option('time_format'), strtotime($slot_time)) : ''); ?>"
+                            ><?php _e('Download as Image', 'doctor-appointment'); ?></button>
+                            <button type="button" class="mdbk-confirmation-secondary-btn" id="mdbk-status-print"><?php _e('Print / Save as PDF', 'doctor-appointment'); ?></button>
+                        </div>
+                    </div>
+                <?php endif; ?>
+                </div>
+            </div>
+        </div>
+        <script>
+        (function() {
+            var modal = document.getElementById('mdbk-status-modal');
+            if (!modal) return;
+            document.body.style.overflow = 'hidden';
+            var closeBtn = document.getElementById('mdbk-status-modal-close');
+            if (closeBtn) closeBtn.addEventListener('click', function() {
+                modal.style.display = 'none';
+                document.body.style.overflow = '';
+            });
+            modal.addEventListener('click', function(e) {
+                if (e.target === modal) {
+                    modal.style.display = 'none';
+                    document.body.style.overflow = '';
+                }
+            });
+            var qrEl = document.getElementById('mdbk-status-qr');
+            if (qrEl && typeof qrcode === 'function') {
+                var url = qrEl.getAttribute('data-checkin-url');
+                var qr = qrcode(0, 'M');
+                qr.addData(url);
+                qr.make();
+                qrEl.innerHTML = qr.createImgTag(5, 4);
+            }
+
+            var downloadBtn = document.getElementById('mdbk-status-download');
+            if (downloadBtn && typeof mdbkDownloadBookingCard === 'function') {
+                downloadBtn.addEventListener('click', function() {
+                    var qrImg = qrEl ? qrEl.querySelector('img') : null;
+                    mdbkDownloadBookingCard({
+                        title: downloadBtn.getAttribute('data-title'),
+                        ticket: downloadBtn.getAttribute('data-ticket'),
+                        patient_name: downloadBtn.getAttribute('data-patient-name'),
+                        doctor_name: downloadBtn.getAttribute('data-doctor-name'),
+                        date: downloadBtn.getAttribute('data-date'),
+                        slot_time: downloadBtn.getAttribute('data-slot-time')
+                    }, qrImg ? qrImg.src : '');
+                });
+            }
+
+            var printBtn = document.getElementById('mdbk-status-print');
+            if (printBtn) printBtn.addEventListener('click', function() { window.print(); });
+        })();
+        </script>
+        <?php
+    }
+
+    /**
      * Shared specialty/doctor/booking/details form markup — identical
      * whether it ends up inside the popup modal or rendered inline by the
      * shortcode. Element IDs are fixed (not instance-namespaced): only one
@@ -293,6 +407,24 @@ class MDBK_Shortcode {
         ]);
         $first_spec_name = !empty($specialties) ? $specialties[0]->name : '';
         ?>
+        <div class="mdbk-booking-confirmation" id="mdbk-booking-confirmation" style="display:none">
+            <div class="mdbk-confirmation-icon">&#10003;</div>
+            <h4><?php _e('Booking Confirmed', 'doctor-appointment'); ?></h4>
+            <div class="mdbk-confirmation-details">
+                <div class="mdbk-confirmation-row"><span><?php _e('Ticket', 'doctor-appointment'); ?></span><strong id="mdbk-conf-ticket"></strong></div>
+                <div class="mdbk-confirmation-row"><span><?php _e('Patient', 'doctor-appointment'); ?></span><strong id="mdbk-conf-patient"></strong></div>
+                <div class="mdbk-confirmation-row"><span><?php _e('Doctor', 'doctor-appointment'); ?></span><strong id="mdbk-conf-doctor"></strong></div>
+                <div class="mdbk-confirmation-row"><span><?php _e('Date', 'doctor-appointment'); ?></span><strong id="mdbk-conf-date"></strong></div>
+                <div class="mdbk-confirmation-row" id="mdbk-conf-time-row"><span><?php _e('Time', 'doctor-appointment'); ?></span><strong id="mdbk-conf-time"></strong></div>
+            </div>
+            <div class="mdbk-confirmation-qr" id="mdbk-confirmation-qr"></div>
+            <p class="mdbk-confirmation-hint"><?php _e('Show this QR code at check-in.', 'doctor-appointment'); ?></p>
+            <div class="mdbk-confirmation-actions">
+                <button type="button" class="mdbk-confirmation-secondary-btn" id="mdbk-confirmation-download"><?php _e('Download as Image', 'doctor-appointment'); ?></button>
+                <button type="button" class="mdbk-confirmation-secondary-btn" id="mdbk-confirmation-print"><?php _e('Print / Save as PDF', 'doctor-appointment'); ?></button>
+            </div>
+            <button type="button" class="mdbk-confirmation-close-btn" id="mdbk-confirmation-close"><?php _e('Close', 'doctor-appointment'); ?></button>
+        </div>
         <form id="mdbk-modal-form">
             <div class="mdbk-section" id="mdbk-specialty-doctor-section">
                 <h4 class="mdbk-section-title"><?php _e('Choose Specialty & Doctor', 'doctor-appointment'); ?></h4>
@@ -407,8 +539,8 @@ class MDBK_Shortcode {
         $locked_doctor_id = intval($atts['doctor']);
         $doctor_id = $locked_doctor_id;
 
-        if (!$doctor_id && isset($_GET['mdbk_doctor'])) {
-            $doctor_id = intval($_GET['mdbk_doctor']);
+        if (!$doctor_id && isset($_GET['mdbk_doctor_id'])) {
+            $doctor_id = intval($_GET['mdbk_doctor_id']);
         }
         if (!$doctor_id) {
             $first_doctor = get_posts(['post_type' => 'mdbk_doctor', 'numberposts' => 1, 'orderby' => 'ID', 'order' => 'ASC', 'fields' => 'ids']);
@@ -430,6 +562,15 @@ class MDBK_Shortcode {
                 <p><?php _e('Real-time patient flow.', 'doctor-appointment'); ?></p>
             </div>
 
+            <div class="mdbk-checkin-box">
+                <label for="mdbk-checkin-input"><?php _e('Check-In', 'doctor-appointment'); ?></label>
+                <div class="mdbk-checkin-row">
+                    <input type="text" id="mdbk-checkin-input" placeholder="<?php esc_attr_e('Scan or paste check-in code', 'doctor-appointment'); ?>" autocomplete="off">
+                    <button type="button" id="mdbk-checkin-verify-btn"><?php _e('Verify', 'doctor-appointment'); ?></button>
+                </div>
+                <div id="mdbk-checkin-result"></div>
+            </div>
+
             <?php if (!$locked_doctor_id) : $doctors = get_posts(['post_type' => 'mdbk_doctor', 'numberposts' => -1]); if ($doctors) : ?>
             <div class="mdbk-queue-doctor-switch">
                 <label for="mdbk-queue-doctor-select"><?php _e('Doctor', 'doctor-appointment'); ?></label>
@@ -446,6 +587,172 @@ class MDBK_Shortcode {
         <?php
         return ob_get_clean();
     }
+
+    /**
+     * Render Queue List (public, read-only)
+     *
+     * `doctor` attribute (or ?mdbk_doctor_id= already in the URL) locks this
+     * to one doctor's full queue list. Omitted entirely, it stacks every
+     * active doctor's full list one after another on the same page — this
+     * is a deliberate, explicit choice (confirmed with the site owner) to
+     * show full per-patient detail for every doctor on one public,
+     * unauthenticated page, not just a summary.
+     */
+    public function render_queue_list($atts = []) {
+        $atts = shortcode_atts(['doctor' => ''], $atts, 'mdbk_queue_list');
+        $doctor_id = intval($atts['doctor']);
+        if (!$doctor_id && isset($_GET['mdbk_doctor_id'])) {
+            $doctor_id = intval($_GET['mdbk_doctor_id']);
+        }
+
+        $queue_js_ver = file_exists(MDBK_PATH . 'assets/js/queue-view-script.js') ? filemtime(MDBK_PATH . 'assets/js/queue-view-script.js') : MDBK_VERSION;
+        wp_enqueue_script('mdbk-queue-view-script', MDBK_URL . 'assets/js/queue-view-script.js', [], $queue_js_ver, true);
+        wp_localize_script('mdbk-queue-view-script', 'mdbk_queue_view_obj', [
+            'ajax_url' => admin_url('admin-ajax.php'),
+            'nonce'    => wp_create_nonce('mdbk_view_queue'),
+        ]);
+
+        if ($doctor_id) {
+            return self::render_queue_list_instance($doctor_id);
+        }
+
+        $doctors = get_posts([
+            'post_type'   => 'mdbk_doctor',
+            'post_status' => 'publish',
+            'numberposts' => -1,
+            'orderby'     => 'title',
+            'order'       => 'ASC',
+            'meta_query'  => [
+                'relation' => 'OR',
+                ['key' => '_mdbk_doctor_active', 'compare' => 'NOT EXISTS'],
+                ['key' => '_mdbk_doctor_active', 'value' => 'no', 'compare' => '!='],
+            ],
+        ]);
+
+        ob_start();
+        ?>
+        <div class="mdbk-queue-list-all">
+            <?php if ($doctors) : ?>
+                <?php foreach ($doctors as $doctor) : ?>
+                    <?php echo self::render_queue_list_instance($doctor->ID); ?>
+                <?php endforeach; ?>
+            <?php else : ?>
+                <p class="mdbk-no-doctors"><?php _e('No doctors found.', 'doctor-appointment'); ?></p>
+            <?php endif; ?>
+        </div>
+        <?php
+        return ob_get_clean();
+    }
+
+    /**
+     * One doctor's live-polling queue block — used standalone (single-doctor
+     * mode) and repeated once per doctor (all-doctors mode). Each instance
+     * polls independently via its own `data-doctor`/`.mdbk-queue-body-instance`
+     * (see queue-view-script.js), since a page can have more than one.
+     */
+    private static function render_queue_list_instance($doctor_id) {
+        $body = self::render_queue_list_body($doctor_id);
+        ob_start();
+        ?>
+        <div class="mdbk-queue-container mdbk-queue-app-instance" data-doctor="<?php echo esc_attr($doctor_id); ?>" data-patient-count="<?php echo esc_attr($body['count']); ?>">
+            <div class="mdbk-queue-body-instance"><?php echo $body['html']; ?></div>
+        </div>
+        <?php
+        return ob_get_clean();
+    }
+
+    /**
+     * Two-column today's-queue list for one doctor — the public "Live
+     * Queue" view. Deliberately separate from render_queue_body() (the
+     * staff kiosk's card+action-button layout): this is a plain arrival
+     * board — queue number + name per row, no "Now Serving" hero box, no
+     * buttons. Each row shows one of three states — currently being served
+     * (green), checked in and waiting (orange/"present"), or not yet
+     * checked in ("not-present", muted/disabled) — driven by post_status
+     * plus the QR check-in meta. A patient leaves this list entirely once
+     * completed/no-show (the post_status filter below already excludes
+     * both), so the row below naturally moves up into the freed spot.
+     *
+     * Returns ['html' => ..., 'count' => ...] rather than a plain string —
+     * the count is needed alongside the markup by both callers: the
+     * initial render (to set data-patient-count, so an empty doctor's card
+     * can be hidden in grid mode) and the AJAX poll response (so a poll
+     * that brings a doctor's count above zero can reveal their card live).
+     */
+    private static function render_queue_list_body($doctor_id) {
+        $doctor_id = intval($doctor_id);
+        $date = current_time('Y-m-d');
+
+        $patients = get_posts([
+            'post_type'   => 'mdbk_appointment',
+            'post_status' => ['mdbk_waiting', 'mdbk_serving'],
+            'meta_query'  => [
+                'relation' => 'AND',
+                ['key' => '_mdbk_appointment_date', 'value' => $date],
+                ['key' => '_mdbk_doctor_id', 'value' => $doctor_id],
+            ],
+            'meta_key'    => '_mdbk_ticket_number',
+            'orderby'     => 'meta_value_num',
+            'order'       => 'ASC',
+            'numberposts' => -1,
+        ]);
+
+        $departments = get_the_terms($doctor_id, 'mdbk_department');
+
+        ob_start();
+        ?>
+        <div class="mdbk-queue-list-card">
+        <div class="mdbk-queue-list-heading">
+            <div class="mdbk-queue-list-heading-main">
+                <h2><?php echo esc_html(get_the_title($doctor_id)); ?></h2>
+                <?php if (!empty($departments) && !is_wp_error($departments)) : ?>
+                    <span class="mdbk-queue-list-specialty"><?php echo esc_html($departments[0]->name); ?></span>
+                <?php endif; ?>
+            </div>
+            <span class="mdbk-queue-list-count"><?php echo count($patients); ?> <?php _e('patients', 'doctor-appointment'); ?></span>
+        </div>
+
+        <div class="mdbk-queue-list-columns">
+            <?php if (!empty($patients)) : ?>
+                <?php foreach ($patients as $patient) :
+                    $ticket = \MDBK\MDBK_Appointment_Manager::format_ticket_number(get_post_meta($patient->ID, '_mdbk_ticket_number', true));
+                    $name   = self::truncate_patient_name(get_post_meta($patient->ID, '_mdbk_patient_name', true));
+                    $checked_in = get_post_meta($patient->ID, '_mdbk_checked_in', true) === 'yes';
+                    // Three states: being examined right now (serving), arrived
+                    // and waiting their turn (present), or not yet arrived
+                    // (not-present) — post_status already tells us "serving" vs
+                    // "waiting" with zero extra queries ($patient is a WP_Post).
+                    if ($patient->post_status === 'mdbk_serving') {
+                        $status_class = 'mdbk-serving';
+                        $status_label = __('Serving', 'doctor-appointment');
+                    } elseif ($checked_in) {
+                        $status_class = 'mdbk-present';
+                        $status_label = __('Waiting', 'doctor-appointment');
+                    } else {
+                        // "Normal" state — no badge, just the muted/disabled row style.
+                        $status_class = 'mdbk-not-present';
+                        $status_label = '';
+                    }
+                    ?>
+                    <div class="mdbk-queue-list-row <?php echo esc_attr($status_class); ?>" data-appointment-id="<?php echo esc_attr($patient->ID); ?>">
+                        <span class="mdbk-queue-list-number"><?php echo esc_html($ticket); ?></span>
+                        <span class="mdbk-queue-list-name"><?php echo esc_html($name); ?></span>
+                        <?php if ($status_label) : ?>
+                            <span class="mdbk-queue-list-badge"><?php echo esc_html($status_label); ?></span>
+                        <?php endif; ?>
+                    </div>
+                <?php endforeach; ?>
+            <?php else : ?>
+                <p class="mdbk-no-doctors"><?php _e('No patients in queue today.', 'doctor-appointment'); ?></p>
+            <?php endif; ?>
+        </div>
+
+        <div class="mdbk-queue-updated"><?php echo esc_html(sprintf(__('Updated %s', 'doctor-appointment'), date_i18n(get_option('time_format')))); ?></div>
+        </div>
+        <?php
+        return ['html' => ob_get_clean(), 'count' => count($patients)];
+    }
+
 
     /**
      * Truncate a patient name to "First L." for public/kiosk display.
@@ -540,6 +847,7 @@ class MDBK_Shortcode {
                         $ticket = get_post_meta($patient->ID, '_mdbk_ticket_number', true);
                         $name   = self::truncate_patient_name(get_post_meta($patient->ID, '_mdbk_patient_name', true));
                         $slot   = get_post_meta($patient->ID, '_mdbk_slot_time', true);
+                        $checked_in = get_post_meta($patient->ID, '_mdbk_checked_in', true) === 'yes';
                         ?>
                         <div class="mdbk-patient-card">
                             <div class="mdbk-patient-id">#<?php echo $ticket ? esc_html(str_pad($ticket, 2, '0', STR_PAD_LEFT)) : '—'; ?></div>
@@ -547,6 +855,9 @@ class MDBK_Shortcode {
                                 <h4><?php echo esc_html($name); ?></h4>
                                 <?php if ($slot) : ?><p><?php echo esc_html($slot); ?></p><?php endif; ?>
                             </div>
+                            <?php if ($checked_in) : ?>
+                                <div class="mdbk-checkedin-badge"><?php _e('Checked In', 'doctor-appointment'); ?></div>
+                            <?php endif; ?>
                             <div class="mdbk-patient-actions">
                                 <?php if (!$serving) : ?>
                                     <button type="button" class="mdbk-btn-small mdbk-queue-action" data-appointment-id="<?php echo esc_attr($patient->ID); ?>" data-status="serving" data-doctor-id="<?php echo esc_attr($doctor_id); ?>" title="<?php esc_attr_e('Serve Now', 'doctor-appointment'); ?>"><svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="6 3 20 12 6 21 6 3"></polygon></svg></button>
@@ -570,9 +881,22 @@ class MDBK_Shortcode {
      * public-kiosk trust model the previous plain-POST version already had).
      */
     public function ajax_get_queue_state() {
-        check_ajax_referer('mdbk_manage_queue', 'nonce');
+        // The public read-only queue view (mdbk_queue_list) polls this same
+        // action with its own mdbk_view_queue nonce — which must never also
+        // work against the 3 mutating actions below, so it's a distinct
+        // nonce action, not a shared secret. Which nonce actually verifies
+        // is also what decides which fragment to return: the staff kiosk's
+        // full card+action-button view, or the public two-column list.
+        $is_staff = (bool) check_ajax_referer('mdbk_manage_queue', 'nonce', false);
+        if (!$is_staff) {
+            check_ajax_referer('mdbk_view_queue', 'nonce');
+        }
         $doctor_id = intval($_POST['doctor_id']);
-        wp_send_json_success(['fragment' => self::render_queue_body($doctor_id)]);
+        if ($is_staff) {
+            wp_send_json_success(['fragment' => self::render_queue_body($doctor_id)]);
+        }
+        $body = self::render_queue_list_body($doctor_id);
+        wp_send_json_success(['fragment' => $body['html'], 'count' => $body['count']]);
     }
 
     /**
@@ -628,6 +952,44 @@ class MDBK_Shortcode {
 
         wp_update_post(['ID' => $appointment_id, 'post_status' => \MDBK\MDBK_Appointment_Manager::status_slug_to_post_status($status)]);
         wp_send_json_success(['fragment' => self::render_queue_body($doctor_id)]);
+    }
+
+    /**
+     * AJAX: redeem a check-in token from the Queue Management kiosk's
+     * Check-In box (typed by a USB/Bluetooth QR scanner or pasted by
+     * staff). Same trust model as the other queue actions — nonce +
+     * nopriv, no current_user_can() — but this one redeems a
+     * bearer-token-like secret and returns PII, so it additionally refuses
+     * to redeem anything that isn't still in the 'waiting' state, blocking
+     * replay against an already-checked-in, completed, or no-show booking.
+     */
+    public function ajax_verify_checkin() {
+        check_ajax_referer('mdbk_manage_queue', 'nonce');
+
+        $token = isset($_POST['token']) ? sanitize_text_field($_POST['token']) : '';
+        $appointment = \MDBK\MDBK_Appointment_Manager::find_appointment_by_token($token);
+
+        if (!$appointment) {
+            wp_send_json_error(__('Check-in code not found.', 'doctor-appointment'));
+        }
+
+        if (get_post_status($appointment->ID) !== 'mdbk_waiting') {
+            wp_send_json_error(__('This booking is not awaiting check-in (already checked in, served, or cancelled).', 'doctor-appointment'));
+        }
+
+        update_post_meta($appointment->ID, '_mdbk_checked_in', 'yes');
+        update_post_meta($appointment->ID, '_mdbk_checkin_time', current_time('timestamp'));
+
+        $doctor_id = intval(get_post_meta($appointment->ID, '_mdbk_doctor_id', true));
+        $slot_time = get_post_meta($appointment->ID, '_mdbk_slot_time', true);
+
+        wp_send_json_success([
+            'patient_name' => get_post_meta($appointment->ID, '_mdbk_patient_name', true),
+            'doctor_name'  => get_the_title($doctor_id),
+            'ticket'       => \MDBK\MDBK_Appointment_Manager::format_ticket_number(get_post_meta($appointment->ID, '_mdbk_ticket_number', true)),
+            'slot_time'    => $slot_time ? date_i18n(get_option('time_format'), strtotime($slot_time)) : '',
+            'fragment'     => self::render_queue_body($doctor_id),
+        ]);
     }
 }
 new \MDBK\MDBK_Shortcode();
