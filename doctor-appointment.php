@@ -100,7 +100,9 @@ if ( ! class_exists( 'MDBK_Doctor_Appointment' ) ) {
             // The doctor-restricted "My Queue" page embeds the same
             // live-polling queue widget the public Live Queue shortcode
             // uses — give it the same CSS/JS + read-only nonce here.
-            if ($hook === 'toplevel_page_mdbk-my-queue') {
+            // Uses $_GET['page'] since $hook differs between top-level
+            // and submenu registration contexts.
+            if (isset($_GET['page']) && $_GET['page'] === 'mdbk-my-queue') {
                 wp_enqueue_style('mdbk-queue-style', MDBK_URL . 'assets/css/queue-style.css', array(), filemtime( MDBK_PATH . 'assets/css/queue-style.css' ));
                 $queue_view_js_ver = filemtime(MDBK_PATH . 'assets/js/queue-view-script.js');
                 wp_enqueue_script('mdbk-queue-view-script', MDBK_URL . 'assets/js/queue-view-script.js', array(), $queue_view_js_ver, true);
@@ -108,6 +110,16 @@ if ( ! class_exists( 'MDBK_Doctor_Appointment' ) ) {
                     'ajax_url' => admin_url('admin-ajax.php'),
                     'nonce'    => wp_create_nonce('mdbk_view_queue'),
                 ]);
+            }
+
+            // The "Chamber QR" page renders its QR client-side with the same
+            // vendored encoder the frontend booking confirmation already
+            // uses — it's only ever enqueued on the frontend otherwise, so
+            // it needs its own enqueue here. Checked via $_GET['page'] (not
+            // $hook) since add_submenu_page(null, ...) hidden pages don't
+            // have a predictable, easy-to-match hook suffix.
+            if (isset($_GET['page']) && $_GET['page'] === 'mdbk-chamber-qr') {
+                wp_enqueue_script('mdbk-qrcode', MDBK_URL . 'assets/js/vendor/qrcode.js', array(), filemtime( MDBK_PATH . 'assets/js/vendor/qrcode.js' ), true);
             }
         }
 

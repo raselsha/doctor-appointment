@@ -718,6 +718,53 @@ button.mdbk-cal-nav-btn:hover {
     }
 }
 
+/* Date/Time selected summary — replaces calendar+time columns inside the
+   existing booking-columns container, matching the white-card look of
+   .mdbk-calendar-col / .mdbk-time-col */
+.mdbk-datetime-selected {
+    display: none;
+    align-items: center;
+    gap: 16px;
+    width: 100%;
+    background: #fff;
+    border-radius: 8px;
+    padding: 8px 12px;
+    box-sizing: border-box;
+}
+
+.mdbk-datetime-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .5px;
+    color: #64748b;
+    flex-shrink: 0;
+}
+
+.mdbk-datetime-value {
+    font-size: 14px;
+    font-weight: 700;
+    color: #1e293b;
+}
+
+button.mdbk-datetime-change {
+    margin-left: auto;
+    flex-shrink: 0;
+    background: transparent;
+    color: #0061d5;
+    border: none;
+    padding: 0;
+    font-size: 13px;
+    font-weight: 600;
+    text-decoration: underline;
+    cursor: pointer;
+}
+
+button.mdbk-datetime-change:hover {
+    background: transparent;
+    color: #0047a3;
+}
+
 /* Time Slot Picker — one full-width slot per row, stacked */
 .mdbk-slot-picker {
     display: flex;

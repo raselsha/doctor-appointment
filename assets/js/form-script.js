@@ -130,6 +130,13 @@ document.addEventListener('DOMContentLoaded', function() {
         return hour12 + ':' + minute + ' ' + suffix;
     }
 
+    function formatDisplayDate(dateStr) {
+        var parts = dateStr.split('-');
+        var d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+        var monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+        return monthNames[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear();
+    }
+
     /**
      * Fetch a doctor's available time slots for a date and render them as
      * clickable buttons inside `pickerEl`, storing the chosen slot in
@@ -196,8 +203,12 @@ document.addEventListener('DOMContentLoaded', function() {
             // Auto-assign the earliest open slot for this date so patients
             // don't have to hunt through the list — they can still tap a
             // different one below if the auto-assigned time doesn't suit.
+            // Only sets the hidden value without triggering onSlotChosen —
+            // the calendar+time picker stays visible until the patient
+            // explicitly taps a slot.
             if (firstAvailableBtn) {
-                selectSlot(firstAvailableBtn, firstAvailableTime);
+                firstAvailableBtn.classList.add('selected');
+                valueEl.value = firstAvailableTime;
             }
         })
         .catch(function() {
@@ -335,6 +346,10 @@ document.addEventListener('DOMContentLoaded', function() {
     var timeCol = document.querySelector('.mdbk-time-col');
     var modalSlotPicker = document.getElementById('mdbk-modal-slot-picker');
     var modalSlotValue = document.getElementById('mdbk-modal-slot-value');
+    var bookingColumns = document.querySelector('.mdbk-booking-columns');
+    var datetimeSelected = document.getElementById('mdbk-datetime-selected');
+    var datetimeValue = document.getElementById('mdbk-datetime-value');
+    var datetimeChange = document.getElementById('mdbk-datetime-change');
     var modalForm = document.getElementById('mdbk-modal-form');
     var msgBox = container.querySelector('.mdbk-modal-message');
     var confirmationEl = document.getElementById('mdbk-booking-confirmation');
@@ -513,12 +528,39 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    function showDatetimeSummary() {
+        if (!calendarCol || !timeCol || !datetimeSelected) return;
+        var dateStr = dateValue ? dateValue.value : '';
+        var timeStr = modalSlotValue ? modalSlotValue.value : '';
+        if (!dateStr) return;
+        var formatted = formatDisplayDate(dateStr);
+        if (timeStr && currentDoctorSlotEnabled) {
+            formatted += ' at ' + formatTime12h(timeStr);
+        }
+        datetimeValue.textContent = formatted;
+        calendarCol.style.display = 'none';
+        timeCol.style.display = 'none';
+        datetimeSelected.style.display = 'flex';
+    }
+
+    function showDatetimePicker() {
+        if (calendarCol) calendarCol.style.display = '';
+        if (timeCol) timeCol.style.display = '';
+        if (datetimeSelected) datetimeSelected.style.display = 'none';
+    }
+
     function showDetails() {
         detailsSection.style.display = '';
     }
 
     function loadModalSlots(dateStr) {
-        loadSlotsInto(modalSlotPicker, modalSlotValue, doctorIdInput.value, dateStr, showDetails);
+        // Only on explicit slot click (not auto-select) do we hide the
+        // calendar+time picker and show the date/time summary — the
+        // auto-assigned first slot just pre-fills the hidden input.
+        loadSlotsInto(modalSlotPicker, modalSlotValue, doctorIdInput.value, dateStr, function() {
+            showDetails();
+            showDatetimeSummary();
+        });
     }
 
     /**
@@ -597,6 +639,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         if (modalSlotValue) modalSlotValue.value = '';
         if (dateValue) dateValue.value = '';
+        showDatetimePicker();
     }
 
     /**
@@ -846,6 +889,9 @@ document.addEventListener('DOMContentLoaded', function() {
             // with the selected doctor's own department by syncSpecialtySelect())
             // rather than dumping back to the full unfiltered doctor list.
             loadDoctors(specialtySelect ? specialtySelect.value : 0);
+        }
+        if (e.target.closest('.mdbk-datetime-change')) {
+            showDatetimePicker();
         }
     });
 

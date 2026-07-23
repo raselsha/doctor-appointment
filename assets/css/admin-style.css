@@ -753,8 +753,13 @@ button.mdbk-mini-cal-nav-btn:hover { background: #f1f5f9; }
 .mdbk-patient-row.mdbk-my-queue-row {
     grid-template-columns: 44px minmax(120px, 200px) 130px minmax(160px, 1fr) 1fr 140px auto;
 }
-.mdbk-my-queue-row .mdbk-mark-visited {
+.mdbk-my-queue-actions {
     justify-self: end;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.mdbk-my-queue-actions .mdbk-mark-visited {
     white-space: nowrap;
 }
 
@@ -832,5 +837,38 @@ button.mdbk-mini-cal-nav-btn:hover { background: #f1f5f9; }
     .mdbk-main-content { width: 100%; padding: 0; }
     .mdbk-schedule-doctor-groups, .mdbk-patient-list { max-height: none !important; overflow: visible !important; }
     .mdbk-schedule-doctor-card, .mdbk-schedule-doctor-summary { break-inside: avoid; }
+}
+
+/* The native WP left sidebar's "MedBook" top-level item has every one of
+   this plugin's other pages registered as REAL submenus (see
+   register_admin_menu()) so WordPress's own highlighting keeps "MedBook"
+   marked current no matter which page is open — but the plugin's own
+   full-screen sidebar (render_sidebar()) is the actual navigation between
+   them, so the native dropdown this would otherwise show is redundant
+   clutter. Hidden here rather than by not registering the submenus at
+   all, since that alternative (add_submenu_page(null, ...)) silently
+   breaks the highlighting instead. */
+#toplevel_page_mdbk-home .wp-submenu,
+#toplevel_page_mdbk-home .wp-submenu-wrap {
+    display: none !important;
+}
+
+/* A pure doctor account (no manage_options — see
+   MDBK_Admin_Dashboard::admin_body_class()) has "MedBook" as the only
+   item left in the native WP menu once index.php/profile.php are removed
+   (register_admin_menu()), and the plugin's own full-screen sidebar
+   (render_sidebar()) is already their entire navigation — so the native
+   left column is hidden outright rather than left standing as near-empty
+   chrome around it. #wpcontent/#wpfooter's left margin (normally reserved
+   for that column) is reset to 0 so the plugin's own layout fills the
+   freed-up width instead of leaving a blank gutter. */
+body.mdbk-doctor-chrome #adminmenumain,
+body.mdbk-doctor-chrome #adminmenuback,
+body.mdbk-doctor-chrome #adminmenuwrap {
+    display: none !important;
+}
+body.mdbk-doctor-chrome #wpcontent,
+body.mdbk-doctor-chrome #wpfooter {
+    margin-left: 0 !important;
 }
 

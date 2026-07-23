@@ -395,6 +395,39 @@
     white-space: nowrap;
 }
 
+/* Checked in, but temporarily stepped away (see the kiosk's Skip toggle) —
+   a distinct hue from both "Checked In" (green) and "No Show" (red), since
+   this isn't a failure state, just "not right now." */
+.mdbk-away-badge {
+    font-size: 11px;
+    font-weight: 700;
+    color: #a16207;
+    background: #fef3c7;
+    border-radius: 8px;
+    padding: 4px 8px;
+    white-space: nowrap;
+}
+
+.mdbk-btn-skip {
+    background: #fef3c7;
+    color: #a16207;
+}
+
+.mdbk-btn-skip:hover {
+    background: #a16207;
+    color: #fff;
+}
+
+.mdbk-btn-skip.is-skipped {
+    background: #dbeafe;
+    color: #1d4ed8;
+}
+
+.mdbk-btn-skip.is-skipped:hover {
+    background: #1d4ed8;
+    color: #fff;
+}
+
 /* Public "Live Queue" single-doctor list — [mdbk_queue_list doctor="X"].
    A plain arrival board (queue number + name per row), separate from the
    kiosk's Now-Serving/action-button layout above: a row's only visual
@@ -543,9 +576,16 @@
     color: #fff;
 }
 
-/* Three live states, from most to least "your turn":
+.mdbk-queue-list-row.mdbk-skipped .mdbk-queue-list-badge {
+    background: #eab308;
+    color: #fff;
+}
+
+/* Four live states, from most to least "your turn":
    serving (green, pulsing — the doctor is with this patient right now),
    present (orange — checked in via QR, waiting their turn),
+   skipped (amber — checked in but temporarily stepped away, see the
+   kiosk's Skip toggle),
    not-present (muted/disabled — hasn't checked in yet). */
 .mdbk-queue-list-row.mdbk-serving {
     background: #e6f7ed;
@@ -568,8 +608,17 @@
     color: #c2410c;
 }
 
+.mdbk-queue-list-row.mdbk-skipped {
+    background: #fefce8;
+    border-color: #eab308;
+}
+
+.mdbk-queue-list-row.mdbk-skipped .mdbk-queue-list-number,
+.mdbk-queue-list-row.mdbk-skipped .mdbk-queue-list-name {
+    color: #a16207;
+}
+
 .mdbk-queue-list-row.mdbk-not-present {
-    opacity: .65;
     border-color: #cbd5e1;
     background-color: #f8fafc;
     background-image: repeating-linear-gradient(
@@ -583,7 +632,7 @@
 
 .mdbk-queue-list-row.mdbk-not-present .mdbk-queue-list-number,
 .mdbk-queue-list-row.mdbk-not-present .mdbk-queue-list-name {
-    color: #94a3b8;
+    color: #475569;
 }
 
 @keyframes mdbk-serving-pulse {

@@ -231,7 +231,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
     initModal('mdbk-doctor-modal', '.mdbk-add-doctor, .mdbk-edit-doctor', 'mdbk-doctor-form', 'mdbk-edit-doctor', (id, btn) => {
         document.getElementById('mdbk-doctor-id').value = id;
-        const row = btn.closest('tr, .mdbk-admin-doctor-card');
+        // .mdbk-profile-view: the doctor's own "Profile" page (My Queue's
+        // sidebar) — a real page, not a grid card, but carries the same
+        // data-* attributes purely so this populate step works unchanged.
+        const row = btn.closest('tr, .mdbk-admin-doctor-card, .mdbk-profile-view');
         const title = document.getElementById('mdbk-doctor-modal-title');
         if (title) title.textContent = 'Edit Doctor';
         if (row) {
@@ -628,6 +631,70 @@ document.addEventListener('DOMContentLoaded', function() {
         btn.disabled = true;
         const body = new URLSearchParams();
         body.set('action', 'mdbk_mark_visited');
+        body.set('nonce', mdbk_admin_obj.nonce);
+        body.set('appointment_id', appointmentId);
+        fetch(mdbk_admin_obj.ajax_url, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body.toString() })
+            .then((r) => r.json())
+            .then((res) => {
+                if (res && res.success && row) {
+                    const tmp = document.createElement('div');
+                    tmp.innerHTML = res.data.fragment;
+                    row.replaceWith(tmp.firstElementChild);
+                } else {
+                    btn.disabled = false;
+                    alert((res && res.data && res.data.message) || 'Something went wrong, please try again.');
+                }
+            })
+            .catch(() => {
+                btn.disabled = false;
+                alert('Something went wrong, please try again.');
+            });
+    });
+
+    // "Check In" on the Bookings page (mdbk-schedule) — staff checking a
+    // patient in directly, no QR token needed. Delegated on document since
+    // the button is inside a fragment that gets replaced wholesale on
+    // success, same pattern as "Mark as Visited" above.
+    document.addEventListener('click', (e) => {
+        const btn = e.target.closest('.mdbk-admin-checkin-btn');
+        if (!btn || typeof mdbk_admin_obj === 'undefined') return;
+        const row = btn.closest('.mdbk-patient-row');
+        const appointmentId = btn.dataset.id;
+        btn.disabled = true;
+        const body = new URLSearchParams();
+        body.set('action', 'mdbk_admin_checkin');
+        body.set('nonce', mdbk_admin_obj.nonce);
+        body.set('appointment_id', appointmentId);
+        body.set('show_doctor', row && row.classList.contains('mdbk-patient-row-has-doctor') ? '1' : '0');
+        fetch(mdbk_admin_obj.ajax_url, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body.toString() })
+            .then((r) => r.json())
+            .then((res) => {
+                if (res && res.success && row) {
+                    const tmp = document.createElement('div');
+                    tmp.innerHTML = res.data.fragment;
+                    row.replaceWith(tmp.firstElementChild);
+                } else {
+                    btn.disabled = false;
+                    alert((res && res.data && res.data.message) || 'Something went wrong, please try again.');
+                }
+            })
+            .catch(() => {
+                btn.disabled = false;
+                alert('Something went wrong, please try again.');
+            });
+    });
+
+    // "Skip"/"Recall" toggle on the doctor-restricted "My Queue" page —
+    // same delegated-on-document pattern as "Mark as Visited" above,
+    // since this button's row also gets replaced wholesale on success.
+    document.addEventListener('click', (e) => {
+        const btn = e.target.closest('.mdbk-toggle-skip');
+        if (!btn || typeof mdbk_admin_obj === 'undefined') return;
+        const row = btn.closest('.mdbk-patient-row');
+        const appointmentId = btn.dataset.id;
+        btn.disabled = true;
+        const body = new URLSearchParams();
+        body.set('action', 'mdbk_toggle_skip');
         body.set('nonce', mdbk_admin_obj.nonce);
         body.set('appointment_id', appointmentId);
         fetch(mdbk_admin_obj.ajax_url, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body.toString() })

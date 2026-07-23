@@ -15,6 +15,10 @@ class MDBK_Shortcode {
         // has actually printed the enqueued qrcode.js <script> tag, or the
         // inline QR-render script below finds `qrcode` undefined.
         add_action('wp_footer', [$this, 'render_status_view'], 30);
+        // Doctor's-chamber walk-in check-in landing page (?mdbk_chamber=) —
+        // no QR-render dependency of its own (this page shows a phone-entry
+        // form, not a QR image), so no priority-30 ordering need here.
+        add_action('wp_footer', [$this, 'render_chamber_checkin_view']);
 
         // Queue AJAX endpoints — nopriv because the queue is a public/kiosk
         // display, same trust model the plain-POST version already had
@@ -27,6 +31,10 @@ class MDBK_Shortcode {
         add_action('wp_ajax_nopriv_mdbk_queue_set_status', [$this, 'ajax_queue_set_status']);
         add_action('wp_ajax_mdbk_verify_checkin', [$this, 'ajax_verify_checkin']);
         add_action('wp_ajax_nopriv_mdbk_verify_checkin', [$this, 'ajax_verify_checkin']);
+        add_action('wp_ajax_mdbk_queue_toggle_skip', [$this, 'ajax_queue_toggle_skip']);
+        add_action('wp_ajax_nopriv_mdbk_queue_toggle_skip', [$this, 'ajax_queue_toggle_skip']);
+        add_action('wp_ajax_mdbk_chamber_checkin', [$this, 'ajax_chamber_checkin']);
+        add_action('wp_ajax_nopriv_mdbk_chamber_checkin', [$this, 'ajax_chamber_checkin']);
     }
 
     /**
@@ -394,6 +402,123 @@ class MDBK_Shortcode {
     }
 
     /**
+     * Doctor's-chamber walk-in check-in landing page — reached by
+     * scanning the SAME static QR code posted in a doctor's chamber (one
+     * per doctor, not per patient; see
+     * MDBK_Admin_Dashboard::render_chamber_qr_page()). Since the QR
+     * doesn't identify which patient scanned it, this asks for the phone
+     * number they booked with to find their own today's booking — the
+     * same identifier already used as the patient identity key in
+     * MDBK_Appointment_Manager::find_or_create_patient().
+     */
+    public function render_chamber_checkin_view() {
+        if (!isset($_GET['mdbk_chamber'])) {
+            return;
+        }
+
+        $token     = sanitize_text_field(wp_unslash($_GET['mdbk_chamber']));
+        $doctor_id = \MDBK\MDBK_Appointment_Manager::get_doctor_id_by_chamber_token($token);
+        $nonce     = wp_create_nonce('mdbk_chamber_checkin');
+        ?>
+        <div id="mdbk-chamber-modal" class="mdbk-modal-overlay" style="display:flex">
+            <div class="mdbk-modal-card">
+                <div class="mdbk-modal-header">
+                    <h3><?php _e('Check In', 'doctor-appointment'); ?></h3>
+                    <span class="mdbk-modal-close" id="mdbk-chamber-modal-close">&times;</span>
+                </div>
+                <div class="mdbk-modal-body">
+                <?php if (!$doctor_id) : ?>
+                    <p class="mdbk-modal-message mdbk-error" style="display:block"><?php _e('This check-in QR code is not valid.', 'doctor-appointment'); ?></p>
+                <?php else: ?>
+                    <p style="margin-bottom:16px;"><?php echo esc_html(sprintf(__('Checking in for %s', 'doctor-appointment'), get_the_title($doctor_id))); ?></p>
+                    <div class="mdbk-form-group">
+                        <label for="mdbk-chamber-phone"><?php _e('Enter the phone number you booked with', 'doctor-appointment'); ?></label>
+                        <input type="tel" id="mdbk-chamber-phone" class="mdbk-form-control" placeholder="<?php esc_attr_e('01XXXXXXXXX', 'doctor-appointment'); ?>" autocomplete="off">
+                    </div>
+                    <button type="button" class="mdbk-submit-btn" id="mdbk-chamber-submit"><?php _e('Check In', 'doctor-appointment'); ?></button>
+                    <div id="mdbk-chamber-result" style="margin-top:16px;"></div>
+                <?php endif; ?>
+                </div>
+            </div>
+        </div>
+        <script>
+        (function() {
+            var modal = document.getElementById('mdbk-chamber-modal');
+            if (!modal) return;
+            document.body.style.overflow = 'hidden';
+            var closeBtn = document.getElementById('mdbk-chamber-modal-close');
+            if (closeBtn) closeBtn.addEventListener('click', function() { modal.style.display = 'none'; document.body.style.overflow = ''; });
+            modal.addEventListener('click', function(e) { if (e.target === modal) { modal.style.display = 'none'; document.body.style.overflow = ''; } });
+
+            var submitBtn = document.getElementById('mdbk-chamber-submit');
+            var resultEl = document.getElementById('mdbk-chamber-result');
+            var phoneInput = document.getElementById('mdbk-chamber-phone');
+            if (!submitBtn) return;
+
+            var ajaxUrl = <?php echo wp_json_encode(admin_url('admin-ajax.php')); ?>;
+            var nonce = <?php echo wp_json_encode($nonce); ?>;
+            var chamberToken = <?php echo wp_json_encode($token); ?>;
+
+            function submitCheckin(appointmentId) {
+                var body = new URLSearchParams();
+                body.set('action', 'mdbk_chamber_checkin');
+                body.set('nonce', nonce);
+                body.set('chamber_token', chamberToken);
+                body.set('phone', phoneInput.value);
+                if (appointmentId) body.set('appointment_id', appointmentId);
+
+                fetch(ajaxUrl, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body.toString() })
+                    .then(function(r) { return r.json(); })
+                    .then(function(res) {
+                        resultEl.innerHTML = '';
+                        if (!res.success) {
+                            var p = document.createElement('p');
+                            p.className = 'mdbk-error';
+                            p.textContent = (res.data && res.data.message) || '';
+                            resultEl.appendChild(p);
+                            return;
+                        }
+                        if (res.data.matches) {
+                            var hint = document.createElement('p');
+                            hint.textContent = <?php echo wp_json_encode(__('Multiple bookings match this number — select yours:', 'doctor-appointment')); ?>;
+                            resultEl.appendChild(hint);
+                            res.data.matches.forEach(function(m) {
+                                var btn = document.createElement('button');
+                                btn.type = 'button';
+                                btn.className = 'mdbk-btn-add mdbk-btn-sm';
+                                btn.style.display = 'block';
+                                btn.style.width = '100%';
+                                btn.style.marginBottom = '8px';
+                                btn.textContent = m.ticket + ' — ' + m.name;
+                                btn.addEventListener('click', function() { submitCheckin(m.id); });
+                                resultEl.appendChild(btn);
+                            });
+                            return;
+                        }
+                        var ok = document.createElement('p');
+                        ok.style.color = '#16A34A';
+                        ok.style.fontWeight = '600';
+                        ok.textContent = res.data.message || '';
+                        resultEl.appendChild(ok);
+                        submitBtn.style.display = 'none';
+                        phoneInput.disabled = true;
+                    })
+                    .catch(function() {
+                        resultEl.innerHTML = '';
+                        var p = document.createElement('p');
+                        p.className = 'mdbk-error';
+                        p.textContent = 'Something went wrong, please try again.';
+                        resultEl.appendChild(p);
+                    });
+            }
+
+            submitBtn.addEventListener('click', function() { submitCheckin(''); });
+        })();
+        </script>
+        <?php
+    }
+
+    /**
      * Shared specialty/doctor/booking/details form markup — identical
      * whether it ends up inside the popup modal or rendered inline by the
      * shortcode. Element IDs are fixed (not instance-namespaced): only one
@@ -467,6 +592,11 @@ class MDBK_Shortcode {
                             <p class="mdbk-time-placeholder"><?php _e('Select a date first', 'doctor-appointment'); ?></p>
                         </div>
                         <input type="hidden" name="slot_time" id="mdbk-modal-slot-value">
+                    </div>
+                    <div class="mdbk-datetime-selected" id="mdbk-datetime-selected" style="display:none">
+                        <span class="mdbk-datetime-label"><?php _e('Selected:', 'doctor-appointment'); ?></span>
+                        <span class="mdbk-datetime-value" id="mdbk-datetime-value"></span>
+                        <button type="button" class="mdbk-datetime-change" id="mdbk-datetime-change"><?php _e('Change', 'doctor-appointment'); ?></button>
                     </div>
                 </div>
             </div>
@@ -699,6 +829,19 @@ class MDBK_Shortcode {
             'numberposts' => -1,
         ]);
 
+        // Whoever's currently being seen always leads the list, regardless
+        // of ticket number — a plain ticket-order sort could otherwise show
+        // an earlier-numbered still-waiting patient above the one actually
+        // in the room. Only one appointment is ever mdbk_serving per
+        // doctor+date (enforced by promote_next_checked_in_patient()), so
+        // this is a single stable partition, not a general-purpose sort.
+        usort($patients, function($a, $b) {
+            $a_rank = $a->post_status === 'mdbk_serving' ? 0 : 1;
+            $b_rank = $b->post_status === 'mdbk_serving' ? 0 : 1;
+            if ($a_rank !== $b_rank) return $a_rank <=> $b_rank;
+            return intval(get_post_meta($a->ID, '_mdbk_ticket_number', true)) <=> intval(get_post_meta($b->ID, '_mdbk_ticket_number', true));
+        });
+
         $departments = get_the_terms($doctor_id, 'mdbk_department');
 
         ob_start();
@@ -720,13 +863,19 @@ class MDBK_Shortcode {
                     $ticket = \MDBK\MDBK_Appointment_Manager::format_ticket_number(get_post_meta($patient->ID, '_mdbk_ticket_number', true));
                     $name   = self::truncate_patient_name(get_post_meta($patient->ID, '_mdbk_patient_name', true));
                     $checked_in = get_post_meta($patient->ID, '_mdbk_checked_in', true) === 'yes';
-                    // Three states: being examined right now (serving), arrived
-                    // and waiting their turn (present), or not yet arrived
-                    // (not-present) — post_status already tells us "serving" vs
-                    // "waiting" with zero extra queries ($patient is a WP_Post).
+                    $skipped = get_post_meta($patient->ID, '_mdbk_skipped', true) === 'yes';
+                    // Four states: being examined right now (serving), checked
+                    // in but temporarily stepped away (skipped — see the
+                    // kiosk's Skip toggle), arrived and waiting their turn
+                    // (present), or not yet arrived (not-present) —
+                    // post_status already tells us "serving" vs "waiting"
+                    // with zero extra queries ($patient is a WP_Post).
                     if ($patient->post_status === 'mdbk_serving') {
                         $status_class = 'mdbk-serving';
                         $status_label = __('Visiting', 'doctor-appointment');
+                    } elseif ($skipped) {
+                        $status_class = 'mdbk-skipped';
+                        $status_label = __('Away', 'doctor-appointment');
                     } elseif ($checked_in) {
                         $status_class = 'mdbk-present';
                         $status_label = __('Waiting', 'doctor-appointment');
@@ -850,6 +999,7 @@ class MDBK_Shortcode {
                         $name   = self::truncate_patient_name(get_post_meta($patient->ID, '_mdbk_patient_name', true));
                         $slot   = get_post_meta($patient->ID, '_mdbk_slot_time', true);
                         $checked_in = get_post_meta($patient->ID, '_mdbk_checked_in', true) === 'yes';
+                        $skipped = get_post_meta($patient->ID, '_mdbk_skipped', true) === 'yes';
                         ?>
                         <div class="mdbk-patient-card">
                             <div class="mdbk-patient-id">#<?php echo $ticket ? esc_html(str_pad($ticket, 2, '0', STR_PAD_LEFT)) : '—'; ?></div>
@@ -857,10 +1007,21 @@ class MDBK_Shortcode {
                                 <h4><?php echo esc_html($name); ?></h4>
                                 <?php if ($slot) : ?><p><?php echo esc_html($slot); ?></p><?php endif; ?>
                             </div>
-                            <?php if ($checked_in) : ?>
+                            <?php if ($skipped) : ?>
+                                <div class="mdbk-away-badge"><?php _e('Away', 'doctor-appointment'); ?></div>
+                            <?php elseif ($checked_in) : ?>
                                 <div class="mdbk-checkedin-badge"><?php _e('Checked In', 'doctor-appointment'); ?></div>
                             <?php endif; ?>
                             <div class="mdbk-patient-actions">
+                                <?php if ($checked_in) : ?>
+                                    <button type="button" class="mdbk-btn-small mdbk-btn-skip mdbk-queue-toggle-skip<?php echo $skipped ? ' is-skipped' : ''; ?>" data-appointment-id="<?php echo esc_attr($patient->ID); ?>" title="<?php echo $skipped ? esc_attr__('Recall to queue', 'doctor-appointment') : esc_attr__('Skip — temporarily away', 'doctor-appointment'); ?>">
+                                        <?php if ($skipped) : ?>
+                                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>
+                                        <?php else : ?>
+                                            <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="5 4 15 12 5 20 5 4"></polygon><rect x="17" y="4" width="3" height="16"></rect></svg>
+                                        <?php endif; ?>
+                                    </button>
+                                <?php endif; ?>
                                 <?php if (!$serving) : ?>
                                     <button type="button" class="mdbk-btn-small mdbk-queue-action" data-appointment-id="<?php echo esc_attr($patient->ID); ?>" data-status="serving" data-doctor-id="<?php echo esc_attr($doctor_id); ?>" title="<?php esc_attr_e('Visit Now', 'doctor-appointment'); ?>"><svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="6 3 20 12 6 21 6 3"></polygon></svg></button>
                                 <?php endif; ?>
@@ -918,7 +1079,12 @@ class MDBK_Shortcode {
             wp_send_json_error(__('Someone is already visiting. Complete or mark no-show first.', 'doctor-appointment'));
         }
 
-        $waiting = get_posts(['post_type' => 'mdbk_appointment', 'post_status' => ['mdbk_waiting'], 'meta_query' => $meta_query, 'meta_key' => '_mdbk_slot_time', 'orderby' => 'meta_value', 'order' => 'ASC', 'numberposts' => 1]);
+        // Excludes anyone currently Skipped (stepped away — see the Skip
+        // toggle on each waiting card) the same way
+        // MDBK_Appointment_Manager::promote_next_checked_in_patient() does
+        // for the automatic advance — otherwise "Call Next Patient" could
+        // call someone who isn't actually in the room right now.
+        $waiting = get_posts(['post_type' => 'mdbk_appointment', 'post_status' => ['mdbk_waiting'], 'meta_query' => array_merge($meta_query, [['key' => '_mdbk_skipped', 'compare' => 'NOT EXISTS']]), 'meta_key' => '_mdbk_slot_time', 'orderby' => 'meta_value', 'order' => 'ASC', 'numberposts' => 1]);
         if (!$waiting) {
             wp_send_json_error(__('No patients waiting.', 'doctor-appointment'));
         }
@@ -957,6 +1123,34 @@ class MDBK_Shortcode {
     }
 
     /**
+     * AJAX: toggle a checked-in waiting patient's "Skip" flag — for a
+     * patient who stepped away (toilet, phone call) after checking in.
+     * While skipped, MDBK_Appointment_Manager::promote_next_checked_in_patient()
+     * won't auto-advance them, but they keep their ticket/place in the
+     * list; staff can still serve them directly any time via "Visit Now",
+     * which isn't gated on this flag at all. Same public/kiosk trust model
+     * as the other queue actions (nonce + nopriv, no current_user_can()).
+     */
+    public function ajax_queue_toggle_skip() {
+        check_ajax_referer('mdbk_manage_queue', 'nonce');
+
+        $appointment_id = isset($_POST['appointment_id']) ? intval($_POST['appointment_id']) : 0;
+        $doctor_id      = isset($_POST['doctor_id']) ? intval($_POST['doctor_id']) : 0;
+
+        if (!$appointment_id || get_post_type($appointment_id) !== 'mdbk_appointment' || get_post_status($appointment_id) !== 'mdbk_waiting') {
+            wp_send_json_error(__('Invalid request.', 'doctor-appointment'));
+        }
+
+        if (get_post_meta($appointment_id, '_mdbk_skipped', true) === 'yes') {
+            delete_post_meta($appointment_id, '_mdbk_skipped');
+        } else {
+            update_post_meta($appointment_id, '_mdbk_skipped', 'yes');
+        }
+
+        wp_send_json_success(['fragment' => self::render_queue_body($doctor_id)]);
+    }
+
+    /**
      * AJAX: redeem a check-in token from the Queue Management kiosk's
      * Check-In box (typed by a USB/Bluetooth QR scanner or pasted by
      * staff). Same trust model as the other queue actions — nonce +
@@ -975,23 +1169,13 @@ class MDBK_Shortcode {
             wp_send_json_error(__('Check-in code not found.', 'doctor-appointment'));
         }
 
-        if (get_post_status($appointment->ID) !== 'mdbk_waiting') {
-            wp_send_json_error(__('This booking is not awaiting check-in (already checked in, served, or cancelled).', 'doctor-appointment'));
+        $result = \MDBK\MDBK_Appointment_Manager::mark_checked_in($appointment->ID);
+        if ($result !== true) {
+            wp_send_json_error($result);
         }
-
-        update_post_meta($appointment->ID, '_mdbk_checked_in', 'yes');
-        update_post_meta($appointment->ID, '_mdbk_checkin_time', current_time('timestamp'));
 
         $doctor_id = intval(get_post_meta($appointment->ID, '_mdbk_doctor_id', true));
         $slot_time = get_post_meta($appointment->ID, '_mdbk_slot_time', true);
-
-        // If nobody's currently "Visiting" for this doctor, this check-in
-        // might be exactly who should become that — same auto-advance used
-        // when a doctor marks someone visited (see
-        // MDBK_Appointment_Manager::promote_next_checked_in_patient()).
-        if ($doctor_id) {
-            \MDBK\MDBK_Appointment_Manager::promote_next_checked_in_patient($doctor_id);
-        }
 
         wp_send_json_success([
             'patient_name' => get_post_meta($appointment->ID, '_mdbk_patient_name', true),
@@ -999,6 +1183,86 @@ class MDBK_Shortcode {
             'ticket'       => \MDBK\MDBK_Appointment_Manager::format_ticket_number(get_post_meta($appointment->ID, '_mdbk_ticket_number', true)),
             'slot_time'    => $slot_time ? date_i18n(get_option('time_format'), strtotime($slot_time)) : '',
             'fragment'     => self::render_queue_body($doctor_id),
+        ]);
+    }
+
+    /**
+     * AJAX: doctor's-chamber walk-in check-in — counterpart to the QR
+     * landing page above. Public/nopriv (patient is never logged in),
+     * scoped by its own dedicated nonce used for nothing else. The
+     * chamber QR only identifies the DOCTOR (same code for every
+     * patient), so the phone number submitted here is what actually
+     * identifies which booking to check in.
+     */
+    public function ajax_chamber_checkin() {
+        check_ajax_referer('mdbk_chamber_checkin', 'nonce');
+
+        $chamber_token = isset($_POST['chamber_token']) ? sanitize_text_field($_POST['chamber_token']) : '';
+        $doctor_id = \MDBK\MDBK_Appointment_Manager::get_doctor_id_by_chamber_token($chamber_token);
+        if (!$doctor_id) {
+            wp_send_json_error(['message' => __('This check-in QR code is not valid.', 'doctor-appointment')]);
+        }
+
+        $phone = isset($_POST['phone']) ? sanitize_text_field($_POST['phone']) : '';
+        if (!$phone) {
+            wp_send_json_error(['message' => __('Please enter your phone number.', 'doctor-appointment')]);
+        }
+
+        $date = current_time('Y-m-d');
+        $appointment_id = isset($_POST['appointment_id']) ? intval($_POST['appointment_id']) : 0;
+
+        if ($appointment_id) {
+            // A follow-up pick from a multi-match list — never trust the
+            // round-tripped ID alone (it passed through the client), so
+            // re-verify it actually belongs to this doctor + phone before
+            // finalizing.
+            if (get_post_type($appointment_id) !== 'mdbk_appointment'
+                || intval(get_post_meta($appointment_id, '_mdbk_doctor_id', true)) !== $doctor_id
+                || get_post_meta($appointment_id, '_mdbk_patient_phone', true) !== $phone) {
+                wp_send_json_error(['message' => __('Booking not found.', 'doctor-appointment')]);
+            }
+            $candidate_id = $appointment_id;
+        } else {
+            $matches = get_posts([
+                'post_type'   => 'mdbk_appointment',
+                'post_status' => ['mdbk_waiting'],
+                'numberposts' => -1,
+                'fields'      => 'ids',
+                'meta_query'  => [
+                    'relation' => 'AND',
+                    ['key' => '_mdbk_doctor_id', 'value' => $doctor_id],
+                    ['key' => '_mdbk_appointment_date', 'value' => $date],
+                    ['key' => '_mdbk_patient_phone', 'value' => $phone],
+                ],
+            ]);
+            if (!$matches) {
+                wp_send_json_error(['message' => __('No waiting booking found for today with this phone number.', 'doctor-appointment')]);
+            }
+            if (count($matches) > 1) {
+                $list = [];
+                foreach ($matches as $id) {
+                    $list[] = [
+                        'id'     => $id,
+                        'name'   => get_post_meta($id, '_mdbk_patient_name', true),
+                        'ticket' => \MDBK\MDBK_Appointment_Manager::format_ticket_number(get_post_meta($id, '_mdbk_ticket_number', true)),
+                    ];
+                }
+                wp_send_json_success(['matches' => $list]);
+            }
+            $candidate_id = $matches[0];
+        }
+
+        $result = \MDBK\MDBK_Appointment_Manager::mark_checked_in($candidate_id);
+        if ($result !== true) {
+            wp_send_json_error(['message' => $result]);
+        }
+
+        wp_send_json_success([
+            'message' => sprintf(
+                __('%1$s checked in — ticket %2$s.', 'doctor-appointment'),
+                get_post_meta($candidate_id, '_mdbk_patient_name', true),
+                \MDBK\MDBK_Appointment_Manager::format_ticket_number(get_post_meta($candidate_id, '_mdbk_ticket_number', true))
+            ),
         ]);
     }
 }

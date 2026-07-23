@@ -608,6 +608,80 @@ class MDBK_Appointment_Manager {
     }
 
     /**
+     * Shared low-level check-in mutation — the one place that sets
+     * _mdbk_checked_in/_mdbk_checkin_time and triggers auto-advance, so the
+     * kiosk QR-scan check-in (ajax_verify_checkin), the staff Bookings-page
+     * button (MDBK_Admin_Dashboard::ajax_admin_checkin), and the doctor's-
+     * chamber phone-lookup check-in (ajax_chamber_checkin) can never drift
+     * out of sync on what's allowed to be checked in. Returns true on
+     * success, or a translated error message string when rejected.
+     *
+     * The same-day requirement doesn't exist on the old inline kiosk logic
+     * this replaces, but is enforced here for all three entry points: a
+     * future-dated appointment checked in early would let
+     * promote_next_checked_in_patient() (which only looks at the flag, not
+     * who set it or when) advance them to "Visiting" before they've
+     * actually arrived.
+     */
+    public static function mark_checked_in($appointment_id) {
+        $appointment_id = intval($appointment_id);
+        if (!$appointment_id || get_post_type($appointment_id) !== 'mdbk_appointment') {
+            return __('Invalid appointment.', 'doctor-appointment');
+        }
+        if (get_post_status($appointment_id) !== 'mdbk_waiting') {
+            return __('This booking is not awaiting check-in (already checked in, served, or cancelled).', 'doctor-appointment');
+        }
+        if (get_post_meta($appointment_id, '_mdbk_appointment_date', true) !== current_time('Y-m-d')) {
+            return __('This booking is not for today.', 'doctor-appointment');
+        }
+
+        update_post_meta($appointment_id, '_mdbk_checked_in', 'yes');
+        update_post_meta($appointment_id, '_mdbk_checkin_time', current_time('timestamp'));
+
+        $doctor_id = intval(get_post_meta($appointment_id, '_mdbk_doctor_id', true));
+        if ($doctor_id) {
+            self::promote_next_checked_in_patient($doctor_id);
+        }
+
+        return true;
+    }
+
+    /**
+     * Persistent per-doctor secret behind the doctor's-chamber walk-in
+     * check-in QR (see MDBK_Admin_Dashboard::render_chamber_qr_page()) —
+     * one static code printed once and posted in the chamber, scanned by
+     * every patient who walks in. Unlike a nonce (~1-2 day lifetime), this
+     * has to survive as long as the printed sheet stays on the wall, so
+     * it's a stored secret generated lazily on first use, not a nonce.
+     */
+    public static function get_or_create_chamber_token($doctor_id) {
+        $doctor_id = intval($doctor_id);
+        $token = get_post_meta($doctor_id, '_mdbk_chamber_token', true);
+        if (!$token) {
+            $token = wp_generate_password(24, false);
+            update_post_meta($doctor_id, '_mdbk_chamber_token', $token);
+        }
+        return $token;
+    }
+
+    /**
+     * The doctor a chamber QR token belongs to, or 0 if it doesn't resolve
+     * to anything (bad/garbled scan). Mirrors find_appointment_by_token().
+     */
+    public static function get_doctor_id_by_chamber_token($token) {
+        $token = sanitize_text_field((string) $token);
+        if (!$token) return 0;
+
+        $found = get_posts([
+            'post_type'   => 'mdbk_doctor',
+            'numberposts' => 1,
+            'fields'      => 'ids',
+            'meta_query'  => [['key' => '_mdbk_chamber_token', 'value' => $token]],
+        ]);
+        return $found ? intval($found[0]) : 0;
+    }
+
+    /**
      * The mdbk_doctor post ID linked to a WP user (via _mdbk_doctor_user_id,
      * set by MDBK_Admin_Dashboard::link_doctor_user()), or 0 if that user
      * isn't linked to any doctor — e.g. an administrator previewing the
@@ -639,6 +713,14 @@ class MDBK_Appointment_Manager {
      * after a doctor marks someone visited (ajax_mark_visited()) and right
      * after a patient checks in via QR (ajax_verify_checkin()) — either
      * event can be the moment nobody's left "Visiting".
+     *
+     * A checked-in patient temporarily marked _mdbk_skipped ("stepped out
+     * — toilet, phone call, etc.", set via the kiosk's Skip toggle — see
+     * MDBK_Shortcode::ajax_queue_toggle_skip()) is excluded here too, even
+     * though they're checked in — otherwise auto-advance would call
+     * someone who isn't actually in the room. They keep their ticket/place
+     * in the list; staff can still serve them directly any time via
+     * "Visit Now", or clear the flag via "Recall" to rejoin auto-advance.
      */
     public static function promote_next_checked_in_patient($doctor_id) {
         $date = current_time('Y-m-d');
@@ -662,7 +744,10 @@ class MDBK_Appointment_Manager {
         $next = get_posts([
             'post_type'   => 'mdbk_appointment',
             'post_status' => ['mdbk_waiting'],
-            'meta_query'  => array_merge($meta_query, [['key' => '_mdbk_checked_in', 'value' => 'yes']]),
+            'meta_query'  => array_merge($meta_query, [
+                ['key' => '_mdbk_checked_in', 'value' => 'yes'],
+                ['key' => '_mdbk_skipped', 'compare' => 'NOT EXISTS'],
+            ]),
             'meta_key'    => '_mdbk_ticket_number',
             'orderby'     => 'meta_value_num',
             'order'       => 'ASC',

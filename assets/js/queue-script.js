@@ -44,15 +44,20 @@ document.addEventListener('DOMContentLoaded', function() {
     // don't need re-binding since we listen on the stable container).
     app.addEventListener('click', function(e) {
         var callNextBtn = e.target.closest('.mdbk-queue-call-next');
-        var actionBtn = e.target.closest('.mdbk-queue-action');
+        var skipBtn = e.target.closest('.mdbk-queue-toggle-skip');
+        var actionBtn = !skipBtn ? e.target.closest('.mdbk-queue-action') : null;
 
-        if (!callNextBtn && !actionBtn) return;
+        if (!callNextBtn && !skipBtn && !actionBtn) return;
         if (busy) return;
         busy = true;
 
         var request;
         if (callNextBtn) {
             request = post('mdbk_queue_call_next');
+        } else if (skipBtn) {
+            request = post('mdbk_queue_toggle_skip', {
+                appointment_id: skipBtn.getAttribute('data-appointment-id')
+            });
         } else {
             request = post('mdbk_queue_set_status', {
                 appointment_id: actionBtn.getAttribute('data-appointment-id'),
