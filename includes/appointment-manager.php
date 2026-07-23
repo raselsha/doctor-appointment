@@ -100,6 +100,24 @@ class MDBK_Appointment_Manager {
     }
 
     /**
+     * Human-facing label for a status slug — every place that displays a
+     * status as text (badges, CSV export) previously derived one
+     * independently via ucfirst(str_replace('-', ' ', $slug)), which meant
+     * "serving" always showed as the literal, untranslated word "Serving".
+     * One shared mapping, so relabeling (e.g. "Visiting"/"Visited") only
+     * has to happen in one place.
+     */
+    public static function status_display_label($slug) {
+        $labels = [
+            'waiting'   => __('Waiting', 'doctor-appointment'),
+            'serving'   => __('Visiting', 'doctor-appointment'),
+            'completed' => __('Visited', 'doctor-appointment'),
+            'no-show'   => __('No Show', 'doctor-appointment'),
+        ];
+        return isset($labels[$slug]) ? $labels[$slug] : ucfirst(str_replace('-', ' ', $slug));
+    }
+
+    /**
      * Register Meta Boxes for Appointments
      */
     public function register_meta_boxes() {
@@ -167,10 +185,10 @@ class MDBK_Appointment_Manager {
             <div class="mdbk-meta-field">
                 <label><?php _e('Status', 'doctor-appointment'); ?></label>
                 <select name="mdbk_status">
-                    <option value="waiting" <?php selected($status, 'waiting'); ?>>Waiting</option>
-                    <option value="serving" <?php selected($status, 'serving'); ?>>Serving</option>
-                    <option value="completed" <?php selected($status, 'completed'); ?>>Completed</option>
-                    <option value="no-show" <?php selected($status, 'no-show'); ?>>No Show</option>
+                    <option value="waiting" <?php selected($status, 'waiting'); ?>><?php _e('Waiting', 'doctor-appointment'); ?></option>
+                    <option value="serving" <?php selected($status, 'serving'); ?>><?php _e('Visiting', 'doctor-appointment'); ?></option>
+                    <option value="completed" <?php selected($status, 'completed'); ?>><?php _e('Completed', 'doctor-appointment'); ?></option>
+                    <option value="no-show" <?php selected($status, 'no-show'); ?>><?php _e('No Show', 'doctor-appointment'); ?></option>
                 </select>
             </div>
 
@@ -331,7 +349,55 @@ class MDBK_Appointment_Manager {
             update_post_meta($patient_id, '_mdbk_patient_address', sanitize_textarea_field($extra['address']));
         }
 
+        if ($phone) {
+            self::link_patient_user($patient_id, $phone);
+        }
+
         return $patient_id;
+    }
+
+    /**
+     * Ensures $patient_id has a WP user account with the Patient role,
+     * creating one if needed — record-keeping only, no login is ever
+     * handed to the patient (no email sent, no credentials surfaced
+     * anywhere). Reachable from the PUBLIC, unauthenticated booking form,
+     * so this deliberately never looks anyone up by email — only by a
+     * user_login we ourselves derive from the phone number, so it can
+     * only ever find/reuse an account this exact function created on a
+     * previous booking from the same phone, never an unrelated person's
+     * pre-existing account.
+     */
+    private static function link_patient_user($patient_id, $phone) {
+        if (get_post_meta($patient_id, '_mdbk_patient_user_id', true)) {
+            return;
+        }
+
+        $login = 'patient_' . preg_replace('/\D/', '', $phone);
+        if ($login === 'patient_') {
+            return;
+        }
+
+        $user = get_user_by('login', $login);
+        if ($user) {
+            if (!in_array('mdbk_patient_role', $user->roles, true)) {
+                $user->add_role('mdbk_patient_role');
+            }
+            update_post_meta($patient_id, '_mdbk_patient_user_id', $user->ID);
+            return;
+        }
+
+        $user_id = wp_insert_user([
+            'user_login' => $login,
+            'user_pass'  => wp_generate_password(20, true),
+            'role'       => 'mdbk_patient_role',
+        ]);
+
+        if (is_wp_error($user_id)) {
+            error_log('MDBK: failed to create patient user account for patient #' . $patient_id . ': ' . $user_id->get_error_message());
+            return;
+        }
+
+        update_post_meta($patient_id, '_mdbk_patient_user_id', $user_id);
     }
 
     /**
@@ -539,6 +605,72 @@ class MDBK_Appointment_Manager {
             'meta_query'  => [['key' => '_mdbk_checkin_token', 'value' => $token]],
         ]);
         return $found ? $found[0] : null;
+    }
+
+    /**
+     * The mdbk_doctor post ID linked to a WP user (via _mdbk_doctor_user_id,
+     * set by MDBK_Admin_Dashboard::link_doctor_user()), or 0 if that user
+     * isn't linked to any doctor — e.g. an administrator previewing the
+     * restricted "My Queue" page, or a stray login. Shared by the doctor
+     * dashboard page and the mdbk_mark_visited AJAX ownership check so
+     * both use the exact same reverse-lookup.
+     */
+    public static function get_doctor_id_for_user($user_id) {
+        $user_id = intval($user_id);
+        if (!$user_id) return 0;
+
+        $found = get_posts([
+            'post_type'   => 'mdbk_doctor',
+            'numberposts' => 1,
+            'fields'      => 'ids',
+            'meta_query'  => [['key' => '_mdbk_doctor_user_id', 'value' => $user_id]],
+        ]);
+        return $found ? intval($found[0]) : 0;
+    }
+
+    /**
+     * Auto-advances one doctor's today's queue: if nobody is currently
+     * mdbk_serving, promotes the earliest-ticket mdbk_waiting appointment
+     * that has actually checked in (_mdbk_checked_in = 'yes') into that
+     * status. A patient who hasn't checked in isn't in the room yet, so
+     * they're skipped even if their ticket number is earlier — matches
+     * "Mark as Visited" only being offered for checked-in patients (see
+     * MDBK_Admin_Dashboard::render_my_queue_patient_row()). Called both
+     * after a doctor marks someone visited (ajax_mark_visited()) and right
+     * after a patient checks in via QR (ajax_verify_checkin()) — either
+     * event can be the moment nobody's left "Visiting".
+     */
+    public static function promote_next_checked_in_patient($doctor_id) {
+        $date = current_time('Y-m-d');
+        $meta_query = [
+            'relation' => 'AND',
+            ['key' => '_mdbk_appointment_date', 'value' => $date],
+            ['key' => '_mdbk_doctor_id', 'value' => $doctor_id],
+        ];
+
+        $already_serving = get_posts([
+            'post_type'   => 'mdbk_appointment',
+            'post_status' => ['mdbk_serving'],
+            'meta_query'  => $meta_query,
+            'numberposts' => 1,
+            'fields'      => 'ids',
+        ]);
+        if ($already_serving) {
+            return;
+        }
+
+        $next = get_posts([
+            'post_type'   => 'mdbk_appointment',
+            'post_status' => ['mdbk_waiting'],
+            'meta_query'  => array_merge($meta_query, [['key' => '_mdbk_checked_in', 'value' => 'yes']]),
+            'meta_key'    => '_mdbk_ticket_number',
+            'orderby'     => 'meta_value_num',
+            'order'       => 'ASC',
+            'numberposts' => 1,
+        ]);
+        if ($next) {
+            wp_update_post(['ID' => $next[0]->ID, 'post_status' => 'mdbk_serving']);
+        }
     }
 
     /**

@@ -617,6 +617,37 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
+    // "Mark as Visited" on the doctor-restricted "My Queue" page
+    // (mdbk-my-queue) — delegated on document since the button is inside
+    // a fragment that gets replaced wholesale on success.
+    document.addEventListener('click', (e) => {
+        const btn = e.target.closest('.mdbk-mark-visited');
+        if (!btn || typeof mdbk_admin_obj === 'undefined') return;
+        const row = btn.closest('.mdbk-patient-row');
+        const appointmentId = btn.dataset.id;
+        btn.disabled = true;
+        const body = new URLSearchParams();
+        body.set('action', 'mdbk_mark_visited');
+        body.set('nonce', mdbk_admin_obj.nonce);
+        body.set('appointment_id', appointmentId);
+        fetch(mdbk_admin_obj.ajax_url, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body.toString() })
+            .then((r) => r.json())
+            .then((res) => {
+                if (res && res.success && row) {
+                    const tmp = document.createElement('div');
+                    tmp.innerHTML = res.data.fragment;
+                    row.replaceWith(tmp.firstElementChild);
+                } else {
+                    btn.disabled = false;
+                    alert((res && res.data && res.data.message) || 'Something went wrong, please try again.');
+                }
+            })
+            .catch(() => {
+                btn.disabled = false;
+                alert('Something went wrong, please try again.');
+            });
+    });
+
     // ---- Doctors grid: search, specialty filter, pagination, grid/list view ----
     const doctorGrid = document.getElementById('mdbk-admin-doctor-grid');
     if (doctorGrid) {

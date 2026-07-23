@@ -8,7 +8,7 @@ defined('ABSPATH') || exit;
 
 class MDBK_Migrations {
 
-    const DB_VERSION = 3;
+    const DB_VERSION = 4;
 
     /**
      * Run pending migrations, gated on mdbk_db_version. This is the only
@@ -32,6 +32,14 @@ class MDBK_Migrations {
             // Grants the front-desk role/capability. MDBK_Roles::activate()
             // is also called on register_activation_hook, but that alone
             // misses already-active installs that never get reactivated.
+            MDBK_Roles::activate();
+        }
+
+        if ($current < 4) {
+            // Adds the Doctor/Patient roles + MDBK_CAP_DOCTOR — re-running
+            // MDBK_Roles::activate() is harmless/idempotent (add_role() and
+            // add_cap() both no-op if already present), so sites already at
+            // v3 just pick up the two new roles for free here.
             MDBK_Roles::activate();
         }
 

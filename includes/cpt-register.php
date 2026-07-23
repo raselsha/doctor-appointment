@@ -43,13 +43,13 @@ class MDBK_CPT {
         ] );
 
         register_post_status( 'mdbk_serving', [
-            'label'                     => _x( 'Serving', 'appointment status', 'doctor-appointment' ),
+            'label'                     => _x( 'Visiting', 'appointment status', 'doctor-appointment' ),
             'public'                    => false,
             'internal'                  => true,
             'exclude_from_search'       => true,
             'show_in_admin_all_list'    => true,
             'show_in_admin_status_list' => true,
-            'label_count'               => _n_noop( 'Serving <span class="count">(%s)</span>', 'Serving <span class="count">(%s)</span>', 'doctor-appointment' ),
+            'label_count'               => _n_noop( 'Visiting <span class="count">(%s)</span>', 'Visiting <span class="count">(%s)</span>', 'doctor-appointment' ),
         ] );
 
         register_post_status( 'mdbk_completed', [

@@ -746,6 +746,18 @@ button.mdbk-mini-cal-nav-btn:hover { background: #f1f5f9; }
 .mdbk-patient-row:last-child { border-bottom: none; }
 .mdbk-patient-row:hover { background: #f8fafc; }
 
+/* The doctor-restricted "My Queue" page's own patient row — a simpler
+   7-track layout (ticket, name, phone, email, spacer, time, action),
+   deliberately its own grid rather than force-fitting into the Bookings
+   page's 11-track template above. */
+.mdbk-patient-row.mdbk-my-queue-row {
+    grid-template-columns: 44px minmax(120px, 200px) 130px minmax(160px, 1fr) 1fr 140px auto;
+}
+.mdbk-my-queue-row .mdbk-mark-visited {
+    justify-self: end;
+    white-space: nowrap;
+}
+
 /* Patient Directory — same row shell/chip components as the Bookings page,
    different column set (no queue/visit-time/status; a patient isn't tied
    to one appointment) plus a derived "total visits" badge in place of a
@@ -799,6 +811,8 @@ button.mdbk-mini-cal-nav-btn:hover { background: #f1f5f9; }
 .mdbk-badge-status-serving { background: #d1fae5; color: #065f46; }
 .mdbk-badge-status-completed { background: #f1f5f9; color: #475569; }
 .mdbk-badge-status-no-show { background: #fee2e2; color: #b91c1c; }
+.mdbk-badge-upcoming { background: #fef3c7; color: #92400e; }
+.mdbk-badge-not-checked-in { background: #f1f5f9; color: #94a3b8; }
 
 @media (max-width: 1024px) {
     .mdbk-patient-row, .mdbk-patient-row-has-doctor { display: flex; flex-wrap: wrap; row-gap: 6px; }

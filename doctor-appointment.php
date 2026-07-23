@@ -57,6 +57,7 @@ if ( ! class_exists( 'MDBK_Doctor_Appointment' ) ) {
             define( 'MDBK_URL', plugin_dir_url( __FILE__ ) );
             define( 'MDBK_VERSION', '1.1.0' );
             define( 'MDBK_CAP_QUEUE', 'manage_mdbk_queue' );
+            define( 'MDBK_CAP_DOCTOR', 'view_own_mdbk_queue' );
         }
 
         /**
@@ -95,6 +96,19 @@ if ( ! class_exists( 'MDBK_Doctor_Appointment' ) ) {
                 // in — current_time() is WP's timezone-aware clock.
                 'today'    => current_time( 'Y-m-d' ),
             ]);
+
+            // The doctor-restricted "My Queue" page embeds the same
+            // live-polling queue widget the public Live Queue shortcode
+            // uses — give it the same CSS/JS + read-only nonce here.
+            if ($hook === 'toplevel_page_mdbk-my-queue') {
+                wp_enqueue_style('mdbk-queue-style', MDBK_URL . 'assets/css/queue-style.css', array(), filemtime( MDBK_PATH . 'assets/css/queue-style.css' ));
+                $queue_view_js_ver = filemtime(MDBK_PATH . 'assets/js/queue-view-script.js');
+                wp_enqueue_script('mdbk-queue-view-script', MDBK_URL . 'assets/js/queue-view-script.js', array(), $queue_view_js_ver, true);
+                wp_localize_script('mdbk-queue-view-script', 'mdbk_queue_view_obj', [
+                    'ajax_url' => admin_url('admin-ajax.php'),
+                    'nonce'    => wp_create_nonce('mdbk_view_queue'),
+                ]);
+            }
         }
 
         /**

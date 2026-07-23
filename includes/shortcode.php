@@ -649,8 +649,10 @@ class MDBK_Shortcode {
      * mode) and repeated once per doctor (all-doctors mode). Each instance
      * polls independently via its own `data-doctor`/`.mdbk-queue-body-instance`
      * (see queue-view-script.js), since a page can have more than one.
+     * Public (not private) so MDBK_Admin_Dashboard's doctor-restricted "My
+     * Queue" page can reuse it too.
      */
-    private static function render_queue_list_instance($doctor_id) {
+    public static function render_queue_list_instance($doctor_id) {
         $body = self::render_queue_list_body($doctor_id);
         ob_start();
         ?>
@@ -679,7 +681,7 @@ class MDBK_Shortcode {
      * can be hidden in grid mode) and the AJAX poll response (so a poll
      * that brings a doctor's count above zero can reveal their card live).
      */
-    private static function render_queue_list_body($doctor_id) {
+    public static function render_queue_list_body($doctor_id) {
         $doctor_id = intval($doctor_id);
         $date = current_time('Y-m-d');
 
@@ -724,7 +726,7 @@ class MDBK_Shortcode {
                     // "waiting" with zero extra queries ($patient is a WP_Post).
                     if ($patient->post_status === 'mdbk_serving') {
                         $status_class = 'mdbk-serving';
-                        $status_label = __('Serving', 'doctor-appointment');
+                        $status_label = __('Visiting', 'doctor-appointment');
                     } elseif ($checked_in) {
                         $status_class = 'mdbk-present';
                         $status_label = __('Waiting', 'doctor-appointment');
@@ -814,7 +816,7 @@ class MDBK_Shortcode {
         </div>
 
         <div class="mdbk-now-serving">
-            <div class="mdbk-serving-label"><?php _e('Now Serving', 'doctor-appointment'); ?></div>
+            <div class="mdbk-serving-label"><?php _e('Now Visiting', 'doctor-appointment'); ?></div>
             <div class="mdbk-serving-info">
                 <?php if ($serving) :
                     $ticket = get_post_meta($serving->ID, '_mdbk_ticket_number', true);
@@ -828,7 +830,7 @@ class MDBK_Shortcode {
                         <button type="button" class="mdbk-btn-noshow mdbk-queue-action" data-appointment-id="<?php echo esc_attr($serving->ID); ?>" data-status="no-show" data-doctor-id="<?php echo esc_attr($doctor_id); ?>"><?php _e('No Show', 'doctor-appointment'); ?></button>
                     </div>
                 <?php else : ?>
-                    <div class="mdbk-empty-serving"><?php _e('No patient currently being served.', 'doctor-appointment'); ?></div>
+                    <div class="mdbk-empty-serving"><?php _e('No patient currently visiting.', 'doctor-appointment'); ?></div>
                     <?php if (!empty($waiting_patients)) : ?>
                         <button type="button" class="mdbk-btn-complete mdbk-queue-call-next" data-doctor-id="<?php echo esc_attr($doctor_id); ?>"><?php _e('Call Next Patient', 'doctor-appointment'); ?></button>
                     <?php endif; ?>
@@ -860,7 +862,7 @@ class MDBK_Shortcode {
                             <?php endif; ?>
                             <div class="mdbk-patient-actions">
                                 <?php if (!$serving) : ?>
-                                    <button type="button" class="mdbk-btn-small mdbk-queue-action" data-appointment-id="<?php echo esc_attr($patient->ID); ?>" data-status="serving" data-doctor-id="<?php echo esc_attr($doctor_id); ?>" title="<?php esc_attr_e('Serve Now', 'doctor-appointment'); ?>"><svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="6 3 20 12 6 21 6 3"></polygon></svg></button>
+                                    <button type="button" class="mdbk-btn-small mdbk-queue-action" data-appointment-id="<?php echo esc_attr($patient->ID); ?>" data-status="serving" data-doctor-id="<?php echo esc_attr($doctor_id); ?>" title="<?php esc_attr_e('Visit Now', 'doctor-appointment'); ?>"><svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="6 3 20 12 6 21 6 3"></polygon></svg></button>
                                 <?php endif; ?>
                                 <button type="button" class="mdbk-btn-small mdbk-btn-red mdbk-queue-action" data-appointment-id="<?php echo esc_attr($patient->ID); ?>" data-status="no-show" data-doctor-id="<?php echo esc_attr($doctor_id); ?>" title="<?php esc_attr_e('No Show', 'doctor-appointment'); ?>"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>
                             </div>
@@ -913,7 +915,7 @@ class MDBK_Shortcode {
 
         $already_serving = get_posts(['post_type' => 'mdbk_appointment', 'post_status' => ['mdbk_serving'], 'meta_query' => $meta_query, 'numberposts' => 1]);
         if ($already_serving) {
-            wp_send_json_error(__('Someone is already being served. Complete or mark no-show first.', 'doctor-appointment'));
+            wp_send_json_error(__('Someone is already visiting. Complete or mark no-show first.', 'doctor-appointment'));
         }
 
         $waiting = get_posts(['post_type' => 'mdbk_appointment', 'post_status' => ['mdbk_waiting'], 'meta_query' => $meta_query, 'meta_key' => '_mdbk_slot_time', 'orderby' => 'meta_value', 'order' => 'ASC', 'numberposts' => 1]);
@@ -946,7 +948,7 @@ class MDBK_Shortcode {
             $meta_query = ['relation' => 'AND', ['key' => '_mdbk_appointment_date', 'value' => $date], ['key' => '_mdbk_doctor_id', 'value' => $appt_doctor]];
             $already_serving = get_posts(['post_type' => 'mdbk_appointment', 'post_status' => ['mdbk_serving'], 'meta_query' => $meta_query, 'numberposts' => 1]);
             if ($already_serving) {
-                wp_send_json_error(__('Someone is already being served.', 'doctor-appointment'));
+                wp_send_json_error(__('Someone is already visiting.', 'doctor-appointment'));
             }
         }
 
@@ -982,6 +984,14 @@ class MDBK_Shortcode {
 
         $doctor_id = intval(get_post_meta($appointment->ID, '_mdbk_doctor_id', true));
         $slot_time = get_post_meta($appointment->ID, '_mdbk_slot_time', true);
+
+        // If nobody's currently "Visiting" for this doctor, this check-in
+        // might be exactly who should become that — same auto-advance used
+        // when a doctor marks someone visited (see
+        // MDBK_Appointment_Manager::promote_next_checked_in_patient()).
+        if ($doctor_id) {
+            \MDBK\MDBK_Appointment_Manager::promote_next_checked_in_patient($doctor_id);
+        }
 
         wp_send_json_success([
             'patient_name' => get_post_meta($appointment->ID, '_mdbk_patient_name', true),
