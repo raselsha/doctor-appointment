@@ -212,6 +212,8 @@
 .mdbk-stat-card-green .value { color: #16a34a; }
 .mdbk-stat-card-amber .mdbk-stat-icon { background: rgba(217, 119, 6, .1); color: #d97706; }
 .mdbk-stat-card-amber .value { color: #d97706; }
+.mdbk-stat-card-red .mdbk-stat-icon { background: rgba(239, 68, 68, .1); color: #ef4444; }
+.mdbk-stat-card-red .value { color: #ef4444; }
 
 /* Table */
 .mdbk-card {

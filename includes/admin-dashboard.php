@@ -1306,7 +1306,58 @@ class MDBK_Admin_Dashboard {
                     $other_apps = array_values(array_filter($all_apps, function($a) use ($today) {
                         return get_post_meta($a->ID, '_mdbk_appointment_date', true) !== $today;
                     }));
+
+                    // Patient analytics — same stat-card style as the admin
+                    // Dashboard (render_dashboard()), scoped to this doctor's
+                    // own patients/bookings only.
+                    $total_patients = count(array_unique(array_filter(array_map(function($a) {
+                        return get_post_meta($a->ID, '_mdbk_patient_id', true);
+                    }, $all_apps))));
+                    $total_bookings = count($all_apps);
+                    $today_visited = count(array_filter($today_apps, function($a) {
+                        return get_post_status($a) === 'mdbk_completed';
+                    }));
+                    $today_no_show = count(array_filter($today_apps, function($a) {
+                        return get_post_status($a) === 'mdbk_no_show';
+                    }));
+                    $upcoming_count = count(array_filter($all_apps, function($a) use ($today) {
+                        $date = get_post_meta($a->ID, '_mdbk_appointment_date', true);
+                        return $date > $today && in_array(get_post_status($a), ['mdbk_waiting', 'mdbk_serving'], true);
+                    }));
                     ?>
+
+                    <div class="mdbk-stats-grid" style="margin-bottom:20px;">
+                        <div class="mdbk-stat-card mdbk-stat-card-violet">
+                            <div class="mdbk-stat-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg></div>
+                            <h4><?php _e('Total Patients', 'doctor-appointment'); ?></h4>
+                            <div class="value"><?php echo esc_html($total_patients); ?></div>
+                            <div class="trend"><?php _e('All-time, unique', 'doctor-appointment'); ?></div>
+                        </div>
+                        <div class="mdbk-stat-card mdbk-stat-card-blue">
+                            <div class="mdbk-stat-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="3"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg></div>
+                            <h4><?php _e("Today's Bookings", 'doctor-appointment'); ?></h4>
+                            <div class="value"><?php echo esc_html(count($today_apps)); ?></div>
+                            <div class="trend"><?php echo esc_html(date_i18n('l, M j', strtotime($today))); ?></div>
+                        </div>
+                        <div class="mdbk-stat-card mdbk-stat-card-green">
+                            <div class="mdbk-stat-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg></div>
+                            <h4><?php _e('Visited Today', 'doctor-appointment'); ?></h4>
+                            <div class="value"><?php echo esc_html($today_visited); ?></div>
+                            <div class="trend"><?php _e('Completed', 'doctor-appointment'); ?></div>
+                        </div>
+                        <div class="mdbk-stat-card mdbk-stat-card-red">
+                            <div class="mdbk-stat-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg></div>
+                            <h4><?php _e('No Show Today', 'doctor-appointment'); ?></h4>
+                            <div class="value"><?php echo esc_html($today_no_show); ?></div>
+                            <div class="trend"><?php _e('Missed', 'doctor-appointment'); ?></div>
+                        </div>
+                        <div class="mdbk-stat-card mdbk-stat-card-amber">
+                            <div class="mdbk-stat-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg></div>
+                            <h4><?php _e('Upcoming', 'doctor-appointment'); ?></h4>
+                            <div class="value"><?php echo esc_html($upcoming_count); ?></div>
+                            <div class="trend"><?php _e('Future bookings', 'doctor-appointment'); ?></div>
+                        </div>
+                    </div>
 
                     <div class="mdbk-card" style="margin-bottom:20px;">
                         <div class="mdbk-card-header"><h3><?php _e("Today's Queue", 'doctor-appointment'); ?></h3></div>
