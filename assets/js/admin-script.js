@@ -622,11 +622,16 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // "Mark as Visited" on the doctor-restricted "My Queue" page
     // (mdbk-my-queue) — delegated on document since the button is inside
-    // a fragment that gets replaced wholesale on success.
+    // a fragment that gets replaced wholesale on success. Swaps the WHOLE
+    // #mdbk-today-queue-list (every today's-queue row), not just the
+    // clicked row — marking one patient visited can auto-promote a
+    // DIFFERENT patient to "Visiting" (see
+    // MDBK_Appointment_Manager::promote_next_checked_in_patient()), and
+    // that row needs to visually update too, not just the one clicked.
     document.addEventListener('click', (e) => {
         const btn = e.target.closest('.mdbk-mark-visited');
         if (!btn || typeof mdbk_admin_obj === 'undefined') return;
-        const row = btn.closest('.mdbk-patient-row');
+        const list = document.getElementById('mdbk-today-queue-list');
         const appointmentId = btn.dataset.id;
         btn.disabled = true;
         const body = new URLSearchParams();
@@ -636,10 +641,8 @@ document.addEventListener('DOMContentLoaded', function() {
         fetch(mdbk_admin_obj.ajax_url, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body.toString() })
             .then((r) => r.json())
             .then((res) => {
-                if (res && res.success && row) {
-                    const tmp = document.createElement('div');
-                    tmp.innerHTML = res.data.fragment;
-                    row.replaceWith(tmp.firstElementChild);
+                if (res && res.success && list) {
+                    list.innerHTML = res.data.fragment;
                 } else {
                     btn.disabled = false;
                     alert((res && res.data && res.data.message) || 'Something went wrong, please try again.');
@@ -685,12 +688,12 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // "Skip"/"Recall" toggle on the doctor-restricted "My Queue" page —
-    // same delegated-on-document pattern as "Mark as Visited" above,
-    // since this button's row also gets replaced wholesale on success.
+    // same delegated-on-document pattern as "Mark as Visited" above, same
+    // whole-list swap (see that handler's comment for why).
     document.addEventListener('click', (e) => {
         const btn = e.target.closest('.mdbk-toggle-skip');
         if (!btn || typeof mdbk_admin_obj === 'undefined') return;
-        const row = btn.closest('.mdbk-patient-row');
+        const list = document.getElementById('mdbk-today-queue-list');
         const appointmentId = btn.dataset.id;
         btn.disabled = true;
         const body = new URLSearchParams();
@@ -700,10 +703,8 @@ document.addEventListener('DOMContentLoaded', function() {
         fetch(mdbk_admin_obj.ajax_url, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body.toString() })
             .then((r) => r.json())
             .then((res) => {
-                if (res && res.success && row) {
-                    const tmp = document.createElement('div');
-                    tmp.innerHTML = res.data.fragment;
-                    row.replaceWith(tmp.firstElementChild);
+                if (res && res.success && list) {
+                    list.innerHTML = res.data.fragment;
                 } else {
                     btn.disabled = false;
                     alert((res && res.data && res.data.message) || 'Something went wrong, please try again.');

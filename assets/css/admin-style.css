@@ -127,6 +127,25 @@
     display: inline-flex;
     align-items: center;
     gap: 8px;
+    /* Explicit resets so this always renders as our own blue button even
+       on a bare <button> element, which browsers/wp-admin's own generic
+       button styling would otherwise give a native border/background/
+       cursor/font to. */
+    border: none;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 13px;
+    line-height: 1.4;
+    box-shadow: none;
+    outline: none;
+}
+.mdbk-btn-add:hover,
+.mdbk-btn-add:focus,
+.mdbk-btn-add:active {
+    background: #0052b8;
+    color: #fff;
+    box-shadow: none;
+    outline: none;
 }
 
 /* Stats Cards */
@@ -751,7 +770,17 @@ button.mdbk-mini-cal-nav-btn:hover { background: #f1f5f9; }
    deliberately its own grid rather than force-fitting into the Bookings
    page's 11-track template above. */
 .mdbk-patient-row.mdbk-my-queue-row {
-    grid-template-columns: 44px minmax(120px, 200px) 130px minmax(160px, 1fr) 1fr 140px auto;
+    /* The last (actions) track is a fixed width, not auto — each row is
+       its OWN independent grid (a separate <div> per row, not shared rows
+       in one grid), so an auto-sized last column resizes per row based on
+       how many buttons/badges that specific row has (Skip icon + badge +
+       "Mark as Visited" vs. just one plain badge). That, in turn, changes
+       how much space the flexible minmax()/1fr tracks before it soak up,
+       shifting the Date/Time columns' starting position row to row even
+       though their own width stays fixed. A constant width here (wide
+       enough for the busiest row: skip icon + badge + button) keeps every
+       column's start position identical on every row. */
+    grid-template-columns: 44px minmax(120px, 200px) 130px minmax(160px, 1fr) 1fr 125px 125px 230px;
 }
 .mdbk-my-queue-actions {
     justify-self: end;
@@ -761,6 +790,90 @@ button.mdbk-mini-cal-nav-btn:hover { background: #f1f5f9; }
 }
 .mdbk-my-queue-actions .mdbk-mark-visited {
     white-space: nowrap;
+}
+
+/* Full-row color per state — only for today's two actionable states
+   (currently being seen, or checked in and waiting); every other row
+   stays plain white — see render_my_queue_patient_row()'s $row_state.
+   Background tint only (no left border) — colors match the badges/
+   public Live Queue's own palette. */
+.mdbk-my-queue-row.mdbk-row-state-serving { background: #ecfdf5; }
+.mdbk-my-queue-row.mdbk-row-state-waiting-checked-in { background: #fff7ed; }
+
+/* Date and Time — each its own grid column (own track in the
+   grid-template-columns above), same alignment discipline as the
+   Name/Phone/Email columns, instead of both crammed into one shared
+   cell. Icon-led + labeled so a row spanning any date (the Patient List
+   section shows every date, not just today) reads clearly. */
+.mdbk-patient-row-date-col,
+.mdbk-patient-row-time-col {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    white-space: nowrap;
+    color: inherit;
+}
+.mdbk-patient-row-date-col svg,
+.mdbk-patient-row-time-col svg {
+    color: #94a3b8;
+    flex-shrink: 0;
+}
+.mdbk-patient-row-date-col .mdbk-patient-row-time-value,
+.mdbk-patient-row-time-col .mdbk-patient-row-time-value {
+    font-size: 12px;
+    color: #334155;
+}
+
+/* "Mark as Visited" / Skip — a bit more depth (shadow + hover lift) than
+   the flat default button, since these are the primary per-row actions
+   on this page. */
+.mdbk-my-queue-actions .mdbk-mark-visited {
+    box-shadow: 0 2px 6px rgba(0, 97, 213, .25);
+    transition: transform .15s ease, box-shadow .15s ease, background-color .15s ease;
+}
+.mdbk-my-queue-actions .mdbk-mark-visited:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 10px rgba(0, 97, 213, .35);
+    background: #0052b8;
+}
+/* Skip/Recall — a labeled pill, not just an icon, so its purpose reads
+   clearly next to "Mark as Visited" instead of needing the title=""
+   tooltip to explain it. Outlined (not solid) so it visually reads as
+   the secondary action on the row. */
+.mdbk-my-queue-actions .mdbk-btn-skip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: #fff;
+    border: 1.5px solid #fb923c;
+    color: #c2410c;
+    font-weight: 700;
+    white-space: nowrap;
+    outline: none;
+    transition: background-color .15s ease, transform .15s ease, box-shadow .15s ease;
+}
+.mdbk-my-queue-actions .mdbk-btn-skip:hover {
+    background: #fff7ed;
+    color: #c2410c;
+    transform: translateY(-1px);
+    box-shadow: 0 3px 8px rgba(251, 146, 60, .25);
+}
+.mdbk-my-queue-actions .mdbk-btn-skip:focus {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(251, 146, 60, .3);
+}
+.mdbk-my-queue-actions .mdbk-btn-skip.is-skipped {
+    border-color: #60a5fa;
+    color: #1d4ed8;
+}
+.mdbk-my-queue-actions .mdbk-btn-skip.is-skipped:hover {
+    background: #eff6ff;
+    color: #1d4ed8;
+    box-shadow: 0 3px 8px rgba(96, 165, 250, .25);
+}
+.mdbk-my-queue-actions .mdbk-btn-skip.is-skipped:focus {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(96, 165, 250, .3);
 }
 
 /* Patient Directory — same row shell/chip components as the Bookings page,
@@ -812,7 +925,7 @@ button.mdbk-mini-cal-nav-btn:hover { background: #f1f5f9; }
 
 /* Status-colored badge — waiting/serving/completed/no-show each read
    distinctly at a glance instead of every status sharing one blue pill. */
-.mdbk-badge-status-waiting { background: #e0e7ff; color: #4338ca; }
+.mdbk-badge-status-waiting { background: #ffedd5; color: #c2410c; }
 .mdbk-badge-status-serving { background: #d1fae5; color: #065f46; }
 .mdbk-badge-status-completed { background: #f1f5f9; color: #475569; }
 .mdbk-badge-status-no-show { background: #fee2e2; color: #b91c1c; }

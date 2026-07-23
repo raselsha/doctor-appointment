@@ -135,7 +135,10 @@ class MDBK_Admin_Dashboard {
             \MDBK\MDBK_Appointment_Manager::promote_next_checked_in_patient($appointment_doctor_id);
         }
 
-        wp_send_json_success(['fragment' => $this->render_my_queue_patient_row(get_post($appointment_id))]);
+        // The whole today's-queue list, not just this one row — whoever
+        // just got auto-promoted to "Visiting" needs their row updated
+        // too, not only the one that was marked visited.
+        wp_send_json_success(['fragment' => $this->render_today_queue_rows($appointment_doctor_id)]);
     }
 
     /**
@@ -183,7 +186,9 @@ class MDBK_Admin_Dashboard {
             update_post_meta($appointment_id, '_mdbk_skipped', 'yes');
         }
 
-        wp_send_json_success(['fragment' => $this->render_my_queue_patient_row(get_post($appointment_id))]);
+        // Same full-list return as ajax_mark_visited(), for a consistent
+        // whole-list swap on the JS side (see admin-script.js).
+        wp_send_json_success(['fragment' => $this->render_today_queue_rows($appointment_doctor_id)]);
     }
 
     /**
@@ -1282,19 +1287,22 @@ class MDBK_Admin_Dashboard {
                 <?php if (!$doctor_id): ?>
                     <div class="mdbk-card"><table class="mdbk-table"><tbody><tr><td style="text-align:center; padding:40px; opacity:0.6;"><?php _e('This account is not linked to a doctor profile.', 'doctor-appointment'); ?></td></tr></tbody></table></div>
                 <?php else: ?>
-                    <div class="mdbk-card" style="margin-bottom:20px;">
-                        <?php echo \MDBK\MDBK_Shortcode::render_queue_list_instance($doctor_id); ?>
-                    </div>
-
                     <?php
-                    // One combined query, split in PHP by date — today's
-                    // (serial queue order, still-actionable) vs. every other
-                    // date (patient-ID order, a plain history/record list).
-                    $all_apps = $this->get_filtered_appointments(null, $doctor_id, '');
+                    // The separate Live Queue widget (public "arrival board"
+                    // style, MDBK_Shortcode::render_queue_list_instance())
+                    // used to sit here too, but it was just a second,
+                    // differently-styled view of the exact same waiting/
+                    // serving state "Today's Queue" below already shows per
+                    // row (see render_my_queue_patient_row()'s status badge)
+                    // — removed as redundant rather than kept in sync twice.
+                    //
+                    // Today's queue is priority-sorted (see
+                    // get_today_queue_apps()) rather than plain ticket
+                    // order — every other date stays a plain patient-ID
+                    // ordered history/record list.
+                    $today_apps = $this->get_today_queue_apps($doctor_id);
                     $today = current_time('Y-m-d');
-                    $today_apps = array_values(array_filter($all_apps, function($a) use ($today) {
-                        return get_post_meta($a->ID, '_mdbk_appointment_date', true) === $today;
-                    }));
+                    $all_apps = $this->get_filtered_appointments(null, $doctor_id, '');
                     $other_apps = array_values(array_filter($all_apps, function($a) use ($today) {
                         return get_post_meta($a->ID, '_mdbk_appointment_date', true) !== $today;
                     }));
@@ -1303,7 +1311,7 @@ class MDBK_Admin_Dashboard {
                     <div class="mdbk-card" style="margin-bottom:20px;">
                         <div class="mdbk-card-header"><h3><?php _e("Today's Queue", 'doctor-appointment'); ?></h3></div>
                         <?php if ($today_apps): ?>
-                        <div class="mdbk-patient-list">
+                        <div class="mdbk-patient-list" id="mdbk-today-queue-list">
                             <?php foreach ($today_apps as $a): echo $this->render_my_queue_patient_row($a); ?>
                             <?php endforeach; ?>
                         </div>
@@ -1446,10 +1454,75 @@ class MDBK_Admin_Dashboard {
     /**
      * One row in the doctor's own "My Patients" list — same visual
      * language as render_patient_appointment_row(), but the status badge
-     * is replaced with a "Mark as Visited" button (only for appointments
+     * sits alongside a "Mark as Visited" button (only for appointments
      * still waiting/visiting; already-closed ones just show a plain
-     * label, no button) instead of the Edit/Delete admin actions.
+     * label, no button) instead of the Edit/Delete admin actions. The
+     * Waiting/Visiting badge here is what used to live only in the
+     * separate Live Queue widget above this list — that widget was
+     * removed as redundant (see render_my_queue_page()) once this row
+     * itself could show the same waiting-vs-serving state directly.
      */
+    /**
+     * All of one doctor's today's-queue rows, rendered together — shared
+     * by the initial page render (render_my_queue_page()) and the
+     * "Mark as Visited" / Skip AJAX handlers, so a click that closes out
+     * or promotes a DIFFERENT row (via
+     * MDBK_Appointment_Manager::promote_next_checked_in_patient()) is
+     * reflected immediately without a page reload. Returning only the
+     * single clicked row's own fragment (the previous behavior) left the
+     * newly auto-promoted patient's row showing stale state in the
+     * browser until the page was refreshed. Mirrors render_my_queue_page()'s
+     * own $today_apps computation exactly, so the AJAX-refreshed list
+     * never drifts from what a fresh page load would show.
+     */
+    private function render_today_queue_rows($doctor_id) {
+        $html = '';
+        foreach ($this->get_today_queue_apps($doctor_id) as $a) {
+            $html .= $this->render_my_queue_patient_row($a);
+        }
+        return $html;
+    }
+
+    /**
+     * One doctor's today's-queue appointments, priority-sorted rather
+     * than plain ticket order: whoever's currently being seen ("Visiting")
+     * leads, then checked-in patients still waiting their turn, then
+     * anyone not yet checked in, then no-shows, with already-closed-out
+     * visits ("Visited") sinking to the bottom — a doctor scanning this
+     * list cares most about who's active right now and least about who's
+     * already done. Ticket number breaks ties within each group. Shared
+     * by the initial page render and render_today_queue_rows() (the
+     * AJAX-refresh fragment for Mark as Visited / Skip), so the order
+     * never drifts between the two.
+     */
+    private function get_today_queue_apps($doctor_id) {
+        $today = current_time('Y-m-d');
+        $all_apps = $this->get_filtered_appointments(null, $doctor_id, '');
+        $today_apps = array_values(array_filter($all_apps, function($a) use ($today) {
+            return get_post_meta($a->ID, '_mdbk_appointment_date', true) === $today;
+        }));
+
+        $rank = function($app) {
+            $status = \MDBK\MDBK_Appointment_Manager::post_status_to_slug(get_post_status($app));
+            if ($status === 'serving') return 0;
+            $checked_in = get_post_meta($app->ID, '_mdbk_checked_in', true) === 'yes';
+            if ($status === 'waiting' && $checked_in) return 1;
+            if ($status === 'waiting') return 2;
+            if ($status === 'no-show') return 3;
+            return 4; // completed
+        };
+        usort($today_apps, function($a, $b) use ($rank) {
+            $rank_a = $rank($a);
+            $rank_b = $rank($b);
+            if ($rank_a !== $rank_b) return $rank_a <=> $rank_b;
+            $ticket_a = intval(get_post_meta($a->ID, '_mdbk_ticket_number', true));
+            $ticket_b = intval(get_post_meta($b->ID, '_mdbk_ticket_number', true));
+            return $ticket_a <=> $ticket_b;
+        });
+
+        return $today_apps;
+    }
+
     private function render_my_queue_patient_row($a) {
         $p_name = get_post_meta($a->ID, '_mdbk_patient_name', true);
         $phone = get_post_meta($a->ID, '_mdbk_patient_phone', true);
@@ -1487,9 +1560,23 @@ class MDBK_Admin_Dashboard {
         // rejoin auto-advance.
         $skipped = get_post_meta($a->ID, '_mdbk_skipped', true) === 'yes';
         $can_skip = $is_today && $status === 'waiting' && $checked_in;
+        // Full-row color/accent — only for today's actionable states
+        // (currently being seen, or checked in and waiting); every other
+        // row (not checked in, skipped, upcoming, already closed out)
+        // stays plain — the badge in the action slot already covers
+        // those, a full-row tint on all of them read as too much.
+        if ($is_today && $status === 'serving') {
+            $row_state = 'serving';
+        } elseif ($is_today && $status === 'waiting' && $checked_in && !$skipped) {
+            $row_state = 'waiting-checked-in';
+        } else {
+            $row_state = '';
+        }
+        $date_display = $date ? date_i18n('M j, Y', strtotime($date)) : '—';
+        $time_display = $slot_time ? date_i18n('g:i A', strtotime($slot_time)) : '—';
         ob_start();
         ?>
-        <div class="mdbk-patient-row mdbk-my-queue-row mdbk-status-<?php echo esc_attr($status); ?>" data-id="<?php echo esc_attr($a->ID); ?>">
+        <div class="mdbk-patient-row mdbk-my-queue-row<?php echo $row_state ? ' mdbk-row-state-' . esc_attr($row_state) : ''; ?>" data-id="<?php echo esc_attr($a->ID); ?>">
             <span class="mdbk-patient-row-ticket-slot">
                 <?php if ($is_today && $ticket) : ?>
                     <span class="mdbk-patient-row-ticket mdbk-patient-row-queue" title="<?php esc_attr_e('Queue number', 'doctor-appointment'); ?>">Q<?php echo esc_html(str_pad($ticket, 2, '0', STR_PAD_LEFT)); ?></span>
@@ -1498,21 +1585,33 @@ class MDBK_Admin_Dashboard {
                 <?php endif; ?>
             </span>
             <span class="mdbk-patient-row-name"><?php echo esc_html($p_name); ?></span>
-            <span class="mdbk-patient-row-chip-slot"><?php if ($phone): ?><span class="mdbk-patient-row-chip mdbk-chip-phone"><?php echo esc_html($phone); ?></span><?php endif; ?></span>
-            <span class="mdbk-patient-row-chip-slot"><?php if ($email): ?><span class="mdbk-patient-row-chip mdbk-chip-email"><?php echo esc_html($email); ?></span><?php endif; ?></span>
+            <span class="mdbk-patient-row-chip-slot"><?php if ($phone): ?><span class="mdbk-patient-row-chip mdbk-chip-phone"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.12.9.34 1.79.66 2.64a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.44-1.44a2 2 0 0 1 2.11-.45c.85.32 1.74.54 2.64.66A2 2 0 0 1 22 16.92z"></path></svg> <?php echo esc_html($phone); ?></span><?php endif; ?></span>
+            <span class="mdbk-patient-row-chip-slot"><?php if ($email): ?><span class="mdbk-patient-row-chip mdbk-chip-email"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 6l-10 7L2 6"></path><path d="M2 6h20v12H2z"></path></svg> <?php echo esc_html($email); ?></span><?php endif; ?></span>
             <span class="mdbk-patient-row-spacer"></span>
-            <span class="mdbk-patient-row-time"><span class="mdbk-patient-row-time-label"><?php esc_html_e('Visit', 'doctor-appointment'); ?></span><span class="mdbk-patient-row-time-value"><?php echo esc_html(($date ? $date . ' ' : '') . ($slot_time ?: '')); ?></span></span>
+            <span class="mdbk-patient-row-date-col">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="3"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+                <span class="mdbk-patient-row-time-label"><?php esc_html_e('Date', 'doctor-appointment'); ?></span>
+                <span class="mdbk-patient-row-time-value"><?php echo esc_html($date_display); ?></span>
+            </span>
+            <span class="mdbk-patient-row-time-col">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                <span class="mdbk-patient-row-time-label"><?php esc_html_e('Time', 'doctor-appointment'); ?></span>
+                <span class="mdbk-patient-row-time-value"><?php echo esc_html($time_display); ?></span>
+            </span>
             <div class="mdbk-my-queue-actions">
                 <?php if ($can_skip): ?>
-                    <button type="button" class="mdbk-btn-small mdbk-btn-skip mdbk-toggle-skip<?php echo $skipped ? ' is-skipped' : ''; ?>" data-id="<?php echo esc_attr($a->ID); ?>" title="<?php echo $skipped ? esc_attr__('Recall to queue', 'doctor-appointment') : esc_attr__('Skip — temporarily away', 'doctor-appointment'); ?>">
+                    <button type="button" class="mdbk-btn-sm mdbk-btn-skip mdbk-toggle-skip<?php echo $skipped ? ' is-skipped' : ''; ?>" data-id="<?php echo esc_attr($a->ID); ?>" title="<?php echo $skipped ? esc_attr__('Recall to queue', 'doctor-appointment') : esc_attr__('Skip — temporarily away', 'doctor-appointment'); ?>">
                         <?php if ($skipped) : ?>
                             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>
+                            <?php esc_html_e('Recall', 'doctor-appointment'); ?>
                         <?php else : ?>
-                            <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="5 4 15 12 5 20 5 4"></polygon><rect x="17" y="4" width="3" height="16"></rect></svg>
+                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><path d="M12 8v4l2.5 2.5"></path></svg>
+                            <?php esc_html_e('Skip', 'doctor-appointment'); ?>
                         <?php endif; ?>
                     </button>
                 <?php endif; ?>
                 <?php if ($can_visit): ?>
+                    <span class="mdbk-badge mdbk-badge-status-<?php echo esc_attr($status); ?>"><?php echo esc_html(\MDBK\MDBK_Appointment_Manager::status_display_label($status)); ?></span>
                     <button type="button" class="mdbk-btn-add mdbk-btn-sm mdbk-mark-visited" data-id="<?php echo esc_attr($a->ID); ?>"><?php _e('Mark as Visited', 'doctor-appointment'); ?></button>
                 <?php elseif (!$is_today && in_array($status, ['waiting', 'serving'], true)): ?>
                     <span class="mdbk-badge mdbk-badge-upcoming"><?php _e('Upcoming', 'doctor-appointment'); ?></span>
