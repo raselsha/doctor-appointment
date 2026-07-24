@@ -121,6 +121,17 @@ if ( ! class_exists( 'MDBK_Doctor_Appointment' ) ) {
             if (isset($_GET['page']) && $_GET['page'] === 'mdbk-chamber-qr') {
                 wp_enqueue_script('mdbk-qrcode', MDBK_URL . 'assets/js/vendor/qrcode.js', array(), filemtime( MDBK_PATH . 'assets/js/vendor/qrcode.js' ), true);
             }
+
+            // "Change Password" reuses WP core's OWN password-strength-meter
+            // script (zxcvbn — the same library/scoring wp-admin's native
+            // profile.php uses) rather than a hand-rolled scorer, for a
+            // genuinely standard strength calculation instead of an
+            // approximation. dashicons is core's own icon font, already
+            // available everywhere in wp-admin — no extra enqueue needed
+            // for the show/hide icon.
+            if (isset($_GET['page']) && $_GET['page'] === 'mdbk-change-password') {
+                wp_enqueue_script('password-strength-meter');
+            }
         }
 
         /**

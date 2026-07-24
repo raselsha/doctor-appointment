@@ -638,6 +638,14 @@ document.addEventListener('DOMContentLoaded', function() {
         body.set('action', 'mdbk_mark_visited');
         body.set('nonce', mdbk_admin_obj.nonce);
         body.set('appointment_id', appointmentId);
+        // Tells the server which list this page is showing (one doctor,
+        // or every doctor combined on front-desk staff's view) — see
+        // data-view-doctor-id on #mdbk-today-queue-list
+        // (render_my_queue_page()) and resolve_queue_view_scope()
+        // (admin-dashboard.php) for why the response needs to know this.
+        if (list && list.dataset.viewDoctorId !== undefined) {
+            body.set('view_doctor_id', list.dataset.viewDoctorId);
+        }
         fetch(mdbk_admin_obj.ajax_url, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body.toString() })
             .then((r) => r.json())
             .then((res) => {
@@ -654,13 +662,18 @@ document.addEventListener('DOMContentLoaded', function() {
             });
     });
 
-    // "Check In" on the Bookings page (mdbk-schedule) — staff checking a
-    // patient in directly, no QR token needed. Delegated on document since
-    // the button is inside a fragment that gets replaced wholesale on
-    // success, same pattern as "Mark as Visited" above.
+    // "Check In" — on the Bookings page (mdbk-schedule) AND now on the
+    // "Patients" page's Today's Queue too. Delegated on document since the
+    // button is inside a fragment that gets replaced wholesale on
+    // success, same pattern as "Mark as Visited" above. The two contexts
+    // need different swaps: the Patients page's #mdbk-today-queue-list
+    // needs the WHOLE list replaced (check-in can auto-promote a
+    // different row to "serving" too — see ajax_admin_checkin()'s
+    // comment), while the Bookings page swaps just the clicked row.
     document.addEventListener('click', (e) => {
         const btn = e.target.closest('.mdbk-admin-checkin-btn');
         if (!btn || typeof mdbk_admin_obj === 'undefined') return;
+        const list = btn.closest('#mdbk-today-queue-list');
         const row = btn.closest('.mdbk-patient-row');
         const appointmentId = btn.dataset.id;
         btn.disabled = true;
@@ -668,11 +681,17 @@ document.addEventListener('DOMContentLoaded', function() {
         body.set('action', 'mdbk_admin_checkin');
         body.set('nonce', mdbk_admin_obj.nonce);
         body.set('appointment_id', appointmentId);
-        body.set('show_doctor', row && row.classList.contains('mdbk-patient-row-has-doctor') ? '1' : '0');
+        if (list) {
+            body.set('view_doctor_id', list.dataset.viewDoctorId);
+        } else {
+            body.set('show_doctor', row && row.classList.contains('mdbk-patient-row-has-doctor') ? '1' : '0');
+        }
         fetch(mdbk_admin_obj.ajax_url, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body.toString() })
             .then((r) => r.json())
             .then((res) => {
-                if (res && res.success && row) {
+                if (res && res.success && res.data.mode === 'list' && list) {
+                    list.innerHTML = res.data.fragment;
+                } else if (res && res.success && row) {
                     const tmp = document.createElement('div');
                     tmp.innerHTML = res.data.fragment;
                     row.replaceWith(tmp.firstElementChild);
@@ -700,6 +719,9 @@ document.addEventListener('DOMContentLoaded', function() {
         body.set('action', 'mdbk_toggle_skip');
         body.set('nonce', mdbk_admin_obj.nonce);
         body.set('appointment_id', appointmentId);
+        if (list && list.dataset.viewDoctorId !== undefined) {
+            body.set('view_doctor_id', list.dataset.viewDoctorId);
+        }
         fetch(mdbk_admin_obj.ajax_url, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body.toString() })
             .then((r) => r.json())
             .then((res) => {

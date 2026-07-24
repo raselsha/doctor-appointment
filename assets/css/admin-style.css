@@ -156,6 +156,13 @@
     margin-bottom: 40px;
 }
 
+/* Doctor panel's Patient Analytics — 5 cards, kept to one row rather
+   than wrapping a 5th card onto its own line under the admin Dashboard's
+   4-column grid. */
+.mdbk-stats-grid.mdbk-stats-grid-5 {
+    grid-template-columns: repeat(5, 1fr);
+}
+
 .mdbk-stat-card {
     background: #fff;
     padding: 24px;
@@ -574,6 +581,95 @@ button.mdbk-mini-cal-nav-btn:hover { background: #f1f5f9; }
 .mdbk-modal-compact form textarea:focus { border-color: #0061d5; outline: none; box-shadow: 0 0 0 3px rgba(0, 97, 213, 0.12); }
 .mdbk-modal-compact form textarea { resize: vertical; }
 
+/* A plain (non-modal) form on its own admin page — Change Password is the
+   first user of this — reusing the modal form fields' exact look without
+   requiring the .mdbk-modal-compact ancestor a real popup would have. */
+.mdbk-plain-form input[type="password"],
+.mdbk-plain-form input[type="text"],
+.mdbk-plain-form input[type="email"] {
+    width: 100%;
+    max-width: 360px;
+    padding: 9px 12px;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    font-size: 13px;
+    font-family: inherit;
+    color: #1e293b;
+    background: #fff;
+    box-sizing: border-box;
+}
+.mdbk-plain-form input[type="password"]:focus,
+.mdbk-plain-form input[type="text"]:focus,
+.mdbk-plain-form input[type="email"]:focus {
+    border-color: #0061d5;
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(0, 97, 213, 0.12);
+}
+
+/* Password field + show/hide toggle — same approach as WP's own login
+   screen (wp-login.php's .wp-pwd/.wp-hide-pw, wp-admin/css/login.css):
+   the icon sits absolutely-positioned INSIDE the field itself (no
+   separate bordered button beside it), with the input's own right
+   padding making room so typed text never runs under the icon. */
+.mdbk-plain-form .mdbk-pwd-field {
+    position: relative;
+    max-width: 360px;
+}
+.mdbk-plain-form .mdbk-pwd-field input[type="password"],
+.mdbk-plain-form .mdbk-pwd-field input[type="text"] {
+    width: 100%;
+    max-width: none;
+    padding-right: 2.5rem;
+}
+.mdbk-plain-form .mdbk-pwd-toggle {
+    background: transparent;
+    border: 1px solid transparent;
+    box-shadow: none;
+    width: 2.5rem;
+    height: 2.5rem;
+    min-width: 40px;
+    min-height: 40px;
+    margin: 0;
+    padding: 5px 9px;
+    position: absolute;
+    right: 0;
+    top: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #64748b;
+    cursor: pointer;
+}
+.mdbk-plain-form .mdbk-pwd-toggle:hover {
+    background: transparent;
+    color: #1e293b;
+}
+.mdbk-plain-form .mdbk-pwd-toggle:focus {
+    background: transparent;
+    border-color: #0061d5;
+    box-shadow: 0 0 0 1px #0061d5;
+    outline: none;
+}
+
+/* Password strength meter — a colored bar under "New Password", filled/
+   colored by JS per wp.passwordStrength.meter()'s score (see the inline
+   script in render_change_password_page()). */
+.mdbk-pw-strength-bar {
+    max-width: 360px;
+    height: 6px;
+    border-radius: 4px;
+    background: #e2e8f0;
+    overflow: hidden;
+    margin-top: 10px;
+}
+.mdbk-pw-strength-bar span {
+    display: block;
+    height: 100%;
+    width: 0%;
+    background: transparent;
+    transition: width .2s ease, background-color .2s ease;
+}
+
 .mdbk-btn-outline { display: inline-flex; align-items: center; gap: 6px; padding: 9px 16px; font-size: 13px; font-weight: 600; border-radius: 10px; border: 1px solid #e2e8f0; background: #fff; color: #374151; cursor: pointer; font-family: inherit; text-decoration: none; }
 .mdbk-btn-outline:hover { background: #f8fafc; border-color: #cbd3e1; }
 .mdbk-btn-sm { padding: 6px 12px; font-size: 12px; border-radius: 8px; }
@@ -784,6 +880,11 @@ button.mdbk-mini-cal-nav-btn:hover { background: #f1f5f9; }
        column's start position identical on every row. */
     grid-template-columns: 44px minmax(120px, 200px) 130px minmax(160px, 1fr) 1fr 125px 125px 230px;
 }
+/* Front-desk staff's all-doctors view of this same page groups rows
+   under a collapsible per-doctor <details> section instead (see
+   .mdbk-doctor-group below) rather than a per-row doctor chip — the
+   group header already says whose patients these are, so every row here
+   keeps the same single template regardless of which view rendered it. */
 .mdbk-my-queue-actions {
     justify-self: end;
     display: flex;
@@ -801,6 +902,33 @@ button.mdbk-mini-cal-nav-btn:hover { background: #f1f5f9; }
    public Live Queue's own palette. */
 .mdbk-my-queue-row.mdbk-row-state-serving { background: #ecfdf5; }
 .mdbk-my-queue-row.mdbk-row-state-waiting-checked-in { background: #fff7ed; }
+
+/* Front-desk staff's all-doctors "Patients" view — each doctor's rows
+   collapsed under their own <details> section (see
+   render_patient_list_html() in admin-dashboard.php) instead of one long
+   mixed list, so staff can jump straight to one doctor's queue. Reuses
+   the same details/summary/chevron interaction as
+   .mdbk-availability-section elsewhere in this file, styled as its own
+   variant since this sits inside a .mdbk-card rather than being one. */
+.mdbk-doctor-group { border: 1px solid #eef2f6; border-radius: 10px; margin: 0 20px 12px; overflow: hidden; }
+.mdbk-doctor-group:first-child { margin-top: 16px; }
+.mdbk-doctor-group:last-child { margin-bottom: 16px; }
+.mdbk-doctor-group-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 20px;
+    background: #f8fafc;
+    cursor: pointer;
+    user-select: none;
+    list-style: none;
+}
+.mdbk-doctor-group-header::-webkit-details-marker { display: none; }
+.mdbk-doctor-group-name { font-size: 13px; font-weight: 700; color: #1e293b; }
+.mdbk-doctor-group-count { font-size: 12px; color: #64748b; }
+.mdbk-doctor-group-header .mdbk-availability-chevron { margin-left: auto; }
+.mdbk-doctor-group[open] .mdbk-availability-chevron { transform: rotate(-135deg); }
+.mdbk-doctor-group-list .mdbk-patient-row:last-child { border-bottom: none; }
 
 /* Date and Time — each its own grid column (own track in the
    grid-template-columns above), same alignment discipline as the

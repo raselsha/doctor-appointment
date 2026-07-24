@@ -13,6 +13,7 @@ class MDBK_Admin_Dashboard {
         add_action('admin_init', [$this, 'handle_patient_save']);
         add_action('admin_init', [$this, 'handle_delete_actions']);
         add_action('admin_init', [$this, 'handle_schedule_export']);
+        add_action('admin_init', [$this, 'handle_change_password_save']);
         add_action('wp_ajax_mdbk_toggle_doctor_active', [$this, 'ajax_toggle_doctor_active']);
         add_action('wp_ajax_mdbk_mark_visited', [$this, 'ajax_mark_visited']);
         add_action('wp_ajax_mdbk_admin_checkin', [$this, 'ajax_admin_checkin']);
@@ -37,22 +38,28 @@ class MDBK_Admin_Dashboard {
     }
 
     /**
-     * Sends a doctor straight to their restricted "My Queue" page on
-     * login instead of the default wp-admin dashboard. Bails on a failed
-     * login (don't redirect an error). WP's own login form always submits
-     * a non-empty `redirect_to` (confirmed: it defaults to bare
-     * admin_url()) — so "empty" is never actually the normal case, and
-     * treating any non-empty value as "explicitly requested" would
-     * silently disable this redirect for every ordinary login. Instead,
-     * only a value that differs from wp-admin's own generic defaults
-     * counts as a real deep link (e.g. a doctor returning to a specific
-     * bookmarked admin URL after a session timeout) and is left alone.
+     * Sends a doctor straight to their restricted "My Queue" page, and
+     * front-desk staff straight to the same page's all-doctors view (see
+     * render_my_queue_page()'s $is_staff_view), on login instead of the
+     * default wp-admin dashboard — for staff that dashboard would otherwise
+     * render WP's bare/mostly-empty core widgets, since a receptionist
+     * account has almost none of the capabilities those widgets check for.
+     * Bails on a failed login (don't redirect an error). WP's own login
+     * form always submits a non-empty `redirect_to` (confirmed: it
+     * defaults to bare admin_url()) — so "empty" is never actually the
+     * normal case, and treating any non-empty value as "explicitly
+     * requested" would silently disable this redirect for every ordinary
+     * login. Instead, only a value that differs from wp-admin's own
+     * generic defaults counts as a real deep link (e.g. someone returning
+     * to a specific bookmarked admin URL after a session timeout) and is
+     * left alone.
      */
     public function doctor_login_redirect($redirect_to, $requested_redirect_to, $user) {
         if (is_wp_error($user) || !($user instanceof \WP_User)) {
             return $redirect_to;
         }
-        if (!in_array('mdbk_doctor_role', (array) $user->roles, true)) {
+        $roles = (array) $user->roles;
+        if (!in_array('mdbk_doctor_role', $roles, true) && !in_array('mdbk_receptionist', $roles, true)) {
             return $redirect_to;
         }
         $generic_defaults = ['', 'wp-admin/', admin_url(), untrailingslashit(admin_url()) . '/'];
@@ -84,7 +91,7 @@ class MDBK_Admin_Dashboard {
      */
     public function ajax_mark_visited() {
         check_ajax_referer('mdbk_admin_nonce', 'nonce');
-        if (!current_user_can(MDBK_CAP_DOCTOR) && !current_user_can('manage_options')) {
+        if (!current_user_can(MDBK_CAP_DOCTOR) && !current_user_can('manage_options') && !current_user_can(MDBK_CAP_QUEUE)) {
             wp_send_json_error(['message' => __('Unauthorized.', 'doctor-appointment')]);
         }
 
@@ -93,8 +100,12 @@ class MDBK_Admin_Dashboard {
             wp_send_json_error(['message' => __('Invalid appointment.', 'doctor-appointment')]);
         }
 
+        // Front-desk staff (MDBK_CAP_QUEUE) manages every doctor's queue
+        // from the same all-doctors "Patients" view, so the "own doctor
+        // only" restriction below is a pure-doctor-account thing — it
+        // never applies to staff or a full admin.
         $appointment_doctor_id = intval(get_post_meta($appointment_id, '_mdbk_doctor_id', true));
-        if (!current_user_can('manage_options')) {
+        if (!current_user_can('manage_options') && !current_user_can(MDBK_CAP_QUEUE)) {
             $own_doctor_id = \MDBK\MDBK_Appointment_Manager::get_doctor_id_for_user(get_current_user_id());
             if (!$own_doctor_id || $own_doctor_id !== $appointment_doctor_id) {
                 wp_send_json_error(['message' => __('You can only update your own patients.', 'doctor-appointment')]);
@@ -138,7 +149,29 @@ class MDBK_Admin_Dashboard {
         // The whole today's-queue list, not just this one row — whoever
         // just got auto-promoted to "Visiting" needs their row updated
         // too, not only the one that was marked visited.
-        wp_send_json_success(['fragment' => $this->render_today_queue_rows($appointment_doctor_id)]);
+        list($fragment_doctor_id, $group_by_doctor) = $this->resolve_queue_view_scope($appointment_doctor_id);
+        wp_send_json_success(['fragment' => $this->render_today_queue_rows($fragment_doctor_id, $group_by_doctor)]);
+    }
+
+    /**
+     * Front-desk staff's "Patients" view shows every doctor combined
+     * (doctor_id 0), while a doctor's own view shows just theirs — so an
+     * AJAX action fired from either one needs to know which list to hand
+     * back, not just which doctor the acted-on appointment happens to
+     * belong to (see the data-view-doctor-id attribute render_my_queue_page()
+     * puts on #mdbk-today-queue-list, echoed back by admin-script.js as
+     * view_doctor_id). Only trusted when the current user can actually see
+     * the all-doctors view — a pure doctor account passing view_doctor_id=0
+     * must never get another doctor's patient names back in the response,
+     * so it silently falls back to their own appointment's doctor instead.
+     */
+    private function resolve_queue_view_scope($appointment_doctor_id) {
+        $can_view_all = current_user_can('manage_options') || current_user_can(MDBK_CAP_QUEUE);
+        $requested = isset($_POST['view_doctor_id']) ? intval($_POST['view_doctor_id']) : null;
+        if ($requested === 0 && $can_view_all) {
+            return [0, true];
+        }
+        return [$appointment_doctor_id, false];
     }
 
     /**
@@ -155,7 +188,7 @@ class MDBK_Admin_Dashboard {
      */
     public function ajax_toggle_skip() {
         check_ajax_referer('mdbk_admin_nonce', 'nonce');
-        if (!current_user_can(MDBK_CAP_DOCTOR) && !current_user_can('manage_options')) {
+        if (!current_user_can(MDBK_CAP_DOCTOR) && !current_user_can('manage_options') && !current_user_can(MDBK_CAP_QUEUE)) {
             wp_send_json_error(['message' => __('Unauthorized.', 'doctor-appointment')]);
         }
 
@@ -164,8 +197,9 @@ class MDBK_Admin_Dashboard {
             wp_send_json_error(['message' => __('Invalid appointment.', 'doctor-appointment')]);
         }
 
+        // Same staff/admin bypass as ajax_mark_visited() — see its comment.
         $appointment_doctor_id = intval(get_post_meta($appointment_id, '_mdbk_doctor_id', true));
-        if (!current_user_can('manage_options')) {
+        if (!current_user_can('manage_options') && !current_user_can(MDBK_CAP_QUEUE)) {
             $own_doctor_id = \MDBK\MDBK_Appointment_Manager::get_doctor_id_for_user(get_current_user_id());
             if (!$own_doctor_id || $own_doctor_id !== $appointment_doctor_id) {
                 wp_send_json_error(['message' => __('You can only update your own patients.', 'doctor-appointment')]);
@@ -188,16 +222,18 @@ class MDBK_Admin_Dashboard {
 
         // Same full-list return as ajax_mark_visited(), for a consistent
         // whole-list swap on the JS side (see admin-script.js).
-        wp_send_json_success(['fragment' => $this->render_today_queue_rows($appointment_doctor_id)]);
+        list($fragment_doctor_id, $group_by_doctor) = $this->resolve_queue_view_scope($appointment_doctor_id);
+        wp_send_json_success(['fragment' => $this->render_today_queue_rows($fragment_doctor_id, $group_by_doctor)]);
     }
 
     /**
-     * Staff/admin check-in straight from the Bookings page — bypasses the
-     * QR token entirely, since whoever's looking at this list already has
-     * the exact record in view. wp_ajax_ only (no nopriv — this is a
-     * wp-admin-only action), gated on the same MDBK_CAP_QUEUE capability
-     * as the Bookings page itself (not manage_options), so a receptionist
-     * who can already see/act on this page can use the button too.
+     * Staff/admin check-in straight from the Bookings page OR the
+     * "Patients" page's Today's Queue — bypasses the QR token entirely,
+     * since whoever's looking at either list already has the exact record
+     * in view. wp_ajax_ only (no nopriv — this is a wp-admin-only
+     * action), gated on the same MDBK_CAP_QUEUE capability both pages
+     * require (not manage_options), so a receptionist who can already
+     * see/act on either page can use the button too.
      */
     public function ajax_admin_checkin() {
         check_ajax_referer('mdbk_admin_nonce', 'nonce');
@@ -215,8 +251,20 @@ class MDBK_Admin_Dashboard {
             wp_send_json_error(['message' => $result]);
         }
 
+        // From the "Patients" page (view_doctor_id present): mark_checked_in()
+        // can auto-promote a DIFFERENT patient to "serving" (see
+        // promote_next_checked_in_patient()), so a single-row swap would
+        // miss that row's update — same whole-list fragment ajax_mark_visited()/
+        // ajax_toggle_skip() already use. From the Bookings page (no
+        // view_doctor_id), keep the original single-row swap.
+        if (isset($_POST['view_doctor_id'])) {
+            $appointment_doctor_id = intval(get_post_meta($appointment_id, '_mdbk_doctor_id', true));
+            list($fragment_doctor_id, $group_by_doctor) = $this->resolve_queue_view_scope($appointment_doctor_id);
+            wp_send_json_success(['mode' => 'list', 'fragment' => $this->render_today_queue_rows($fragment_doctor_id, $group_by_doctor)]);
+        }
+
         $show_doctor = isset($_POST['show_doctor']) && $_POST['show_doctor'] === '1';
-        wp_send_json_success(['fragment' => $this->render_patient_appointment_row(get_post($appointment_id), $show_doctor)]);
+        wp_send_json_success(['mode' => 'row', 'fragment' => $this->render_patient_appointment_row(get_post($appointment_id), $show_doctor)]);
     }
 
     public function handle_delete_actions() {
@@ -549,8 +597,18 @@ class MDBK_Admin_Dashboard {
         // directly, unaffected by any of this.
         add_menu_page('MedBook', 'MedBook', MDBK_CAP_DOCTOR, 'mdbk-home', [$this, 'render_medbook_home'], 'dashicons-plus-alt', 25);
         add_submenu_page('mdbk-home', 'Dashboard', 'Dashboard', 'manage_options', 'mdbk-dashboard', [$this, 'render_dashboard']);
-        add_submenu_page('mdbk-home', 'My Queue', 'My Queue', MDBK_CAP_DOCTOR, 'mdbk-my-queue', [$this, 'render_my_queue_page']);
+        // Capability is deliberately the blanket 'read' here, not
+        // MDBK_CAP_DOCTOR — this single page now serves BOTH a doctor
+        // (their own patients only) AND front-desk staff (every doctor's
+        // patients combined), two roles that share no single capability
+        // in common (see roles.php: mdbk_doctor_role has MDBK_CAP_DOCTOR,
+        // mdbk_receptionist has MDBK_CAP_QUEUE, neither has the other).
+        // render_my_queue_page() does its own real access check first
+        // thing — same OR-capability pattern WP core itself uses for
+        // profile.php.
+        add_submenu_page('mdbk-home', 'Patients', 'Patients', 'read', 'mdbk-my-queue', [$this, 'render_my_queue_page']);
         add_submenu_page('mdbk-home', 'Profile', 'Profile', MDBK_CAP_DOCTOR, 'mdbk-profile', [$this, 'render_profile_page']);
+        add_submenu_page('mdbk-home', 'Change Password', 'Change Password', MDBK_CAP_DOCTOR, 'mdbk-change-password', [$this, 'render_change_password_page']);
 
         // Queue/appointments — registered with its own MDBK_CAP_QUEUE
         // capability (not manage_options), so the front-desk role — which
@@ -570,30 +628,45 @@ class MDBK_Admin_Dashboard {
         // A pure doctor account (MDBK_CAP_DOCTOR, no manage_options) now has
         // its own "Profile" page above — WP core's native profile.php link
         // is redundant with it and confusing to have both, so it's removed
-        // from this role's sidebar entirely. index.php (WP's own Dashboard)
-        // is removed for the same reason — a doctor never has any use for
-        // it, everything they can do lives under "MedBook". Left untouched
-        // for admin/other roles. get_edit_profile_url() is also filtered
-        // (see redirect_profile_url()) so the admin toolbar's "Howdy" /
-        // "Edit Profile" links point at this same page for a doctor too.
-        // With both removed, "MedBook" is the ONLY native menu item this
-        // role ever has left, which is also why the entire native sidebar
-        // is hidden for them via CSS — see admin_body_class() below.
+        // from this role's sidebar entirely. Front-desk staff has no
+        // equivalent plugin page for it, so profile.php stays for them.
+        // index.php (WP's own Dashboard) is removed for BOTH restricted
+        // roles — neither a doctor nor front-desk staff has any use for it,
+        // everything they can do lives under "MedBook". Left untouched for
+        // admin/other roles. get_edit_profile_url() is also filtered (see
+        // redirect_profile_url()) so the admin toolbar's "Howdy" / "Edit
+        // Profile" links point at this same page for a doctor too. The
+        // entire native sidebar is hidden via CSS for both roles — see
+        // admin_body_class() below.
+        if ($this->is_restricted_panel_user()) {
+            remove_menu_page('index.php');
+        }
         if (current_user_can(MDBK_CAP_DOCTOR) && !current_user_can('manage_options')) {
             remove_menu_page('profile.php');
-            remove_menu_page('index.php');
         }
     }
 
     /**
+     * True for an account confined to this plugin's own full-screen panel
+     * (a doctor, or front-desk staff) — anyone with MDBK_CAP_DOCTOR or
+     * MDBK_CAP_QUEUE but not manage_options. Shared by admin_body_class()
+     * and register_admin_menu()'s native-menu trimming so the two stay in
+     * sync about who gets the immersive, WP-chrome-free treatment.
+     */
+    private function is_restricted_panel_user() {
+        return (current_user_can(MDBK_CAP_DOCTOR) || current_user_can(MDBK_CAP_QUEUE)) && !current_user_can('manage_options');
+    }
+
+    /**
      * Appends a body class so admin-style.css can hide the entire native
-     * WP left-hand sidebar for a pure doctor account (no manage_options) —
-     * the plugin's own full-screen sidebar (render_sidebar()) is already
-     * the only navigation this role ever needs (My Queue / Profile), so
-     * WP's native menu column would just be near-empty chrome around it.
+     * WP left-hand sidebar for a doctor or front-desk-staff account (no
+     * manage_options) — the plugin's own full-screen sidebar
+     * (render_sidebar()) is already the only navigation either role ever
+     * needs, so WP's native menu column would just be near-empty chrome
+     * around it.
      */
     public function admin_body_class($classes) {
-        if (current_user_can(MDBK_CAP_DOCTOR) && !current_user_can('manage_options')) {
+        if ($this->is_restricted_panel_user()) {
             $classes .= ' mdbk-doctor-chrome';
         }
         return $classes;
@@ -1279,12 +1352,24 @@ class MDBK_Admin_Dashboard {
      * of a fatal error, since they have no doctor link of their own.
      */
     public function render_my_queue_page() {
-        $doctor_id = \MDBK\MDBK_Appointment_Manager::get_doctor_id_for_user(get_current_user_id());
+        // This one page now serves two different roles (see the 'read'
+        // capability comment on its add_submenu_page() call above): a
+        // doctor sees only their own patients; front-desk staff
+        // (MDBK_CAP_QUEUE, no MDBK_CAP_DOCTOR) sees every doctor's
+        // patients combined, with a doctor-name chip on each row so it's
+        // clear whose patient is whose. An admin previewing this page
+        // falls through to the doctor branch (unchanged from before) since
+        // admin already has its own full Dashboard/Bookings overview.
+        $is_staff_view = current_user_can(MDBK_CAP_QUEUE) && !current_user_can(MDBK_CAP_DOCTOR) && !current_user_can('manage_options');
+        if (!$is_staff_view && !current_user_can(MDBK_CAP_DOCTOR) && !current_user_can('manage_options')) {
+            wp_die(__('You do not have permission to do this.', 'doctor-appointment'));
+        }
+        $doctor_id = $is_staff_view ? 0 : \MDBK\MDBK_Appointment_Manager::get_doctor_id_for_user(get_current_user_id());
         ?>
         <div id="mdbk-admin-dashboard"><div class="mdbk-admin-wrapper"><?php $this->render_sidebar('my-queue'); ?>
             <div class="mdbk-main-content">
-                <div class="mdbk-header"><div class="mdbk-header-left"><h1><?php _e('My Queue', 'doctor-appointment'); ?></h1></div></div>
-                <?php if (!$doctor_id): ?>
+                <div class="mdbk-header"><div class="mdbk-header-left"><h1><?php _e('Patients', 'doctor-appointment'); ?></h1><?php if ($is_staff_view): ?><p><?php _e('All doctors', 'doctor-appointment'); ?></p><?php endif; ?></div></div>
+                <?php if (!$is_staff_view && !$doctor_id): ?>
                     <div class="mdbk-card"><table class="mdbk-table"><tbody><tr><td style="text-align:center; padding:40px; opacity:0.6;"><?php _e('This account is not linked to a doctor profile.', 'doctor-appointment'); ?></td></tr></tbody></table></div>
                 <?php else: ?>
                     <?php
@@ -1299,7 +1384,9 @@ class MDBK_Admin_Dashboard {
                     // Today's queue is priority-sorted (see
                     // get_today_queue_apps()) rather than plain ticket
                     // order — every other date stays a plain patient-ID
-                    // ordered history/record list.
+                    // ordered history/record list. $doctor_id of 0 means
+                    // "every doctor" throughout (get_filtered_appointments()
+                    // already treats a falsy filter_doctor that way).
                     $today_apps = $this->get_today_queue_apps($doctor_id);
                     $today = current_time('Y-m-d');
                     $all_apps = $this->get_filtered_appointments(null, $doctor_id, '');
@@ -1326,7 +1413,7 @@ class MDBK_Admin_Dashboard {
                     }));
                     ?>
 
-                    <div class="mdbk-stats-grid" style="margin-bottom:20px;">
+                    <div class="mdbk-stats-grid mdbk-stats-grid-5" style="margin-bottom:20px;">
                         <div class="mdbk-stat-card mdbk-stat-card-violet">
                             <div class="mdbk-stat-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg></div>
                             <h4><?php _e('Total Patients', 'doctor-appointment'); ?></h4>
@@ -1362,8 +1449,8 @@ class MDBK_Admin_Dashboard {
                     <div class="mdbk-card" style="margin-bottom:20px;">
                         <div class="mdbk-card-header"><h3><?php _e("Today's Queue", 'doctor-appointment'); ?></h3></div>
                         <?php if ($today_apps): ?>
-                        <div class="mdbk-patient-list" id="mdbk-today-queue-list">
-                            <?php foreach ($today_apps as $a): echo $this->render_my_queue_patient_row($a); ?>
+                        <div class="mdbk-patient-list" id="mdbk-today-queue-list" data-view-doctor-id="<?php echo esc_attr($doctor_id); ?>">
+                            <?php foreach ($today_apps as $a): echo $this->render_my_queue_patient_row($a, $is_staff_view); ?>
                             <?php endforeach; ?>
                         </div>
                         <?php else: ?>
@@ -1375,7 +1462,7 @@ class MDBK_Admin_Dashboard {
                         <div class="mdbk-card-header"><h3><?php _e('Patient List', 'doctor-appointment'); ?></h3></div>
                         <?php if ($other_apps): ?>
                         <div class="mdbk-patient-list">
-                            <?php foreach ($other_apps as $a): echo $this->render_my_queue_patient_row($a); ?>
+                            <?php foreach ($other_apps as $a): echo $this->render_my_queue_patient_row($a, $is_staff_view); ?>
                             <?php endforeach; ?>
                         </div>
                         <?php else: ?>
@@ -1503,6 +1590,201 @@ class MDBK_Admin_Dashboard {
     }
 
     /**
+     * Change-your-own-password page for a doctor account — reachable only
+     * by a pure doctor (MDBK_CAP_DOCTOR, no manage_options; same gate as
+     * Profile/My Queue), since WP's own native profile.php (which has its
+     * own password field) is deliberately hidden for this role
+     * (register_admin_menu()) in favor of this plugin's own pages.
+     */
+    public function render_change_password_page() {
+        $error = isset($_GET['error']) ? sanitize_text_field(wp_unslash($_GET['error'])) : '';
+        $success = isset($_GET['success']);
+        ?>
+        <div id="mdbk-admin-dashboard"><div class="mdbk-admin-wrapper"><?php $this->render_sidebar('change-password'); ?>
+            <div class="mdbk-main-content">
+                <div class="mdbk-header"><div class="mdbk-header-left"><h1><?php _e('Change Password', 'doctor-appointment'); ?></h1></div></div>
+                <div class="mdbk-card" style="max-width:420px; padding:24px;">
+                    <?php if ($success) : ?>
+                        <p style="color:#16A34A; font-weight:600; margin-top:0;"><?php _e('Password updated successfully.', 'doctor-appointment'); ?></p>
+                    <?php endif; ?>
+                    <?php if ($error) : ?>
+                        <p style="color:#ef4444; font-weight:600; margin-top:0;"><?php echo esc_html($error); ?></p>
+                    <?php endif; ?>
+                    <form method="POST" class="mdbk-plain-form">
+                        <?php wp_nonce_field('mdbk_change_password'); ?>
+                        <input type="hidden" name="mdbk_change_password" value="1">
+                        <div style="margin-bottom:8px;">
+                            <label class="mdbk-form-label" for="mdbk-new-password"><?php _e('New Password', 'doctor-appointment'); ?></label>
+                            <div class="mdbk-pwd-field">
+                                <input type="password" name="new_password" id="mdbk-new-password" autocomplete="new-password" required minlength="8" aria-describedby="mdbk-password-length-hint">
+                                <button type="button" class="button mdbk-pwd-toggle" data-target="mdbk-new-password" aria-label="<?php esc_attr_e('Show password', 'doctor-appointment'); ?>">
+                                    <span class="dashicons dashicons-visibility" aria-hidden="true"></span>
+                                </button>
+                            </div>
+                            <p id="mdbk-password-length-hint" style="margin:6px 0 0; font-size:12px; color:#94a3b8;"><?php _e('At least 8 characters.', 'doctor-appointment'); ?></p>
+                            <div class="mdbk-pw-strength-bar"><span id="mdbk-pw-strength-fill"></span></div>
+                            <p id="mdbk-pw-strength-label" style="margin:4px 0 0; font-size:12px; color:#94a3b8;">&nbsp;</p>
+                        </div>
+                        <div style="margin-bottom:56px;">
+                            <label class="mdbk-form-label" for="mdbk-confirm-password"><?php _e('Confirm New Password', 'doctor-appointment'); ?></label>
+                            <div class="mdbk-pwd-field">
+                                <input type="password" name="confirm_password" id="mdbk-confirm-password" autocomplete="new-password" required minlength="8">
+                                <button type="button" class="button mdbk-pwd-toggle" data-target="mdbk-confirm-password" aria-label="<?php esc_attr_e('Show password', 'doctor-appointment'); ?>">
+                                    <span class="dashicons dashicons-visibility" aria-hidden="true"></span>
+                                </button>
+                            </div>
+                            <p id="mdbk-password-match-hint" style="margin:6px 0 0; font-size:12px; color:#94a3b8;">&nbsp;</p>
+                        </div>
+                        <button type="submit" class="mdbk-btn-add"><?php _e('Update Password', 'doctor-appointment'); ?></button>
+                        <p style="margin-top:14px; font-size:12px; color:#94a3b8;"><?php _e('Tip: pressing Enter after typing also submits the form.', 'doctor-appointment'); ?></p>
+                    </form>
+                    <script>
+                    (function() {
+                        var newPass = document.getElementById('mdbk-new-password');
+                        var confirmPass = document.getElementById('mdbk-confirm-password');
+                        var lengthHint = document.getElementById('mdbk-password-length-hint');
+                        var matchHint = document.getElementById('mdbk-password-match-hint');
+                        var strengthFill = document.getElementById('mdbk-pw-strength-fill');
+                        var strengthLabel = document.getElementById('mdbk-pw-strength-label');
+                        if (!newPass || !confirmPass || !lengthHint || !matchHint) return;
+
+                        // Show/hide toggle — plain, parameterized version of WP
+                        // core's own .pwd-toggle behavior (wp-admin/js/password-toggle.js),
+                        // which is hardcoded to a single id="pwd" and can't target
+                        // two independent fields on the same page.
+                        document.querySelectorAll('.mdbk-pwd-toggle').forEach(function(btn) {
+                            btn.addEventListener('click', function() {
+                                var input = document.getElementById(btn.getAttribute('data-target'));
+                                var icon = btn.querySelector('.dashicons');
+                                if (!input || !icon) return;
+                                var nowShowing = input.type === 'password';
+                                input.type = nowShowing ? 'text' : 'password';
+                                icon.classList.toggle('dashicons-visibility', !nowShowing);
+                                icon.classList.toggle('dashicons-hidden', nowShowing);
+                                btn.setAttribute('aria-label', nowShowing
+                                    ? <?php echo wp_json_encode(__('Hide password', 'doctor-appointment')); ?>
+                                    : <?php echo wp_json_encode(__('Show password', 'doctor-appointment')); ?>);
+                            });
+                        });
+
+                        // Only ever reports the length REQUIREMENT (>= 8), never
+                        // an overall quality verdict — that's what the strength
+                        // meter below is for. Showing "Looks good" here once
+                        // length passed used to read as a second, contradicting
+                        // quality opinion right above a red "Very weak" bar for
+                        // something like "12345678" (8 digits, long enough, but
+                        // trivially guessable) — so once length is satisfied,
+                        // this hint just goes quiet instead of asserting
+                        // anything about quality.
+                        function updateLengthHint() {
+                            var len = newPass.value.length;
+                            var ok = len >= 8;
+                            lengthHint.innerHTML = ok
+                                ? '&nbsp;'
+                                : len + '/8 — ' + <?php echo wp_json_encode(__('at least 8 characters.', 'doctor-appointment')); ?>;
+                            lengthHint.style.color = '#94a3b8';
+                        }
+                        function updateMatchHint() {
+                            if (!confirmPass.value) { matchHint.innerHTML = '&nbsp;'; return; }
+                            var match = confirmPass.value === newPass.value;
+                            matchHint.textContent = match
+                                ? <?php echo wp_json_encode(__('✓ Passwords match.', 'doctor-appointment')); ?>
+                                : <?php echo wp_json_encode(__('Passwords do not match yet.', 'doctor-appointment')); ?>;
+                            matchHint.style.color = match ? '#16A34A' : '#ef4444';
+                        }
+
+                        // Strength meter — reuses WP core's own
+                        // wp.passwordStrength.meter() (zxcvbn), the exact same
+                        // scoring wp-admin's native Profile page uses, mapped to
+                        // the same score->label convention as core's own
+                        // wp-admin/js/user-profile.js check_pass_strength().
+                        var STRENGTH_STEPS = [
+                            { pct: '20%',  color: '#ef4444', label: <?php echo wp_json_encode(__('Very weak', 'doctor-appointment')); ?> },
+                            { pct: '40%',  color: '#ef4444', label: <?php echo wp_json_encode(__('Very weak', 'doctor-appointment')); ?> },
+                            { pct: '55%',  color: '#f97316', label: <?php echo wp_json_encode(__('Weak', 'doctor-appointment')); ?> },
+                            { pct: '75%',  color: '#eab308', label: <?php echo wp_json_encode(__('Medium', 'doctor-appointment')); ?> },
+                            { pct: '100%', color: '#16A34A', label: <?php echo wp_json_encode(__('Strong', 'doctor-appointment')); ?> }
+                        ];
+                        function updateStrength() {
+                            if (!strengthFill || !strengthLabel) return;
+                            var val = newPass.value;
+                            if (!val) {
+                                strengthFill.style.width = '0%';
+                                strengthLabel.innerHTML = '&nbsp;';
+                                return;
+                            }
+                            if (typeof wp === 'undefined' || !wp.passwordStrength) {
+                                strengthLabel.textContent = '';
+                                return;
+                            }
+                            var disallowed = wp.passwordStrength.userInputDisallowedList
+                                ? wp.passwordStrength.userInputDisallowedList()
+                                : [];
+                            var score = wp.passwordStrength.meter(val, disallowed, val);
+                            // -1: zxcvbn hasn't finished loading yet (it's
+                            // fetched async) — matches core's own "unknown"
+                            // state rather than guessing a bar color for it.
+                            if (score === -1) {
+                                strengthFill.style.width = '100%';
+                                strengthFill.style.backgroundColor = '#cbd5e1';
+                                strengthLabel.textContent = <?php echo wp_json_encode(__('Password strength unknown', 'doctor-appointment')); ?>;
+                                strengthLabel.style.color = '#94a3b8';
+                                return;
+                            }
+                            var step = STRENGTH_STEPS[Math.max(0, Math.min(4, score))];
+                            strengthFill.style.width = step.pct;
+                            strengthFill.style.backgroundColor = step.color;
+                            strengthLabel.textContent = step.label;
+                            strengthLabel.style.color = step.color;
+                        }
+
+                        newPass.addEventListener('input', function() { updateLengthHint(); updateMatchHint(); updateStrength(); });
+                        confirmPass.addEventListener('input', updateMatchHint);
+                        updateLengthHint();
+                        updateStrength();
+                    })();
+                    </script>
+                </div>
+            </div></div></div>
+        <?php
+    }
+
+    /**
+     * Saves a new password for the CURRENTLY LOGGED-IN user only — there
+     * is no target-user parameter anywhere in this handler, so there is
+     * no privilege check to get wrong; it can only ever change the
+     * requester's own password. wp_set_password() invalidates every
+     * session for that user, including the one making this request, so
+     * the auth cookie is re-issued immediately after — otherwise a doctor
+     * changing their own password would be unexpectedly logged out by it.
+     */
+    public function handle_change_password_save() {
+        if (!isset($_POST['mdbk_change_password'])) return;
+        if (!is_user_logged_in()) return;
+        check_admin_referer('mdbk_change_password');
+
+        $new_password = isset($_POST['new_password']) ? (string) $_POST['new_password'] : '';
+        $confirm_password = isset($_POST['confirm_password']) ? (string) $_POST['confirm_password'] : '';
+
+        if (strlen($new_password) < 8) {
+            wp_redirect(admin_url('admin.php?page=mdbk-change-password&error=' . urlencode(__('Password must be at least 8 characters.', 'doctor-appointment'))));
+            exit;
+        }
+        if ($new_password !== $confirm_password) {
+            wp_redirect(admin_url('admin.php?page=mdbk-change-password&error=' . urlencode(__('Passwords do not match.', 'doctor-appointment'))));
+            exit;
+        }
+
+        $user_id = get_current_user_id();
+        wp_set_password($new_password, $user_id);
+        wp_set_auth_cookie($user_id);
+        wp_set_current_user($user_id);
+
+        wp_redirect(admin_url('admin.php?page=mdbk-change-password&success=1'));
+        exit;
+    }
+
+    /**
      * One row in the doctor's own "My Patients" list — same visual
      * language as render_patient_appointment_row(), but the status badge
      * sits alongside a "Mark as Visited" button (only for appointments
@@ -1526,10 +1808,52 @@ class MDBK_Admin_Dashboard {
      * own $today_apps computation exactly, so the AJAX-refreshed list
      * never drifts from what a fresh page load would show.
      */
-    private function render_today_queue_rows($doctor_id) {
+    private function render_today_queue_rows($doctor_id, $group_by_doctor = false) {
+        return $this->render_patient_list_html($this->get_today_queue_apps($doctor_id), $group_by_doctor);
+    }
+
+    /**
+     * Renders a list of appointments as patient rows — either a flat list
+     * (one doctor's own view) or, for front-desk staff's all-doctors
+     * view, collapsed under a per-doctor <details> section (see the
+     * .mdbk-doctor-group CSS) so staff can scan/collapse one doctor's
+     * queue at a time instead of one long mixed list. Shared by the
+     * initial page render (Today's Queue + Patient List) and
+     * render_today_queue_rows() (the AJAX-refresh fragment for Mark as
+     * Visited / Skip / Check-In), so grouping never drifts between the
+     * two.
+     */
+    private function render_patient_list_html($apps, $group_by_doctor) {
+        if (!$group_by_doctor) {
+            $html = '';
+            foreach ($apps as $a) {
+                $html .= $this->render_my_queue_patient_row($a);
+            }
+            return $html;
+        }
+
+        $groups = [];
+        foreach ($apps as $a) {
+            $doc_id = intval(get_post_meta($a->ID, '_mdbk_doctor_id', true));
+            $groups[$doc_id][] = $a;
+        }
+        uksort($groups, function($a, $b) {
+            $name_a = $a ? get_the_title($a) : '';
+            $name_b = $b ? get_the_title($b) : '';
+            return strcasecmp($name_a, $name_b);
+        });
+
         $html = '';
-        foreach ($this->get_today_queue_apps($doctor_id) as $a) {
-            $html .= $this->render_my_queue_patient_row($a);
+        foreach ($groups as $doc_id => $doc_apps) {
+            $doc_name = $doc_id ? get_the_title($doc_id) : __('Unassigned', 'doctor-appointment');
+            $count = count($doc_apps);
+            $html .= '<details class="mdbk-doctor-group" open>';
+            $html .= '<summary class="mdbk-doctor-group-header"><span class="mdbk-doctor-group-name">' . esc_html($doc_name) . '</span><span class="mdbk-doctor-group-count">' . esc_html(sprintf(_n('%d patient', '%d patients', $count, 'doctor-appointment'), $count)) . '</span><span class="mdbk-availability-chevron"></span></summary>';
+            $html .= '<div class="mdbk-patient-list mdbk-doctor-group-list">';
+            foreach ($doc_apps as $a) {
+                $html .= $this->render_my_queue_patient_row($a);
+            }
+            $html .= '</div></details>';
         }
         return $html;
     }
@@ -1611,6 +1935,13 @@ class MDBK_Admin_Dashboard {
         // rejoin auto-advance.
         $skipped = get_post_meta($a->ID, '_mdbk_skipped', true) === 'yes';
         $can_skip = $is_today && $status === 'waiting' && $checked_in;
+        // Check-In straight from this page too, not just the Bookings page
+        // or a QR scan — gated on MDBK_CAP_QUEUE specifically (not just
+        // being allowed to view this page at all) since that's the same
+        // capability ajax_admin_checkin() itself requires; a pure doctor
+        // account (MDBK_CAP_DOCTOR only) won't see this button, same as
+        // they've never had a Check-In control on the Bookings page either.
+        $can_checkin = $is_today && $status === 'waiting' && !$checked_in && current_user_can(MDBK_CAP_QUEUE);
         // Full-row color/accent — only for today's actionable states
         // (currently being seen, or checked in and waiting); every other
         // row (not checked in, skipped, upcoming, already closed out)
@@ -1666,6 +1997,8 @@ class MDBK_Admin_Dashboard {
                     <button type="button" class="mdbk-btn-add mdbk-btn-sm mdbk-mark-visited" data-id="<?php echo esc_attr($a->ID); ?>"><?php _e('Mark as Visited', 'doctor-appointment'); ?></button>
                 <?php elseif (!$is_today && in_array($status, ['waiting', 'serving'], true)): ?>
                     <span class="mdbk-badge mdbk-badge-upcoming"><?php _e('Upcoming', 'doctor-appointment'); ?></span>
+                <?php elseif ($can_checkin): ?>
+                    <button type="button" class="mdbk-btn-add mdbk-btn-sm mdbk-admin-checkin-btn" data-id="<?php echo esc_attr($a->ID); ?>"><?php _e('Check In', 'doctor-appointment'); ?></button>
                 <?php elseif ($is_today && $status === 'waiting' && !$checked_in): ?>
                     <span class="mdbk-badge mdbk-badge-not-checked-in"><?php _e('Not Checked In', 'doctor-appointment'); ?></span>
                 <?php else: ?>
@@ -1804,13 +2137,23 @@ class MDBK_Admin_Dashboard {
             <?php if (current_user_can(MDBK_CAP_QUEUE)) : ?>
             <li class="mdbk-menu-item <?php echo $active_page == 'schedule' ? 'active' : ''; ?>" onclick="window.location.href='<?php echo esc_url(admin_url('admin.php?page=mdbk-schedule')); ?>'"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="3"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg><?php _e('Booking', 'doctor-appointment'); ?></li>
             <?php endif; ?>
+            <?php // Front-desk staff's own "Patients" — the SAME mdbk-my-queue
+            // page/render_my_queue_page() a doctor uses, just showing every
+            // doctor's queue combined instead of one doctor's own (see
+            // $is_staff_view there). Deliberately excludes manage_options —
+            // an admin already has the full Dashboard + Bookings overview and
+            // doesn't need this doctor/staff-style menu too. ?>
+            <?php if (current_user_can(MDBK_CAP_QUEUE) && !current_user_can(MDBK_CAP_DOCTOR) && !current_user_can('manage_options')) : ?>
+            <li class="mdbk-menu-item <?php echo $active_page == 'my-queue' ? 'active' : ''; ?>" onclick="window.location.href='<?php echo esc_url(admin_url('admin.php?page=mdbk-my-queue')); ?>'"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg><?php _e('Patients', 'doctor-appointment'); ?></li>
+            <?php endif; ?>
             <?php // Admin technically has MDBK_CAP_DOCTOR too (granted alongside every
             // custom cap, so an admin previewing mdbk-my-queue directly doesn't hit a
             // capability wall) — but this nav item is the doctor's own menu, not
             // admin's, so it's hidden here for anyone who also has manage_options. ?>
             <?php if (current_user_can(MDBK_CAP_DOCTOR) && !current_user_can('manage_options')) : ?>
-            <li class="mdbk-menu-item <?php echo $active_page == 'my-queue' ? 'active' : ''; ?>" onclick="window.location.href='<?php echo esc_url(admin_url('admin.php?page=mdbk-my-queue')); ?>'"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="3"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg><?php _e('My Queue', 'doctor-appointment'); ?></li>
+            <li class="mdbk-menu-item <?php echo $active_page == 'my-queue' ? 'active' : ''; ?>" onclick="window.location.href='<?php echo esc_url(admin_url('admin.php?page=mdbk-my-queue')); ?>'"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg><?php _e('Patients', 'doctor-appointment'); ?></li>
             <li class="mdbk-menu-item <?php echo $active_page == 'profile' ? 'active' : ''; ?>" onclick="window.location.href='<?php echo esc_url(admin_url('admin.php?page=mdbk-profile')); ?>'"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg><?php _e('Profile', 'doctor-appointment'); ?></li>
+            <li class="mdbk-menu-item <?php echo $active_page == 'change-password' ? 'active' : ''; ?>" onclick="window.location.href='<?php echo esc_url(admin_url('admin.php?page=mdbk-change-password')); ?>'"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg><?php _e('Change Password', 'doctor-appointment'); ?></li>
             <?php endif; ?>
             <?php if (current_user_can('manage_options')) : ?>
             <li class="mdbk-menu-item <?php echo $active_page == 'patients' ? 'active' : ''; ?>" onclick="window.location.href='<?php echo esc_url(admin_url('admin.php?page=mdbk-patients')); ?>'"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg><?php _e('Patients', 'doctor-appointment'); ?></li>
