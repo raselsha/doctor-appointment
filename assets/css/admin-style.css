@@ -1113,6 +1113,11 @@ button.mdbk-mini-cal-nav-btn:hover { background: #f1f5f9; }
    stored field. */
 .mdbk-patient-row-directory { grid-template-columns: 50px minmax(140px, 200px) 150px minmax(180px, 1fr) minmax(160px, 1fr) 90px 46px 60px; }
 .mdbk-chip-address svg { color: #d97706; }
+
+/* Staff (front-desk) list — same row shell as the Patient Directory
+   above, but a WP user account has no address/age-gender/visit-count
+   fields, so its own simpler column set: ID, Name, Email, Phone, Actions. */
+.mdbk-staff-row { grid-template-columns: 50px minmax(160px, 220px) minmax(200px, 1fr) 160px 60px; }
 .mdbk-directory-list { max-height: calc(100vh - 260px); overflow-y: auto; }
 /* Column labels — sits outside the scrollable list (not its first row) so
    it stays put while the rows underneath scroll. Reuses the row's own

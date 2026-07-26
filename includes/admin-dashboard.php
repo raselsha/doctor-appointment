@@ -11,6 +11,7 @@ class MDBK_Admin_Dashboard {
         add_action('admin_init', [$this, 'handle_appointment_save']);
         add_action('admin_init', [$this, 'handle_specialty_save']);
         add_action('admin_init', [$this, 'handle_patient_save']);
+        add_action('admin_init', [$this, 'handle_staff_save']);
         add_action('admin_init', [$this, 'handle_delete_actions']);
         add_action('admin_init', [$this, 'handle_schedule_export']);
         add_action('admin_init', [$this, 'handle_change_password_save']);
@@ -89,40 +90,45 @@ class MDBK_Admin_Dashboard {
     }
 
     /**
-     * Sends a doctor straight to their own scoped "Booking" queue, and
+     * Sends a doctor straight to their own scoped "Booking" queue,
      * front-desk staff straight to the same page's all-doctors view (see
-     * render_schedule_page()'s doctor-only scoping), on login instead of
-     * the default wp-admin dashboard — for staff that dashboard would
-     * otherwise render WP's bare/mostly-empty core widgets, since a
-     * receptionist account has almost none of the capabilities those
-     * widgets check for. Bails on a failed login (don't redirect an
-     * error). WP's own login form always submits a non-empty
-     * `redirect_to` (confirmed: it defaults to bare admin_url()) — so
-     * "empty" is never actually the normal case, and treating any
-     * non-empty value as "explicitly requested" would silently disable
-     * this redirect for every ordinary login. Instead, only a value that
-     * differs from wp-admin's own generic defaults counts as a real deep
-     * link (e.g. someone returning to a specific bookmarked admin URL
-     * after a session timeout) and is left alone.
+     * render_schedule_page()'s doctor-only scoping), and a Manager
+     * straight to the full Dashboard (they have manage_options same as an
+     * administrator — see MDBK_Roles::activate() — so the Dashboard is
+     * meaningful for them, unlike for staff), on login instead of the
+     * default wp-admin dashboard — for a doctor/staff account that
+     * dashboard would otherwise render WP's bare/mostly-empty core
+     * widgets, since neither has most of the capabilities those widgets
+     * check for. Bails on a failed login (don't redirect an error). WP's
+     * own login form always submits a non-empty `redirect_to` (confirmed:
+     * it defaults to bare admin_url()) — so "empty" is never actually the
+     * normal case, and treating any non-empty value as "explicitly
+     * requested" would silently disable this redirect for every ordinary
+     * login. Instead, only a value that differs from wp-admin's own
+     * generic defaults counts as a real deep link (e.g. someone returning
+     * to a specific bookmarked admin URL after a session timeout) and is
+     * left alone.
      */
     public function doctor_login_redirect($redirect_to, $requested_redirect_to, $user) {
         if (is_wp_error($user) || !($user instanceof \WP_User)) {
             return $redirect_to;
         }
         $roles = (array) $user->roles;
-        if (!in_array('mdbk_doctor_role', $roles, true) && !in_array('mdbk_receptionist', $roles, true)) {
+        $is_manager = in_array('mdbk_manager_role', $roles, true);
+        $is_doctor_or_staff = in_array('mdbk_doctor_role', $roles, true) || in_array('mdbk_receptionist', $roles, true);
+        if (!$is_manager && !$is_doctor_or_staff) {
             return $redirect_to;
         }
         $generic_defaults = ['', 'wp-admin/', admin_url(), untrailingslashit(admin_url()) . '/'];
         if (!in_array($requested_redirect_to, $generic_defaults, true)) {
             return $redirect_to;
         }
-        return admin_url('admin.php?page=mdbk-schedule');
+        return admin_url($is_manager ? 'admin.php?page=mdbk-dashboard' : 'admin.php?page=mdbk-schedule');
     }
 
     public function ajax_toggle_doctor_active() {
         check_ajax_referer('mdbk_admin_nonce', 'nonce');
-        if (!current_user_can('manage_options')) wp_send_json_error(['message' => __('Unauthorized.', 'doctor-appointment')]);
+        if (!current_user_can(MDBK_CAP_ADMIN)) wp_send_json_error(['message' => __('Unauthorized.', 'doctor-appointment')]);
         $doctor_id = isset($_POST['doctor_id']) ? intval($_POST['doctor_id']) : 0;
         if (!$doctor_id || get_post_type($doctor_id) !== 'mdbk_doctor') wp_send_json_error(['message' => __('Invalid doctor.', 'doctor-appointment')]);
         $active = get_post_meta($doctor_id, '_mdbk_doctor_active', true) === 'no' ? 'yes' : 'no';
@@ -347,13 +353,21 @@ class MDBK_Admin_Dashboard {
         if (!isset($_GET['action'])) return;
         $id = isset($_GET['id']) ? intval($_GET['id']) : 0;
         if (!$id) return;
-        if (!current_user_can('manage_options')) wp_die(__('You do not have permission to do this.', 'doctor-appointment'));
+        if (!current_user_can(MDBK_CAP_ADMIN)) wp_die(__('You do not have permission to do this.', 'doctor-appointment'));
         check_admin_referer('mdbk_delete_action');
         $redirect = '';
         if ($_GET['action'] === 'mdbk_delete_doctor') { wp_delete_post($id, true); $redirect = admin_url('admin.php?page=mdbk-doctors&deleted=1'); }
         elseif ($_GET['action'] === 'mdbk_delete_appointment') { wp_delete_post($id, true); $redirect = admin_url('admin.php?page=mdbk-schedule&deleted=1'); }
         elseif ($_GET['action'] === 'mdbk_delete_specialty') { wp_delete_term($id, 'mdbk_department'); $redirect = admin_url('admin.php?page=mdbk-specialties&deleted=1'); }
         elseif ($_GET['action'] === 'mdbk_delete_patient') { wp_delete_post($id, true); $redirect = admin_url('admin.php?page=mdbk-patients&deleted=1'); }
+        elseif ($_GET['action'] === 'mdbk_delete_staff') {
+            // A WP user, not a post — needs wp-admin's own user-deletion
+            // helper (not autoloaded outside wp-admin/user-edit.php's own
+            // request) and a reassign target for anything they authored.
+            require_once ABSPATH . 'wp-admin/includes/user.php';
+            wp_delete_user($id, get_current_user_id());
+            $redirect = admin_url('admin.php?page=mdbk-staff&deleted=1');
+        }
         if ($redirect) { wp_redirect($redirect); exit; }
     }
 
@@ -361,7 +375,7 @@ class MDBK_Admin_Dashboard {
         if (!isset($_POST['mdbk_save_doctor'])) return;
 
         $doctor_id = !empty($_POST['doctor_id']) ? intval($_POST['doctor_id']) : 0;
-        $is_admin = current_user_can('manage_options');
+        $is_admin = current_user_can(MDBK_CAP_ADMIN);
 
         // A doctor (no manage_options) reaches this same form/handler via
         // their own Profile page's "Edit Profile" link (see
@@ -544,6 +558,98 @@ class MDBK_Admin_Dashboard {
         }
     }
 
+    /**
+     * Add/edit a staff account (Front Desk or Manager — see
+     * staff_role_choices()) — admin-only, mirrors handle_doctor_save()'s
+     * account-creation half (link_doctor_user()) but simpler: staff has
+     * no CPT of its own, just a WP user with one of those two roles, so
+     * this creates/updates that user directly rather than a linked post.
+     */
+    public function handle_staff_save() {
+        if (!isset($_POST['mdbk_save_staff'])) return;
+        if (!current_user_can(MDBK_CAP_ADMIN)) wp_die(__('You do not have permission to do this.', 'doctor-appointment'));
+        check_admin_referer('mdbk_save_staff');
+
+        $staff_id = !empty($_POST['staff_id']) ? intval($_POST['staff_id']) : 0;
+        $name = sanitize_text_field($_POST['staff_name'] ?? '');
+        $email = sanitize_email($_POST['staff_email'] ?? '');
+        $phone = sanitize_text_field($_POST['staff_phone'] ?? '');
+        $role_choices = self::staff_role_choices();
+        // Whitelisted against the exact two known role slugs — never trust
+        // a posted role string directly as a WP_User::set_role() argument,
+        // since that's effectively a privilege-escalation vector otherwise.
+        $role = isset($_POST['staff_role'], $role_choices[$_POST['staff_role']]) ? $_POST['staff_role'] : 'mdbk_receptionist';
+
+        if (!$name || !$email) {
+            wp_redirect(admin_url('admin.php?page=mdbk-staff&error=' . urlencode(__('Name and email are required.', 'doctor-appointment'))));
+            exit;
+        }
+
+        if ($staff_id) {
+            // Editing an existing staff account — must actually be one of
+            // ours (either role), never repurpose this form to rename an
+            // unrelated user.
+            $user = get_user_by('id', $staff_id);
+            if (!$user || !array_intersect(array_keys($role_choices), (array) $user->roles)) {
+                wp_die(__('You do not have permission to do this.', 'doctor-appointment'));
+            }
+            $existing_email_user = email_exists($email);
+            if ($existing_email_user && $existing_email_user != $staff_id) {
+                wp_redirect(admin_url('admin.php?page=mdbk-staff&error=' . urlencode(__('That email is already used by another account.', 'doctor-appointment'))));
+                exit;
+            }
+            wp_update_user(['ID' => $staff_id, 'display_name' => $name, 'user_email' => $email]);
+            // set_role() (not add_cap()) so switching Front Desk <-> Manager
+            // actually REPLACES the old role rather than leaving both
+            // granted at once.
+            $user->set_role($role);
+            update_user_meta($staff_id, '_mdbk_staff_phone', $phone);
+            wp_redirect(admin_url('admin.php?page=mdbk-staff&success=1'));
+            exit;
+        }
+
+        // New staff account. Same protective check as link_doctor_user() —
+        // reusing an email that already belongs to someone NOT already
+        // one of our two staff roles would silently hand an unrelated
+        // account (patient, subscriber, another admin) staff/manager
+        // access via a typo'd email.
+        $existing_user_id = email_exists($email);
+        if ($existing_user_id) {
+            $existing_user = get_user_by('id', $existing_user_id);
+            if (!array_intersect(array_keys($role_choices), (array) $existing_user->roles)) {
+                wp_redirect(admin_url('admin.php?page=mdbk-staff&error=' . urlencode(__('An account with this email already exists.', 'doctor-appointment'))));
+                exit;
+            }
+            // Already one of our staff roles under this email somehow
+            // (shouldn't normally happen via this form) — just update them
+            // instead of erroring.
+            wp_update_user(['ID' => $existing_user_id, 'display_name' => $name]);
+            $existing_user->set_role($role);
+            update_user_meta($existing_user_id, '_mdbk_staff_phone', $phone);
+            wp_redirect(admin_url('admin.php?page=mdbk-staff&success=1'));
+            exit;
+        }
+
+        $new_user_id = wp_insert_user([
+            'user_login' => self::generate_unique_username($email, 'mdbk_staff'),
+            'user_email' => $email,
+            'display_name' => $name,
+            'user_pass'  => wp_generate_password(20, true),
+            'role'       => $role,
+        ]);
+        if (is_wp_error($new_user_id)) {
+            wp_redirect(admin_url('admin.php?page=mdbk-staff&error=' . urlencode($new_user_id->get_error_message())));
+            exit;
+        }
+        update_user_meta($new_user_id, '_mdbk_staff_phone', $phone);
+        // WP core's standard "your account" email — a password-*reset*
+        // link, not a raw password, matching how a new doctor account is
+        // handed to them (link_doctor_user()).
+        wp_new_user_notification($new_user_id, null, 'user');
+        wp_redirect(admin_url('admin.php?page=mdbk-staff&success=1'));
+        exit;
+    }
+
     public function handle_appointment_save() {
         if (!isset($_POST['mdbk_save_appointment'])) return;
         if (!current_user_can(MDBK_CAP_QUEUE)) wp_die(__('You do not have permission to do this.', 'doctor-appointment'));
@@ -637,7 +743,7 @@ class MDBK_Admin_Dashboard {
 
     public function handle_specialty_save() {
         if (!isset($_POST['mdbk_save_specialty'])) return;
-        if (!current_user_can('manage_options')) wp_die(__('You do not have permission to do this.', 'doctor-appointment'));
+        if (!current_user_can(MDBK_CAP_ADMIN)) wp_die(__('You do not have permission to do this.', 'doctor-appointment'));
         check_admin_referer('mdbk_save_specialty');
         $term_id = !empty($_POST['term_id']) ? intval($_POST['term_id']) : 0;
         $name = sanitize_text_field($_POST['spec_name']);
@@ -674,7 +780,7 @@ class MDBK_Admin_Dashboard {
         // and the custom sidebar's own links still target
         // 'mdbk-dashboard'/'mdbk-schedule' directly, unaffected by any of this.
         add_menu_page('MedBook', 'MedBook', MDBK_CAP_DOCTOR, 'mdbk-home', [$this, 'render_medbook_home'], 'dashicons-plus-alt', 25);
-        add_submenu_page('mdbk-home', 'Dashboard', 'Dashboard', 'manage_options', 'mdbk-dashboard', [$this, 'render_dashboard']);
+        add_submenu_page('mdbk-home', 'Dashboard', 'Dashboard', MDBK_CAP_ADMIN, 'mdbk-dashboard', [$this, 'render_dashboard']);
         // 'read' (not MDBK_CAP_DOCTOR alone) — front-desk staff gets its own
         // account Profile + Change Password too now, same as a doctor;
         // render_profile_page()/render_change_password_page() do their own
@@ -702,8 +808,8 @@ class MDBK_Admin_Dashboard {
         // staff manages the patient registry too, not just admin.
         add_submenu_page('mdbk-home', 'Patients', 'Patients', MDBK_CAP_QUEUE, 'mdbk-patients', [$this, 'render_patients_page']);
 
-        $hidden_pages = ['mdbk-doctors' => 'render_doctors_page', 'mdbk-specialties' => 'render_specialties_page'];
-        foreach($hidden_pages as $slug => $cb) add_submenu_page('mdbk-home', $slug, $slug, 'manage_options', $slug, [$this, $cb]);
+        $hidden_pages = ['mdbk-doctors' => 'render_doctors_page', 'mdbk-staff' => 'render_staff_page', 'mdbk-specialties' => 'render_specialties_page'];
+        foreach($hidden_pages as $slug => $cb) add_submenu_page('mdbk-home', $slug, $slug, MDBK_CAP_ADMIN, $slug, [$this, $cb]);
 
         // "Chamber QR" — a one-time "print this and hang it in the
         // chamber" view per doctor, reached via a link on the Doctors
@@ -737,6 +843,12 @@ class MDBK_Admin_Dashboard {
      * sync about who gets the immersive, WP-chrome-free treatment.
      */
     private function is_restricted_panel_user() {
+        // A Manager (mdbk_manager_role) has MDBK_CAP_ADMIN — full access
+        // to this plugin's own panel — but deliberately NOT real
+        // 'manage_options' (see MDBK_Roles::activate()), so this
+        // capability-only check already correctly includes them without
+        // needing a role-name special-case: a real administrator is the
+        // only account excluded here.
         return (current_user_can(MDBK_CAP_DOCTOR) || current_user_can(MDBK_CAP_QUEUE)) && !current_user_can('manage_options');
     }
 
@@ -764,7 +876,7 @@ class MDBK_Admin_Dashboard {
      * sidebar (render_sidebar()).
      */
     public function render_medbook_home() {
-        if (current_user_can('manage_options')) {
+        if (current_user_can(MDBK_CAP_ADMIN)) {
             $this->render_dashboard();
         } else {
             $this->render_schedule_page();
@@ -1026,7 +1138,7 @@ class MDBK_Admin_Dashboard {
                 // administrative controls (active toggle, delete) stay admin-only
                 // there; View + Edit remain so a doctor can see and update their
                 // own info via the same modal admin uses. ?>
-                <?php if (current_user_can('manage_options')) : ?>
+                <?php if (current_user_can(MDBK_CAP_ADMIN)) : ?>
                 <div class="mdbk-admin-doctor-card-status">
                     <label class="mdbk-toggle mdbk-admin-doctor-active-toggle">
                         <input type="checkbox" <?php checked($active); ?>>
@@ -1047,7 +1159,7 @@ class MDBK_Admin_Dashboard {
                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect><line x1="14" y1="14" x2="14" y2="21"></line><line x1="21" y1="14" x2="21" y2="21"></line><line x1="14" y1="21" x2="21" y2="21"></line></svg>
                     </a>
                     <?php endif; ?>
-                    <?php if (current_user_can('manage_options')) : ?>
+                    <?php if (current_user_can(MDBK_CAP_ADMIN)) : ?>
                     <a href="<?php echo esc_url(wp_nonce_url(admin_url('admin.php?page=mdbk-doctors&action=mdbk_delete_doctor&id=' . $d->ID), 'mdbk_delete_action')); ?>" class="mdbk-icon-btn mdbk-icon-btn-danger" title="<?php esc_attr_e('Delete', 'doctor-appointment'); ?>" onclick="return confirm('<?php echo esc_js(__('Delete this doctor?', 'doctor-appointment')); ?>')">
                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path></svg>
                     </a>
@@ -1183,7 +1295,7 @@ class MDBK_Admin_Dashboard {
             <?php endif; ?>
             <div class="mdbk-actions">
                 <a href="#" class="mdbk-action-btn mdbk-edit-appointment" data-id="<?php echo esc_attr($a->ID); ?>"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"></path><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"></path></svg></a>
-                <?php if (current_user_can('manage_options')) : ?>
+                <?php if (current_user_can(MDBK_CAP_ADMIN)) : ?>
                 <a href="<?php echo esc_url(wp_nonce_url(admin_url('admin.php?page=mdbk-schedule&action=mdbk_delete_appointment&id='.$a->ID), 'mdbk_delete_action')); ?>" class="mdbk-action-btn mdbk-action-btn-red" onclick="return confirm('<?php esc_attr_e('Delete?', 'doctor-appointment'); ?>')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path></svg></a>
                 <?php endif; ?>
             </div>
@@ -1639,14 +1751,18 @@ class MDBK_Admin_Dashboard {
         <div id="mdbk-admin-dashboard"><div class="mdbk-admin-wrapper"><?php $this->render_sidebar('profile'); ?>
             <div class="mdbk-main-content">
                 <div class="mdbk-header"><div class="mdbk-header-left"><h1><?php _e('My Profile', 'doctor-appointment'); ?></h1></div></div>
-                <?php if (!$doctor && current_user_can(MDBK_CAP_QUEUE)): $current_user = wp_get_current_user(); ?>
+                <?php if (!$doctor && current_user_can(MDBK_CAP_QUEUE)):
+                    $current_user = wp_get_current_user();
+                    $is_manager = in_array('mdbk_manager_role', (array) $current_user->roles, true);
+                    $role_label = $is_manager ? __('MANAGER', 'doctor-appointment') : __('FRONT DESK STAFF', 'doctor-appointment');
+                ?>
                     <div class="mdbk-card mdbk-profile-view" style="padding:24px;">
                         <div class="mdbk-view-top-row">
                             <div class="mdbk-view-hero">
                                 <div class="mdbk-view-avatar"><?php echo esc_html(self::initials($current_user->display_name)); ?></div>
                                 <div class="mdbk-view-hero-info">
                                     <h3><?php echo esc_html($current_user->display_name); ?></h3>
-                                    <span class="mdbk-admin-doctor-card-specialty" style="background:#ede9fe;color:#6d28d9;"><?php esc_html_e('FRONT DESK STAFF', 'doctor-appointment'); ?></span>
+                                    <span class="mdbk-admin-doctor-card-specialty" style="background:#ede9fe;color:#6d28d9;"><?php echo esc_html($role_label); ?></span>
                                 </div>
                             </div>
                             <div class="mdbk-view-col">
@@ -2293,6 +2409,110 @@ class MDBK_Admin_Dashboard {
         <?php
     }
 
+    // One row in the Staff list — a WP user account (mdbk_receptionist
+    // role), not a CPT post, so $s is a WP_User here, and "delete" means
+    // wp_delete_user() (see handle_delete_actions()) rather than
+    // wp_delete_post().
+    // Role select's two allowed values — single source of truth shared by
+    // the modal's <option>s, the row's badge/data-role, and
+    // handle_staff_save()'s whitelist validation, so a new role option
+    // can never be added in one place and missed in another.
+    private static function staff_role_choices() {
+        return [
+            'mdbk_receptionist' => __('Front Desk', 'doctor-appointment'),
+            'mdbk_manager_role' => __('Manager', 'doctor-appointment'),
+        ];
+    }
+
+    private function render_staff_row($s) {
+        $phone = get_user_meta($s->ID, '_mdbk_staff_phone', true);
+        $role_choices = self::staff_role_choices();
+        $role = in_array('mdbk_manager_role', (array) $s->roles, true) ? 'mdbk_manager_role' : 'mdbk_receptionist';
+        $role_label = $role_choices[$role];
+        ob_start();
+        ?>
+        <div class="mdbk-patient-row mdbk-staff-row" data-id="<?php echo esc_attr($s->ID); ?>" data-name="<?php echo esc_attr($s->display_name); ?>" data-email="<?php echo esc_attr($s->user_email); ?>" data-phone="<?php echo esc_attr($phone); ?>" data-role="<?php echo esc_attr($role); ?>">
+            <span class="mdbk-patient-row-ticket-slot"><span class="mdbk-patient-row-ticket mdbk-patient-row-pid" title="<?php esc_attr_e('User ID', 'doctor-appointment'); ?>">U<?php echo esc_html($s->ID); ?></span></span>
+            <span class="mdbk-patient-row-name"><?php echo esc_html($s->display_name); ?></span>
+            <span class="mdbk-patient-row-chip-slot"><span class="mdbk-patient-row-chip mdbk-chip-email"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 6l-10 7L2 6"></path><path d="M2 6h20v12H2z"></path></svg> <?php echo esc_html($s->user_email); ?></span></span>
+            <span class="mdbk-patient-row-chip-slot"><?php if ($phone): ?><span class="mdbk-patient-row-chip mdbk-chip-phone"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.12.9.34 1.79.66 2.64a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.44-1.44a2 2 0 0 1 2.11-.45c.85.32 1.74.54 2.64.66A2 2 0 0 1 22 16.92z"></path></svg> <?php echo esc_html($phone); ?></span><?php endif; ?></span>
+            <span class="mdbk-badge <?php echo $role === 'mdbk_manager_role' ? 'mdbk-badge-status-serving' : 'mdbk-badge-status-waiting'; ?>"><?php echo esc_html($role_label); ?></span>
+            <div class="mdbk-actions">
+                <a href="#" class="mdbk-action-btn mdbk-edit-staff" data-id="<?php echo esc_attr($s->ID); ?>"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"></path><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"></path></svg></a>
+                <a href="<?php echo esc_url(wp_nonce_url(admin_url('admin.php?page=mdbk-staff&action=mdbk_delete_staff&id=' . $s->ID), 'mdbk_delete_action')); ?>" class="mdbk-action-btn mdbk-action-btn-red" onclick="return confirm('<?php echo esc_js(__('Remove this staff account?', 'doctor-appointment')); ?>')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path></svg></a>
+            </div>
+        </div>
+        <?php
+        return ob_get_clean();
+    }
+
+    /**
+     * Staff management — the "Staff" equivalent of the Doctors grid,
+     * admin-only. Much simpler than a doctor: no CPT, no
+     * photo/specialty/schedule — just a WP user account with either the
+     * mdbk_receptionist ("Front Desk") or mdbk_manager_role ("Manager")
+     * role (see handle_staff_save()), so this is a plain list rather than
+     * the Doctors page's card grid. A Manager gets the same immersive
+     * panel as front-desk staff but with full administrator-equivalent
+     * capabilities — see MDBK_Roles::activate() and
+     * is_restricted_panel_user().
+     */
+    public function render_staff_page() {
+        $error = isset($_GET['error']) ? sanitize_text_field(wp_unslash($_GET['error'])) : '';
+        $staff = get_users(['role__in' => array_keys(self::staff_role_choices()), 'orderby' => 'display_name', 'order' => 'ASC']);
+        ?>
+        <div id="mdbk-admin-dashboard"><div class="mdbk-admin-wrapper"><?php $this->render_sidebar('staff'); ?>
+            <div class="mdbk-main-content">
+                <div class="mdbk-header"><div class="mdbk-header-left"><h1><?php _e('Staff', 'doctor-appointment'); ?></h1><p><?php echo esc_html(sprintf(_n('%d staff account', '%d staff accounts', count($staff), 'doctor-appointment'), count($staff))); ?></p></div><a href="#" class="mdbk-btn-add mdbk-add-staff"><?php _e('+ Add Staff', 'doctor-appointment'); ?></a></div>
+                <?php if ($error) : ?>
+                    <p style="color:#ef4444; font-weight:600;"><?php echo esc_html($error); ?></p>
+                <?php endif; ?>
+                <?php if (empty($staff)): ?>
+                    <div class="mdbk-card"><table class="mdbk-table"><tbody><tr><td style="text-align:center; padding:40px; opacity:0.6;"><?php _e('No staff accounts yet.', 'doctor-appointment'); ?></td></tr></tbody></table></div>
+                <?php else: ?>
+                    <div class="mdbk-card">
+                        <div class="mdbk-patient-list">
+                        <?php foreach ($staff as $s) echo $this->render_staff_row($s); ?>
+                        </div>
+                    </div>
+                <?php endif; ?>
+            </div></div><?php $this->render_staff_modal_html(); ?></div>
+        <?php
+    }
+
+    private function render_staff_modal_html() { ?>
+        <div id="mdbk-staff-modal" class="mdbk-modal mdbk-modal-compact"><div class="mdbk-modal-content">
+            <div class="mdbk-modal-head"><h2 id="mdbk-staff-modal-title"><?php _e('Add Staff', 'doctor-appointment'); ?></h2><span class="mdbk-modal-close">&times;</span></div>
+            <form id="mdbk-staff-form" method="POST"><?php wp_nonce_field('mdbk_save_staff'); ?><input type="hidden" name="staff_id" id="mdbk-staff-id">
+            <div class="mdbk-modal-body">
+                <div class="mdbk-form-row">
+                    <label class="mdbk-form-label" for="mdbk-staff-name"><?php _e('Full Name', 'doctor-appointment'); ?> *</label>
+                    <input type="text" name="staff_name" id="mdbk-staff-name" required>
+                </div>
+                <div class="mdbk-form-row mdbk-form-row-duo">
+                    <div><label class="mdbk-form-label" for="mdbk-staff-email"><?php _e('Email', 'doctor-appointment'); ?> *</label><input type="email" name="staff_email" id="mdbk-staff-email" required></div>
+                    <div><label class="mdbk-form-label" for="mdbk-staff-phone"><?php _e('Phone', 'doctor-appointment'); ?></label><input type="text" name="staff_phone" id="mdbk-staff-phone"></div>
+                </div>
+                <div class="mdbk-form-row">
+                    <label class="mdbk-form-label" for="mdbk-staff-role"><?php _e('Role', 'doctor-appointment'); ?></label>
+                    <select name="staff_role" id="mdbk-staff-role">
+                        <?php foreach (self::staff_role_choices() as $value => $label): ?>
+                        <option value="<?php echo esc_attr($value); ?>"><?php echo esc_html($label); ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                    <p class="mdbk-form-hint"><?php _e('Front Desk: Booking + Patients panel only. Manager: same panel, but full admin-level access to everything (Doctors, Staff, Specialties, Dashboard, Settings).', 'doctor-appointment'); ?></p>
+                </div>
+                <p class="mdbk-form-hint"><?php _e('A new account gets an email with a link to set their own password.', 'doctor-appointment'); ?></p>
+            </div>
+            <div class="mdbk-modal-foot">
+                <button type="button" class="mdbk-btn-outline mdbk-modal-cancel"><?php _e('Cancel', 'doctor-appointment'); ?></button>
+                <button type="submit" name="mdbk_save_staff" class="mdbk-btn-save"><?php _e('Save Staff', 'doctor-appointment'); ?></button>
+            </div>
+            </form>
+        </div></div>
+        <?php
+    }
+
     public function render_specialties_page() {
         $terms = get_terms(['taxonomy' => 'mdbk_department', 'hide_empty' => false]);
         ?>
@@ -2309,9 +2529,10 @@ class MDBK_Admin_Dashboard {
     private function render_sidebar($active_page) {
         ?>
         <div class="mdbk-sidebar"><div class="mdbk-sidebar-logo">MedBook</div><ul class="mdbk-sidebar-menu">
-            <?php if (current_user_can('manage_options')) : ?>
+            <?php if (current_user_can(MDBK_CAP_ADMIN)) : ?>
             <li class="mdbk-menu-item <?php echo $active_page == 'dashboard' ? 'active' : ''; ?>" onclick="window.location.href='<?php echo esc_url(admin_url('admin.php?page=mdbk-dashboard')); ?>'"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg><?php _e('Dashboard', 'doctor-appointment'); ?></li>
             <li class="mdbk-menu-item <?php echo $active_page == 'doctors' ? 'active' : ''; ?>" onclick="window.location.href='<?php echo esc_url(admin_url('admin.php?page=mdbk-doctors')); ?>'"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.5 21a8.5 8.5 0 0 0-17 0"></path><circle cx="12" cy="7.5" r="4.5"></circle></svg><?php _e('Doctors', 'doctor-appointment'); ?></li>
+            <li class="mdbk-menu-item <?php echo $active_page == 'staff' ? 'active' : ''; ?>" onclick="window.location.href='<?php echo esc_url(admin_url('admin.php?page=mdbk-staff')); ?>'"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg><?php _e('Staff', 'doctor-appointment'); ?></li>
             <?php endif; ?>
             <?php // Booking — the main operational page for both a doctor
             // (their own patients only, auto-scoped) and front-desk staff
@@ -2336,7 +2557,7 @@ class MDBK_Admin_Dashboard {
             <li class="mdbk-menu-item <?php echo $active_page == 'profile' ? 'active' : ''; ?>" onclick="window.location.href='<?php echo esc_url(admin_url('admin.php?page=mdbk-profile')); ?>'"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg><?php _e('Profile', 'doctor-appointment'); ?></li>
             <li class="mdbk-menu-item <?php echo $active_page == 'change-password' ? 'active' : ''; ?>" onclick="window.location.href='<?php echo esc_url(admin_url('admin.php?page=mdbk-change-password')); ?>'"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg><?php _e('Change Password', 'doctor-appointment'); ?></li>
             <?php endif; ?>
-            <?php if (current_user_can('manage_options')) : ?>
+            <?php if (current_user_can(MDBK_CAP_ADMIN)) : ?>
             <li class="mdbk-menu-item <?php echo $active_page == 'specialties' ? 'active' : ''; ?>" onclick="window.location.href='<?php echo esc_url(admin_url('admin.php?page=mdbk-specialties')); ?>'"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41L13.42 20.58a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path><line x1="7" y1="7" x2="7.01" y2="7"></line></svg><?php _e('Specialties', 'doctor-appointment'); ?></li>
             <li class="mdbk-menu-item"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg><?php _e('Global Settings', 'doctor-appointment'); ?></li>
             <?php endif; ?>

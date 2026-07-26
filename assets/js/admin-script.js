@@ -26,10 +26,24 @@ document.addEventListener('DOMContentLoaded', function() {
                 modal.style.display = 'flex';
                 if (this.classList.contains(editClass)) {
                     populateFn(this.dataset.id, this);
-                } else {
+                } else if (form) {
+                    // form.reset() alone already correctly restores every
+                    // field to its original page-load value — including
+                    // the ID hidden field (back to empty, since it has no
+                    // `value` attribute) AND the nonce field (back to its
+                    // valid freshly-rendered value). A prior version of
+                    // this also did `form.querySelector('input[type="hidden"]').value = ''`
+                    // to explicitly blank the ID field, but wp_nonce_field()
+                    // always renders its OWN hidden inputs (_wpnonce,
+                    // _wp_http_referer) before the ID field in every one of
+                    // this plugin's modals — so that querySelector matched
+                    // the NONCE field instead (the first hidden input in
+                    // DOM order) and blanked it, silently breaking every
+                    // "Add New X" submission with a "link expired" nonce
+                    // failure. Removed rather than fixed-to-target-the-
+                    // right-field, since form.reset() already made it
+                    // redundant regardless.
                     form.reset();
-                    const idInput = form.querySelector('input[type="hidden"]');
-                    if (idInput) idInput.value = '';
                 }
             });
         });
@@ -456,6 +470,36 @@ document.addEventListener('DOMContentLoaded', function() {
     if (patientModalCancel) {
         patientModalCancel.addEventListener('click', function() {
             document.getElementById('mdbk-patient-modal').style.display = 'none';
+        });
+    }
+
+    // Staff (front-desk) accounts — a WP user, not a post, but the same
+    // Add/Edit modal pattern as Patient/Doctor above.
+    initModal('mdbk-staff-modal', '.mdbk-add-staff, .mdbk-edit-staff', 'mdbk-staff-form', 'mdbk-edit-staff', (id, btn) => {
+        document.getElementById('mdbk-staff-id').value = id;
+        const title = document.getElementById('mdbk-staff-modal-title');
+        if (title) title.textContent = 'Edit Staff';
+        const row = btn.closest('.mdbk-staff-row');
+        if (row) {
+            document.getElementById('mdbk-staff-name').value = row.dataset.name;
+            document.getElementById('mdbk-staff-email').value = row.dataset.email;
+            document.getElementById('mdbk-staff-phone').value = row.dataset.phone;
+            const roleSelect = document.getElementById('mdbk-staff-role');
+            if (roleSelect && row.dataset.role) roleSelect.value = row.dataset.role;
+        }
+    });
+    document.querySelectorAll('.mdbk-add-staff').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            const title = document.getElementById('mdbk-staff-modal-title');
+            if (title) title.textContent = 'Add Staff';
+            const roleSelect = document.getElementById('mdbk-staff-role');
+            if (roleSelect) roleSelect.value = 'mdbk_receptionist';
+        });
+    });
+    const staffModalCancel = document.querySelector('#mdbk-staff-modal .mdbk-modal-cancel');
+    if (staffModalCancel) {
+        staffModalCancel.addEventListener('click', function() {
+            document.getElementById('mdbk-staff-modal').style.display = 'none';
         });
     }
 

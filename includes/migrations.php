@@ -8,7 +8,7 @@ defined('ABSPATH') || exit;
 
 class MDBK_Migrations {
 
-    const DB_VERSION = 5;
+    const DB_VERSION = 7;
 
     /**
      * Run pending migrations, gated on mdbk_db_version. This is the only
@@ -47,6 +47,24 @@ class MDBK_Migrations {
             // Grants mdbk_doctor_role the 'upload_files' capability (their
             // own Profile page's photo picker needs it) — same idempotent
             // re-run as above.
+            MDBK_Roles::activate();
+        }
+
+        if ($current < 6) {
+            // Adds the "Manager" role (administrator-equivalent
+            // capabilities, immersive panel UI) — same idempotent re-run.
+            MDBK_Roles::activate();
+        }
+
+        if ($current < 7) {
+            // Rescopes "Manager" from literal administrator-equivalent
+            // capabilities (including real manage_options) down to just
+            // MDBK_CAP_ADMIN — full access to this plugin's own panel,
+            // nothing native-WP-admin beyond it. MDBK_Roles::activate()
+            // itself detects and strips the old over-broad grant before
+            // re-adding the scoped one, so this is safe to re-run even on
+            // a site where a Manager account was already created under
+            // the old (too-broad) definition.
             MDBK_Roles::activate();
         }
 

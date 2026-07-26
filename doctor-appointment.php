@@ -3,7 +3,7 @@
  * Plugin Name: Doctor Appointment Booking
  * Plugin URI: https://wordpress.org/plugins/doctor-appointment
  * Description: Create doctor appointment booking forms for clinics, hospitals, and medical centers with an easy scheduling system.
- * Version: 1.1.0
+ * Version: 1.2.0
  * Stable Tag: trunk
  * Requires at least: 5.0
  * Requires PHP: 7.2
@@ -55,9 +55,20 @@ if ( ! class_exists( 'MDBK_Doctor_Appointment' ) ) {
 
             define( 'MDBK_PATH', plugin_dir_path( __FILE__ ) );
             define( 'MDBK_URL', plugin_dir_url( __FILE__ ) );
-            define( 'MDBK_VERSION', '1.1.0' );
+            define( 'MDBK_VERSION', '1.2.0' );
             define( 'MDBK_CAP_QUEUE', 'manage_mdbk_queue' );
             define( 'MDBK_CAP_DOCTOR', 'view_own_mdbk_queue' );
+            // Everything this plugin's own admin-only pages/actions check
+            // internally (Dashboard, Doctors, Staff, Specialties, delete
+            // actions, etc.) — deliberately a SEPARATE capability from core
+            // WordPress's own 'manage_options', not an alias for it, so
+            // MDBK_Roles::activate() can grant this to the Manager role
+            // WITHOUT also granting them 'manage_options' itself (which
+            // would additionally open every native wp-admin area — Plugins,
+            // Themes, Settings, Users — 'manage_options' is checked
+            // directly by that core code, which this plugin has no way to
+            // intercept/redefine). An administrator gets both.
+            define( 'MDBK_CAP_ADMIN', 'manage_mdbk_clinic' );
         }
 
         /**
