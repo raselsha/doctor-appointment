@@ -833,8 +833,11 @@ class MDBK_Shortcode {
         // of ticket number — a plain ticket-order sort could otherwise show
         // an earlier-numbered still-waiting patient above the one actually
         // in the room. Only one appointment is ever mdbk_serving per
-        // doctor+date (enforced by promote_next_checked_in_patient()), so
-        // this is a single stable partition, not a general-purpose sort.
+        // doctor+date (enforced independently by each queue-advance action
+        // — ajax_queue_call_next()/ajax_queue_set_status() below, and
+        // MDBK_Appointment_Manager::start_visiting() on the admin
+        // "Patients" page), so this is a single stable partition, not a
+        // general-purpose sort.
         usort($patients, function($a, $b) {
             $a_rank = $a->post_status === 'mdbk_serving' ? 0 : 1;
             $b_rank = $b->post_status === 'mdbk_serving' ? 0 : 1;
@@ -1080,10 +1083,8 @@ class MDBK_Shortcode {
         }
 
         // Excludes anyone currently Skipped (stepped away — see the Skip
-        // toggle on each waiting card) the same way
-        // MDBK_Appointment_Manager::promote_next_checked_in_patient() does
-        // for the automatic advance — otherwise "Call Next Patient" could
-        // call someone who isn't actually in the room right now.
+        // toggle on each waiting card) — otherwise "Call Next Patient"
+        // could call someone who isn't actually in the room right now.
         $waiting = get_posts(['post_type' => 'mdbk_appointment', 'post_status' => ['mdbk_waiting'], 'meta_query' => array_merge($meta_query, [['key' => '_mdbk_skipped', 'compare' => 'NOT EXISTS']]), 'meta_key' => '_mdbk_slot_time', 'orderby' => 'meta_value', 'order' => 'ASC', 'numberposts' => 1]);
         if (!$waiting) {
             wp_send_json_error(__('No patients waiting.', 'doctor-appointment'));
@@ -1125,8 +1126,8 @@ class MDBK_Shortcode {
     /**
      * AJAX: toggle a checked-in waiting patient's "Skip" flag — for a
      * patient who stepped away (toilet, phone call) after checking in.
-     * While skipped, MDBK_Appointment_Manager::promote_next_checked_in_patient()
-     * won't auto-advance them, but they keep their ticket/place in the
+     * While skipped, they're excluded from "Call Next Patient"'s
+     * candidate query above, but they keep their ticket/place in the
      * list; staff can still serve them directly any time via "Visit Now",
      * which isn't gated on this flag at all. Same public/kiosk trust model
      * as the other queue actions (nonce + nopriv, no current_user_can()).

@@ -609,19 +609,21 @@ class MDBK_Appointment_Manager {
 
     /**
      * Shared low-level check-in mutation — the one place that sets
-     * _mdbk_checked_in/_mdbk_checkin_time and triggers auto-advance, so the
-     * kiosk QR-scan check-in (ajax_verify_checkin), the staff Bookings-page
-     * button (MDBK_Admin_Dashboard::ajax_admin_checkin), and the doctor's-
-     * chamber phone-lookup check-in (ajax_chamber_checkin) can never drift
-     * out of sync on what's allowed to be checked in. Returns true on
-     * success, or a translated error message string when rejected.
+     * _mdbk_checked_in/_mdbk_checkin_time, so the kiosk QR-scan check-in
+     * (ajax_verify_checkin), the staff Bookings-page button
+     * (MDBK_Admin_Dashboard::ajax_admin_checkin), and the doctor's-chamber
+     * phone-lookup check-in (ajax_chamber_checkin) can never drift out of
+     * sync on what's allowed to be checked in. Returns true on success, or
+     * a translated error message string when rejected.
      *
-     * The same-day requirement doesn't exist on the old inline kiosk logic
-     * this replaces, but is enforced here for all three entry points: a
-     * future-dated appointment checked in early would let
-     * promote_next_checked_in_patient() (which only looks at the flag, not
-     * who set it or when) advance them to "Visiting" before they've
-     * actually arrived.
+     * Deliberately does NOT auto-promote anyone to "serving" — checking in
+     * only ever means "this patient has arrived and is waiting"; becoming
+     * "Visiting" is a separate, explicit action a doctor/staff member takes
+     * via start_visiting() (or the kiosk's own "Call Next Patient"/"Visit
+     * Now"). A patient staying in Waiting right after check-in, even when
+     * they're the only one in the queue, is the intended behavior — not a
+     * bug — so a single-patient day never skips straight to "Visiting"
+     * without someone deciding that.
      */
     public static function mark_checked_in($appointment_id) {
         $appointment_id = intval($appointment_id);
@@ -638,11 +640,52 @@ class MDBK_Appointment_Manager {
         update_post_meta($appointment_id, '_mdbk_checked_in', 'yes');
         update_post_meta($appointment_id, '_mdbk_checkin_time', current_time('timestamp'));
 
-        $doctor_id = intval(get_post_meta($appointment_id, '_mdbk_doctor_id', true));
-        if ($doctor_id) {
-            self::promote_next_checked_in_patient($doctor_id);
+        return true;
+    }
+
+    /**
+     * Explicit "Start Visiting" — the ONLY way a checked-in waiting
+     * patient becomes "serving" (Visiting) on the admin Patients page;
+     * there is no automatic advance anymore (see mark_checked_in()'s
+     * comment) — a doctor/staff member must always deliberately choose
+     * who's being seen next, even when there's only one patient checked
+     * in. Does NOT enforce ticket order — the doctor may have a reason
+     * (urgency) to see someone out of turn — but it does enforce "only one
+     * serving patient per doctor at a time", returned as a translated
+     * error string rather than silently no-op'ing.
+     */
+    public static function start_visiting($appointment_id) {
+        $appointment_id = intval($appointment_id);
+        if (!$appointment_id || get_post_type($appointment_id) !== 'mdbk_appointment') {
+            return __('Invalid appointment.', 'doctor-appointment');
+        }
+        if (get_post_status($appointment_id) !== 'mdbk_waiting') {
+            return __('Only a waiting patient can be started.', 'doctor-appointment');
+        }
+        if (get_post_meta($appointment_id, '_mdbk_checked_in', true) !== 'yes') {
+            return __('This patient has not checked in yet.', 'doctor-appointment');
+        }
+        if (get_post_meta($appointment_id, '_mdbk_appointment_date', true) !== current_time('Y-m-d')) {
+            return __('This booking is not for today.', 'doctor-appointment');
         }
 
+        $doctor_id = intval(get_post_meta($appointment_id, '_mdbk_doctor_id', true));
+        $already_serving = get_posts([
+            'post_type'   => 'mdbk_appointment',
+            'post_status' => ['mdbk_serving'],
+            'numberposts' => 1,
+            'fields'      => 'ids',
+            'meta_query'  => [
+                'relation' => 'AND',
+                ['key' => '_mdbk_appointment_date', 'value' => current_time('Y-m-d')],
+                ['key' => '_mdbk_doctor_id', 'value' => $doctor_id],
+            ],
+        ]);
+        if ($already_serving) {
+            return __('Another patient is already being seen — mark them visited first.', 'doctor-appointment');
+        }
+
+        wp_update_post(['ID' => $appointment_id, 'post_status' => 'mdbk_serving']);
         return true;
     }
 
@@ -685,7 +728,7 @@ class MDBK_Appointment_Manager {
      * The mdbk_doctor post ID linked to a WP user (via _mdbk_doctor_user_id,
      * set by MDBK_Admin_Dashboard::link_doctor_user()), or 0 if that user
      * isn't linked to any doctor — e.g. an administrator previewing the
-     * restricted "My Queue" page, or a stray login. Shared by the doctor
+     * restricted Booking queue, or a stray login. Shared by the doctor
      * dashboard page and the mdbk_mark_visited AJAX ownership check so
      * both use the exact same reverse-lookup.
      */
@@ -702,61 +745,6 @@ class MDBK_Appointment_Manager {
         return $found ? intval($found[0]) : 0;
     }
 
-    /**
-     * Auto-advances one doctor's today's queue: if nobody is currently
-     * mdbk_serving, promotes the earliest-ticket mdbk_waiting appointment
-     * that has actually checked in (_mdbk_checked_in = 'yes') into that
-     * status. A patient who hasn't checked in isn't in the room yet, so
-     * they're skipped even if their ticket number is earlier — matches
-     * "Mark as Visited" only being offered for checked-in patients (see
-     * MDBK_Admin_Dashboard::render_my_queue_patient_row()). Called both
-     * after a doctor marks someone visited (ajax_mark_visited()) and right
-     * after a patient checks in via QR (ajax_verify_checkin()) — either
-     * event can be the moment nobody's left "Visiting".
-     *
-     * A checked-in patient temporarily marked _mdbk_skipped ("stepped out
-     * — toilet, phone call, etc.", set via the kiosk's Skip toggle — see
-     * MDBK_Shortcode::ajax_queue_toggle_skip()) is excluded here too, even
-     * though they're checked in — otherwise auto-advance would call
-     * someone who isn't actually in the room. They keep their ticket/place
-     * in the list; staff can still serve them directly any time via
-     * "Visit Now", or clear the flag via "Recall" to rejoin auto-advance.
-     */
-    public static function promote_next_checked_in_patient($doctor_id) {
-        $date = current_time('Y-m-d');
-        $meta_query = [
-            'relation' => 'AND',
-            ['key' => '_mdbk_appointment_date', 'value' => $date],
-            ['key' => '_mdbk_doctor_id', 'value' => $doctor_id],
-        ];
-
-        $already_serving = get_posts([
-            'post_type'   => 'mdbk_appointment',
-            'post_status' => ['mdbk_serving'],
-            'meta_query'  => $meta_query,
-            'numberposts' => 1,
-            'fields'      => 'ids',
-        ]);
-        if ($already_serving) {
-            return;
-        }
-
-        $next = get_posts([
-            'post_type'   => 'mdbk_appointment',
-            'post_status' => ['mdbk_waiting'],
-            'meta_query'  => array_merge($meta_query, [
-                ['key' => '_mdbk_checked_in', 'value' => 'yes'],
-                ['key' => '_mdbk_skipped', 'compare' => 'NOT EXISTS'],
-            ]),
-            'meta_key'    => '_mdbk_ticket_number',
-            'orderby'     => 'meta_value_num',
-            'order'       => 'ASC',
-            'numberposts' => 1,
-        ]);
-        if ($next) {
-            wp_update_post(['ID' => $next[0]->ID, 'post_status' => 'mdbk_serving']);
-        }
-    }
 
     /**
      * "Q01"-style display format for a raw ticket number — was inlined

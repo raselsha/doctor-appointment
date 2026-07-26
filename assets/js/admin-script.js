@@ -231,9 +231,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
     initModal('mdbk-doctor-modal', '.mdbk-add-doctor, .mdbk-edit-doctor', 'mdbk-doctor-form', 'mdbk-edit-doctor', (id, btn) => {
         document.getElementById('mdbk-doctor-id').value = id;
-        // .mdbk-profile-view: the doctor's own "Profile" page (My Queue's
-        // sidebar) — a real page, not a grid card, but carries the same
-        // data-* attributes purely so this populate step works unchanged.
+        // .mdbk-profile-view: the doctor's own "Profile" page (reached
+        // from the sidebar) — a real page, not a grid card, but carries
+        // the same data-* attributes purely so this populate step works
+        // unchanged.
         const row = btn.closest('tr, .mdbk-admin-doctor-card, .mdbk-profile-view');
         const title = document.getElementById('mdbk-doctor-modal-title');
         if (title) title.textContent = 'Edit Doctor';
@@ -620,14 +621,12 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // "Mark as Visited" on the doctor-restricted "My Queue" page
-    // (mdbk-my-queue) — delegated on document since the button is inside
-    // a fragment that gets replaced wholesale on success. Swaps the WHOLE
-    // #mdbk-today-queue-list (every today's-queue row), not just the
-    // clicked row — marking one patient visited can auto-promote a
-    // DIFFERENT patient to "Visiting" (see
-    // MDBK_Appointment_Manager::promote_next_checked_in_patient()), and
-    // that row needs to visually update too, not just the one clicked.
+    // "Mark as Visited" on the Booking page's "Today" view —
+    // delegated on document since the button is inside a fragment that
+    // gets replaced wholesale on success. Swaps the WHOLE
+    // #mdbk-today-queue-list, not just the clicked row — same one
+    // consistent refresh path every action on this page uses (see
+    // ajax_mark_visited()'s comment in admin-dashboard.php).
     document.addEventListener('click', (e) => {
         const btn = e.target.closest('.mdbk-mark-visited');
         if (!btn || typeof mdbk_admin_obj === 'undefined') return;
@@ -641,7 +640,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // Tells the server which list this page is showing (one doctor,
         // or every doctor combined on front-desk staff's view) — see
         // data-view-doctor-id on #mdbk-today-queue-list
-        // (render_my_queue_page()) and resolve_queue_view_scope()
+        // (render_schedule_today_view()) and resolve_queue_view_scope()
         // (admin-dashboard.php) for why the response needs to know this.
         if (list && list.dataset.viewDoctorId !== undefined) {
             body.set('view_doctor_id', list.dataset.viewDoctorId);
@@ -706,7 +705,7 @@ document.addEventListener('DOMContentLoaded', function() {
             });
     });
 
-    // "Skip"/"Recall" toggle on the doctor-restricted "My Queue" page —
+    // "Skip"/"Recall" toggle on the Booking page's "Today" view —
     // same delegated-on-document pattern as "Mark as Visited" above, same
     // whole-list swap (see that handler's comment for why).
     document.addEventListener('click', (e) => {
@@ -736,6 +735,57 @@ document.addEventListener('DOMContentLoaded', function() {
                 btn.disabled = false;
                 alert('Something went wrong, please try again.');
             });
+    });
+
+    // "Start Visiting" — promotes a checked-in waiting patient to
+    // "serving", same delegated/whole-list-swap pattern as "Skip"/"Mark
+    // as Visited" above (see ajax_start_visiting()'s comment for why this
+    // exists).
+    document.addEventListener('click', (e) => {
+        const btn = e.target.closest('.mdbk-start-visiting');
+        if (!btn || typeof mdbk_admin_obj === 'undefined') return;
+        const list = document.getElementById('mdbk-today-queue-list');
+        const appointmentId = btn.dataset.id;
+        btn.disabled = true;
+        const body = new URLSearchParams();
+        body.set('action', 'mdbk_start_visiting');
+        body.set('nonce', mdbk_admin_obj.nonce);
+        body.set('appointment_id', appointmentId);
+        if (list && list.dataset.viewDoctorId !== undefined) {
+            body.set('view_doctor_id', list.dataset.viewDoctorId);
+        }
+        fetch(mdbk_admin_obj.ajax_url, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body.toString() })
+            .then((r) => r.json())
+            .then((res) => {
+                if (res && res.success && list) {
+                    list.innerHTML = res.data.fragment;
+                } else {
+                    btn.disabled = false;
+                    alert((res && res.data && res.data.message) || 'Something went wrong, please try again.');
+                }
+            })
+            .catch(() => {
+                btn.disabled = false;
+                alert('Something went wrong, please try again.');
+            });
+    });
+
+    // "Expand All" / "Collapse All" — front-desk staff's all-doctors
+    // "Patients" view groups rows under a <details> per doctor (see
+    // render_patient_list_html() in admin-dashboard.php); these two
+    // buttons toggle every group in the SAME card only (Today's Queue and
+    // Patient List are independent sections, each with their own button
+    // pair), not the whole page at once.
+    document.addEventListener('click', (e) => {
+        const expandBtn = e.target.closest('.mdbk-expand-all');
+        const collapseBtn = e.target.closest('.mdbk-collapse-all');
+        const btn = expandBtn || collapseBtn;
+        if (!btn) return;
+        const card = btn.closest('.mdbk-card');
+        if (!card) return;
+        card.querySelectorAll('.mdbk-doctor-group').forEach((group) => {
+            group.open = !!expandBtn;
+        });
     });
 
     // ---- Doctors grid: search, specialty filter, pagination, grid/list view ----

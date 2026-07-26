@@ -4,14 +4,24 @@
     color: #1e293b;
 }
 
-/* Layout */
+/* Layout — a real bounded height (not just min-height) so the sidebar
+   and main content, as flex children, actually have something to
+   overflow against: without this, .mdbk-main-content's overflow-y:auto
+   below has no effect (nothing to constrain it) and the whole wp-admin
+   PAGE scrolls instead, taking the sidebar out of view with it. 32px
+   accounts for #wpadminbar (46px under WP's own 782px responsive
+   breakpoint, handled below), the rest mirrors #mdbk-admin-dashboard's
+   own top margin plus a little bottom breathing room. */
 .mdbk-admin-wrapper {
     display: flex;
-    min-height: 90vh;
+    height: calc(100vh - 72px);
     background: #f8fafc;
     border-radius: 20px;
     overflow: hidden;
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+}
+@media screen and (max-width: 782px) {
+    .mdbk-admin-wrapper { height: calc(100vh - 86px); }
 }
 
 /* Sidebar */
@@ -23,6 +33,7 @@
     padding: 30px 0;
     display: flex;
     flex-direction: column;
+    overflow-y: auto;
 }
 
 .mdbk-sidebar-logo {
@@ -221,6 +232,40 @@
 .mdbk-stat-card-amber .value { color: #d97706; }
 .mdbk-stat-card-red .mdbk-stat-icon { background: rgba(239, 68, 68, .1); color: #ef4444; }
 .mdbk-stat-card-red .value { color: #ef4444; }
+
+/* Compact stat cards (Booking page's analytics row, see
+   render_schedule_today_view()) — icon beside the label+value instead of
+   stacked above it, and the "trend" subtitle dropped entirely (it mostly
+   just repeated the label or the page's own date), so five cards take
+   noticeably less vertical room than the Dashboard's original 4-card
+   layout, which is untouched (this only applies where the extra
+   .mdbk-stats-grid-compact modifier class is present). */
+.mdbk-stats-grid-compact .mdbk-stat-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px;
+}
+.mdbk-stats-grid-compact .mdbk-stat-icon {
+    margin-bottom: 0;
+    flex-shrink: 0;
+}
+.mdbk-stats-grid-compact .mdbk-stat-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+.mdbk-stats-grid-compact .mdbk-stat-card h4 {
+    margin: 0;
+    font-size: 10px;
+    white-space: nowrap;
+}
+.mdbk-stats-grid-compact .mdbk-stat-card .value {
+    margin: 0;
+    font-size: 20px;
+    gap: 0;
+}
 
 /* Table */
 .mdbk-card {
@@ -785,6 +830,26 @@ button.mdbk-mini-cal-nav-btn:hover { background: #f1f5f9; }
 .mdbk-schedule-doctor-card { margin-bottom: 16px; }
 .mdbk-schedule-doctor-card .mdbk-patient-list { max-height: 735px; overflow-y: auto; }
 
+/* Booking page's "Today" view (render_schedule_today_view()) — the page
+   header, filters bar, and analytics cards stay fixed in place; only the
+   Queue section itself (Today's Queue + Other Dates together) scrolls,
+   in its own contained area below them. A flex column on
+   .mdbk-main-content-fixed-header (added only for this view — see
+   render_schedule_page()) turns everything ABOVE the scroll-wrap into
+   normal, non-scrolling flow, and flex:1 + min-height:0 on the wrap
+   itself is what lets it actually shrink to fill (and then scroll) the
+   remaining space instead of just growing with its content. */
+.mdbk-main-content-fixed-header {
+    display: flex;
+    flex-direction: column;
+    overflow-y: hidden;
+}
+.mdbk-schedule-queue-scroll-wrap {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+}
+
 /* Badge + "View All" (opens the full-list popup) + collapse chevron,
    grouped together on the header's right side rather than space-between'd
    apart from each other. */
@@ -863,10 +928,10 @@ button.mdbk-mini-cal-nav-btn:hover { background: #f1f5f9; }
 .mdbk-patient-row:last-child { border-bottom: none; }
 .mdbk-patient-row:hover { background: #f8fafc; }
 
-/* The doctor-restricted "My Queue" page's own patient row — a simpler
-   7-track layout (ticket, name, phone, email, spacer, time, action),
-   deliberately its own grid rather than force-fitting into the Bookings
-   page's 11-track template above. */
+/* The Booking page's rich "Today" view (render_schedule_today_view()) —
+   a simpler 7-track row layout (ticket, name, phone, email, spacer,
+   date/time, action), deliberately its own grid rather than force-fitting
+   into the plain history-list's 11-track template above. */
 .mdbk-patient-row.mdbk-my-queue-row {
     /* The last (actions) track is a fixed width, not auto — each row is
        its OWN independent grid (a separate <div> per row, not shared rows
@@ -890,9 +955,6 @@ button.mdbk-mini-cal-nav-btn:hover { background: #f1f5f9; }
     display: flex;
     align-items: center;
     gap: 8px;
-}
-.mdbk-my-queue-actions .mdbk-mark-visited {
-    white-space: nowrap;
 }
 
 /* Full-row color per state — only for today's two actionable states
@@ -929,6 +991,11 @@ button.mdbk-mini-cal-nav-btn:hover { background: #f1f5f9; }
 .mdbk-doctor-group-header .mdbk-availability-chevron { margin-left: auto; }
 .mdbk-doctor-group[open] .mdbk-availability-chevron { transform: rotate(-135deg); }
 .mdbk-doctor-group-list .mdbk-patient-row:last-child { border-bottom: none; }
+/* "Expand All" / "Collapse All" — sits in the card-header next to
+   "Today's Queue" / "Patient List" via that header's own
+   justify-content:space-between, only rendered when this page is
+   showing grouped (all-doctors staff) sections. */
+.mdbk-group-toggle-btns { display: flex; gap: 8px; }
 
 /* Date and Time — each its own grid column (own track in the
    grid-template-columns above), same alignment discipline as the
@@ -954,17 +1021,51 @@ button.mdbk-mini-cal-nav-btn:hover { background: #f1f5f9; }
     color: #334155;
 }
 
-/* "Mark as Visited" / Skip — a bit more depth (shadow + hover lift) than
-   the flat default button, since these are the primary per-row actions
-   on this page. */
-.mdbk-my-queue-actions .mdbk-mark-visited {
-    box-shadow: 0 2px 6px rgba(0, 97, 213, .25);
+/* Status + action merged into ONE button (not a separate status badge
+   sitting next to a same-purpose button) — the button's own color tells
+   you the current state, and clicking it is the one thing you'd want to
+   do about it. Base shared by both "Visiting → Mark as Visited" (green:
+   someone's actively being seen) and "Waiting → Start Visiting" (amber:
+   action needed) — same structural resets .mdbk-btn-add otherwise
+   provides, since these intentionally don't use that shared blue style
+   (their whole point is a distinct color per state). */
+.mdbk-status-action-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border: none;
+    cursor: pointer;
+    font-family: inherit;
+    font-weight: 700;
+    white-space: nowrap;
+    outline: none;
     transition: transform .15s ease, box-shadow .15s ease, background-color .15s ease;
 }
-.mdbk-my-queue-actions .mdbk-mark-visited:hover {
+.mdbk-status-action-visiting {
+    background: #16a34a;
+    color: #fff;
+    box-shadow: 0 2px 6px rgba(22, 163, 74, .25);
+}
+.mdbk-status-action-visiting:hover,
+.mdbk-status-action-visiting:focus {
+    background: #15803d;
+    color: #fff;
     transform: translateY(-1px);
-    box-shadow: 0 4px 10px rgba(0, 97, 213, .35);
-    background: #0052b8;
+    box-shadow: 0 4px 10px rgba(22, 163, 74, .35);
+    outline: none;
+}
+.mdbk-status-action-start {
+    background: #f59e0b;
+    color: #fff;
+    box-shadow: 0 2px 6px rgba(245, 158, 11, .25);
+}
+.mdbk-status-action-start:hover,
+.mdbk-status-action-start:focus {
+    background: #d97706;
+    color: #fff;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 10px rgba(245, 158, 11, .35);
+    outline: none;
 }
 /* Skip/Recall — a labeled pill, not just an icon, so its purpose reads
    clearly next to "Mark as Visited" instead of needing the title=""
@@ -1076,9 +1177,9 @@ button.mdbk-mini-cal-nav-btn:hover { background: #f1f5f9; }
     .mdbk-sidebar, .mdbk-header-right, .mdbk-filters-bar,
     .mdbk-actions, .mdbk-card-view-all, .mdbk-schedule-doctor-chevron,
     .mdbk-date-nav-all { display: none !important; }
-    .mdbk-admin-wrapper { display: block; box-shadow: none; border-radius: 0; min-height: 0; }
-    .mdbk-main-content { width: 100%; padding: 0; }
-    .mdbk-schedule-doctor-groups, .mdbk-patient-list { max-height: none !important; overflow: visible !important; }
+    .mdbk-admin-wrapper { display: block; box-shadow: none; border-radius: 0; height: auto; overflow: visible; }
+    .mdbk-main-content, .mdbk-main-content-fixed-header { width: 100%; padding: 0; overflow: visible; display: block; }
+    .mdbk-schedule-doctor-groups, .mdbk-patient-list, .mdbk-schedule-queue-scroll-wrap { max-height: none !important; overflow: visible !important; flex: none !important; }
     .mdbk-schedule-doctor-card, .mdbk-schedule-doctor-summary { break-inside: avoid; }
 }
 
@@ -1091,9 +1192,19 @@ button.mdbk-mini-cal-nav-btn:hover { background: #f1f5f9; }
    clutter. Hidden here rather than by not registering the submenus at
    all, since that alternative (add_submenu_page(null, ...)) silently
    breaks the highlighting instead. */
-#toplevel_page_mdbk-home .wp-submenu,
-#toplevel_page_mdbk-home .wp-submenu-wrap {
+/* Plain selector alone loses to WP core's own higher-specificity hover/
+   collapsed-menu rules (e.g. #adminmenu .wp-has-submenu:hover .wp-submenu),
+   which is exactly the flyout that was still showing on hover/collapse —
+   matching that specificity (and then some) here, not just adding
+   !important, since core's own rules use !important too. */
+#adminmenu #toplevel_page_mdbk-home .wp-submenu,
+#adminmenu #toplevel_page_mdbk-home .wp-submenu-wrap,
+#adminmenu #toplevel_page_mdbk-home:hover .wp-submenu,
+#adminmenu #toplevel_page_mdbk-home.opensub .wp-submenu,
+#adminmenu #toplevel_page_mdbk-home .wp-has-submenu:hover .wp-submenu,
+body.folded #adminmenu #toplevel_page_mdbk-home .wp-submenu {
     display: none !important;
+    visibility: hidden !important;
 }
 
 /* A pure doctor account (no manage_options — see

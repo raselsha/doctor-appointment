@@ -8,7 +8,7 @@ defined('ABSPATH') || exit;
 
 class MDBK_Migrations {
 
-    const DB_VERSION = 4;
+    const DB_VERSION = 5;
 
     /**
      * Run pending migrations, gated on mdbk_db_version. This is the only
@@ -40,6 +40,13 @@ class MDBK_Migrations {
             // MDBK_Roles::activate() is harmless/idempotent (add_role() and
             // add_cap() both no-op if already present), so sites already at
             // v3 just pick up the two new roles for free here.
+            MDBK_Roles::activate();
+        }
+
+        if ($current < 5) {
+            // Grants mdbk_doctor_role the 'upload_files' capability (their
+            // own Profile page's photo picker needs it) — same idempotent
+            // re-run as above.
             MDBK_Roles::activate();
         }
 

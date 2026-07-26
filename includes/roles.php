@@ -20,8 +20,8 @@ class MDBK_Roles {
             $receptionist->add_cap(MDBK_CAP_QUEUE);
         }
 
-        // Doctor: sees only their own restricted "My Queue" page (see
-        // MDBK_Admin_Dashboard::render_my_queue_page()) — read plus one
+        // Doctor: sees only their own restricted Booking queue (see
+        // MDBK_Admin_Dashboard::render_schedule_page()) — read plus one
         // narrow capability, nothing else. A bare 'read' role already
         // can't see any core wp-admin menu (Posts/Media/Comments/etc. are
         // all gated by their own edit_*/upload_* caps), so no manual menu
@@ -30,6 +30,15 @@ class MDBK_Roles {
         $doctor_role = get_role('mdbk_doctor_role');
         if ($doctor_role) {
             $doctor_role->add_cap(MDBK_CAP_DOCTOR);
+            // Lets a doctor use their own Profile page's photo picker
+            // (wp.media() — see admin-script.js) at all; WP core's own
+            // upload/attachment-query AJAX handlers require this
+            // capability regardless of what this plugin's own code
+            // checks. Scoped down to "their own uploads only" separately
+            // — see MDBK_Admin_Dashboard::restrict_media_to_own_uploads()
+            // — so this doesn't turn into "browse/reuse the whole site's
+            // media library".
+            $doctor_role->add_cap('upload_files');
         }
 
         // Patient: record-keeping only today — no patient-facing feature
