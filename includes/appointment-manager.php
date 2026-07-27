@@ -456,8 +456,21 @@ class MDBK_Appointment_Manager {
 
         $booked = self::get_booked_slot_times($doctor_id, $date);
 
+        // For today's date, a slot that has already passed the current
+        // moment isn't a real option any more — drop it instead of just
+        // marking it unavailable, so it's not shown at all. $start/$end/$t
+        // above come from strtotime() under PHP's default timezone (UTC on
+        // this server), treating the doctor's schedule strings ("09:00")
+        // as literal wall-clock values with no real-world timezone meaning
+        // — so "now" has to be built the same way: current_time('timestamp')
+        // (WP's configured local time re-based onto that same UTC epoch),
+        // not time() (the server's actual, unrelated UTC clock).
+        $is_today = $date === current_time('Y-m-d');
+        $now      = current_time('timestamp');
+
         $slots = [];
         for ($t = $start; $t < $end; $t += $duration * 60) {
+            if ($is_today && $t < $now) continue;
             $time_str = date('H:i', $t);
             $slots[]  = [
                 'time'      => $time_str,

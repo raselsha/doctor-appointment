@@ -529,6 +529,14 @@ class MDBK_Shortcode {
         $specialties = get_terms([
             'taxonomy'   => 'mdbk_department',
             'hide_empty' => false,
+            // Specialties default to active — the meta only ever gets
+            // written (to 'no') once someone flips a card's toggle off in
+            // wp-admin. Same pattern as doctors' own active/inactive meta.
+            'meta_query' => [
+                'relation' => 'OR',
+                ['key' => '_mdbk_specialty_active', 'compare' => 'NOT EXISTS'],
+                ['key' => '_mdbk_specialty_active', 'value' => 'no', 'compare' => '!='],
+            ],
         ]);
         $first_spec_name = !empty($specialties) ? $specialties[0]->name : '';
         ?>

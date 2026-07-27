@@ -242,6 +242,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     const doctorSpecSelect = initCustomSelect('mdbk-doc-spec-select');
     const patientGenderSelect = initCustomSelect('mdbk-patient-gender-select');
+    const staffRoleSelect = initCustomSelect('mdbk-staff-role-select');
 
     initModal('mdbk-doctor-modal', '.mdbk-add-doctor, .mdbk-edit-doctor', 'mdbk-doctor-form', 'mdbk-edit-doctor', (id, btn) => {
         document.getElementById('mdbk-doctor-id').value = id;
@@ -484,16 +485,20 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('mdbk-staff-name').value = row.dataset.name;
             document.getElementById('mdbk-staff-email').value = row.dataset.email;
             document.getElementById('mdbk-staff-phone').value = row.dataset.phone;
-            const roleSelect = document.getElementById('mdbk-staff-role');
-            if (roleSelect && row.dataset.role) roleSelect.value = row.dataset.role;
+            if (staffRoleSelect && row.dataset.role) {
+                const opt = staffRoleSelect.panel.querySelector('.mdbk-custom-select-option[data-value="' + row.dataset.role + '"]');
+                if (opt) staffRoleSelect.setValue(opt.dataset.value, opt.textContent);
+            }
         }
     });
     document.querySelectorAll('.mdbk-add-staff').forEach(function(btn) {
         btn.addEventListener('click', function() {
             const title = document.getElementById('mdbk-staff-modal-title');
             if (title) title.textContent = 'Add Staff';
-            const roleSelect = document.getElementById('mdbk-staff-role');
-            if (roleSelect) roleSelect.value = 'mdbk_receptionist';
+            if (staffRoleSelect) {
+                const firstOpt = staffRoleSelect.panel.querySelector('.mdbk-custom-select-option');
+                if (firstOpt) staffRoleSelect.setValue(firstOpt.dataset.value, firstOpt.textContent);
+            }
         });
     });
     const staffModalCancel = document.querySelector('#mdbk-staff-modal .mdbk-modal-cancel');
@@ -657,12 +662,91 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
+    function setSpecialtyIconPreview(url) {
+        const preview = document.getElementById('mdbk-spec-icon-preview');
+        const removeBtn = document.getElementById('mdbk-spec-icon-remove');
+        if (!preview) return;
+        preview.innerHTML = url ? '<img src="' + url + '" alt="">' : '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41L13.42 20.58a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path><line x1="7" y1="7" x2="7.01" y2="7"></line></svg>';
+        if (removeBtn) removeBtn.style.display = url ? '' : 'none';
+    }
+
     initModal('mdbk-specialty-modal', '.mdbk-add-specialty, .mdbk-edit-specialty', 'mdbk-specialty-form', 'mdbk-edit-specialty', (id, btn) => {
         document.getElementById('mdbk-spec-id').value = id;
-        const row = btn.closest('tr');
-        if (row) {
-            document.getElementById('mdbk-spec-name').value = row.dataset.name;
+        const card = btn.closest('.mdbk-specialty-card');
+        document.getElementById('mdbk-specialty-modal-title').textContent = 'Edit Specialty';
+        if (card) {
+            document.getElementById('mdbk-spec-name').value = card.dataset.name;
+            document.getElementById('mdbk-spec-icon-id').value = card.dataset.iconId || 0;
+            setSpecialtyIconPreview(card.dataset.iconUrl || '');
+            document.getElementById('mdbk-spec-status').checked = !card.classList.contains('is-inactive');
         }
+    });
+    document.querySelectorAll('.mdbk-add-specialty').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            document.getElementById('mdbk-specialty-modal-title').textContent = 'Add Specialty';
+            document.getElementById('mdbk-spec-icon-id').value = 0;
+            setSpecialtyIconPreview('');
+            document.getElementById('mdbk-spec-status').checked = true;
+        });
+    });
+
+    let specialtyIconFrame;
+    const specialtyIconUpload = document.getElementById('mdbk-spec-icon-upload');
+    if (specialtyIconUpload) {
+        specialtyIconUpload.addEventListener('click', function(e) {
+            e.preventDefault();
+            if (typeof wp === 'undefined' || !wp.media) return;
+            if (specialtyIconFrame) { specialtyIconFrame.open(); return; }
+            specialtyIconFrame = wp.media({
+                title: 'Select Specialty Icon',
+                button: { text: 'Use this image' },
+                multiple: false,
+                library: { type: 'image' }
+            });
+            specialtyIconFrame.on('select', function() {
+                const attachment = specialtyIconFrame.state().get('selection').first().toJSON();
+                const url = (attachment.sizes && attachment.sizes.thumbnail) ? attachment.sizes.thumbnail.url : attachment.url;
+                document.getElementById('mdbk-spec-icon-id').value = attachment.id;
+                setSpecialtyIconPreview(url);
+            });
+            specialtyIconFrame.open();
+        });
+    }
+    const specialtyIconRemove = document.getElementById('mdbk-spec-icon-remove');
+    if (specialtyIconRemove) {
+        specialtyIconRemove.addEventListener('click', function() {
+            document.getElementById('mdbk-spec-icon-id').value = 0;
+            setSpecialtyIconPreview('');
+        });
+    }
+
+    // Active/Inactive toggle on each specialty card footer — same
+    // optimistic-update-then-revert-on-failure pattern as the doctor
+    // grid's own active toggle.
+    document.addEventListener('change', (e) => {
+        const input = e.target.closest('.mdbk-specialty-toggle');
+        if (!input || typeof mdbk_admin_obj === 'undefined') return;
+        const card = input.closest('.mdbk-specialty-card');
+        const termId = card.dataset.id;
+        const wasChecked = !input.checked;
+        const body = new URLSearchParams();
+        body.set('action', 'mdbk_toggle_specialty_active');
+        body.set('nonce', mdbk_admin_obj.nonce);
+        body.set('term_id', termId);
+        fetch(mdbk_admin_obj.ajax_url, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body.toString() })
+            .then((r) => r.json())
+            .then((res) => {
+                if (res && res.success) {
+                    card.classList.toggle('is-inactive', !res.data.active);
+                } else {
+                    input.checked = wasChecked;
+                    alert((res && res.data && res.data.message) || 'Something went wrong, please try again.');
+                }
+            })
+            .catch(() => {
+                input.checked = wasChecked;
+                alert('Something went wrong, please try again.');
+            });
     });
 
     // "Mark as Visited" on the Booking page's "Today" view —
