@@ -258,13 +258,21 @@ button.mdbk-submit-btn:hover {
     display: none;
     position: fixed;
     top: 0; left: 0;
-    width: 100%; height: 100%;
+    width: 100%;
+    /* 100vh on mobile is the browser's LARGEST possible viewport (address
+       bar collapsed) — while the address bar is actually showing, the real
+       visible area is shorter, so a fixed element sized to plain 100vh
+       extends below what's actually on screen. 100dvh (dynamic viewport
+       height) tracks the real, currently-visible height instead; the 100vh
+       line above it is a fallback for browsers that don't support dvh yet
+       (they just ignore the invalid value and keep 100vh). */
+    height: 100vh;
+    height: 100dvh;
     background: rgba(0, 0, 0, 0.5);
     z-index: 99999;
     justify-content: center;
     align-items: flex-start;
     padding-top: 40px;
-    overflow-y: auto;
 }
 
 /* Same reasoning as front-end.css's own :lang(bn) rule — the booking
@@ -291,19 +299,28 @@ button.mdbk-submit-btn:hover {
     border-radius: 16px;
     box-shadow: 0 25px 50px rgba(0, 0, 0, 0.2);
     overflow: hidden;
-    margin-bottom: 40px;
+    /* Same header/body split used in wc-service-booking's own booking
+       modal: the CARD is capped (90vh/90dvh) and laid out as a column
+       flexbox — the header is flex-shrink:0 (fixed size, never scrolls),
+       and .mdbk-modal-body below is flex:1 + its own overflow-y:auto, so
+       it's the ONLY thing that scrolls once content is taller than the
+       cap. Before this, the whole card just grew to fit its content and
+       the OVERLAY scrolled instead — which dragged the header (title,
+       close button) out of view right along with the rest of the form. */
+    display: flex;
+    flex-direction: column;
+    max-height: 90vh;
+    max-height: 90dvh;
 }
 
 .mdbk-modal-header {
     padding: 18px 24px;
     border-bottom: 1px solid #e2e8f0;
     display: flex;
-    justify-content: space-between;
     align-items: center;
-    position: sticky;
-    top: 0;
+    gap: 12px;
     background: #fff;
-    z-index: 1;
+    flex-shrink: 0;
 }
 
 .mdbk-modal-header h3 {
@@ -311,6 +328,8 @@ button.mdbk-submit-btn:hover {
     font-size: 18px;
     font-weight: 700;
     color: #1e293b;
+    flex: 1;
+    min-width: 0;
 }
 
 .mdbk-modal-close {
@@ -319,6 +338,7 @@ button.mdbk-submit-btn:hover {
     cursor: pointer;
     line-height: 1;
     transition: color 0.2s;
+    flex-shrink: 0;
 }
 
 .mdbk-modal-close:hover {
@@ -327,6 +347,13 @@ button.mdbk-submit-btn:hover {
 
 .mdbk-modal-body {
     padding: 24px;
+    /* The only scrolling region inside .mdbk-modal-card (see its own
+       comment) — flex-basis shrinks below content size because overflow
+       is non-visible here (the flexbox spec's automatic minimum size for
+       a scroll container is 0, not its content size), so this actually
+       scrolls instead of just growing the card past its max-height cap. */
+    flex: 1;
+    overflow-y: auto;
 }
 
 /*
@@ -673,21 +700,13 @@ button.mdbk-cal-nav-btn:hover {
         padding-top: 0;
         align-items: center;
     }
-    /* The base .mdbk-modal-card rule sets overflow:hidden (to clip content
-       to its rounded corners on desktop, where the card just grows to fit).
-       Pairing that with max-height:100vh here meant that once the stacked
-       specialty/doctor/calendar/time-slot content pushed the card past one
-       screen's height, everything past that point — the patient details
-       fields and the submit button — was silently clipped away with no way
-       to scroll to it: overflow:hidden doesn't scroll, and the *outer*
-       .mdbk-modal-overlay's own overflow-y:auto can't reach content clipped
-       by this closer ancestor. overflow-y:auto here lets the card itself
-       scroll once it hits the cap, while overflow-x stays hidden so the
-       rounded-corner clipping this rule was originally for is unaffected. */
+    /* The base .mdbk-modal-card rule already caps it at 90vh/90dvh with
+       .mdbk-modal-body doing the actual scrolling (see those rules' own
+       comments) — mobile just uses the full screen height edge-to-edge
+       instead of leaving a backdrop margin around it. */
     .mdbk-modal-card {
         max-height: 100vh;
-        overflow-y: auto;
-        overflow-x: hidden;
+        max-height: 100dvh;
         border-radius: 0;
     }
 }

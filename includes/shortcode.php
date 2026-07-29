@@ -233,13 +233,14 @@ class MDBK_Shortcode {
 
                                     <ul>
 
-                                        <?php foreach ($schedule as $day => $time) : ?>
+                                        <?php $day_labels = \MDBK\MDBK_Appointment_Manager::get_day_labels(); ?>
+                                        <?php foreach (\MDBK\MDBK_Appointment_Manager::get_week_day_order() as $day) : $time = $schedule[$day] ?? null; ?>
 
                                             <?php if (!empty($time['active'])) : ?>
 
                                                 <li<?php echo ($day === $today_day_name && $is_working_today) ? ' class="is-today"' : ''; ?>>
                                                     <span class="day">
-                                                        <?php echo esc_html($day); ?>
+                                                        <?php echo esc_html($day_labels[$day]); ?>
                                                         <?php if ($day === $today_day_name && $is_working_today) : ?><span class="mdbk-today-tag"><?php _e('Today', 'doctor-appointment'); ?></span><?php endif; ?>
                                                     </span>
 

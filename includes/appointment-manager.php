@@ -775,6 +775,49 @@ class MDBK_Appointment_Manager {
     }
 
     /**
+     * The 7 day names in WordPress's own configured week-start order
+     * (Settings > General > "Week Starts On" — 0=Sunday..6=Saturday, same
+     * option get_calendar()/the date-picker widgets already read). Every
+     * place this plugin lists all 7 weekdays (doctor Edit form's Weekly
+     * Availability, the Profile page's read-only copy, the frontend
+     * doctor card's own schedule list) uses this instead of a hardcoded
+     * Monday-first order, so a site whose week starts on Saturday (or any
+     * other day) sees that reflected everywhere, not just in WP's own
+     * calendar widgets. Not used for _mdbk_schedule's own stored array
+     * keys or the day-name-to-weekday-number map in
+     * ajax_get_doctor_slots() below — those are keyed lookups/date
+     * math, unaffected by display order.
+     */
+    public static function get_week_day_order() {
+        $days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        $start = ((int) get_option('start_of_week', 1)) % 7;
+        if ($start < 0) $start += 7;
+        return array_merge(array_slice($days, $start), array_slice($days, 0, $start));
+    }
+
+    /**
+     * English day name -> translated display label. The day name itself
+     * (get_week_day_order()'s own return value) has to stay the literal
+     * English string everywhere else — it's the _mdbk_schedule array key
+     * AND the `schedule[Monday][active]` form field name the Edit
+     * modal/save handler round-trip on every save — so this is only for
+     * wherever a day is actually shown to a user as text. Written as a
+     * literal __('Monday', ...) call per day (not __($day, ...)) since
+     * `wp i18n make-pot` can only extract string literals, not variables.
+     */
+    public static function get_day_labels() {
+        return [
+            'Sunday'    => __('Sunday', 'doctor-appointment'),
+            'Monday'    => __('Monday', 'doctor-appointment'),
+            'Tuesday'   => __('Tuesday', 'doctor-appointment'),
+            'Wednesday' => __('Wednesday', 'doctor-appointment'),
+            'Thursday'  => __('Thursday', 'doctor-appointment'),
+            'Friday'    => __('Friday', 'doctor-appointment'),
+            'Saturday'  => __('Saturday', 'doctor-appointment'),
+        ];
+    }
+
+    /**
      * The doctor a chamber QR token belongs to, or 0 if it doesn't resolve
      * to anything (bad/garbled scan). Mirrors find_appointment_by_token().
      */

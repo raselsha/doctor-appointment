@@ -71,7 +71,15 @@ document.addEventListener('DOMContentLoaded', function() {
         window.addEventListener('click', (e) => { if (e.target == modal) modal.style.display = 'none'; });
     }
 
-    const DOCTOR_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    // Matches the PHP-rendered Weekly Availability form's own day order
+    // (Settings > General > "Week Starts On" — see get_week_day_order() in
+    // appointment-manager.php), passed through mdbk_admin_obj so there's
+    // one source of truth instead of a second hardcoded list. Both actual
+    // uses below look each day up by name (order-independent), so this
+    // fallback only matters if mdbk_admin_obj somehow isn't loaded.
+    const DOCTOR_DAYS = (typeof mdbk_admin_obj !== 'undefined' && Array.isArray(mdbk_admin_obj.week_days))
+        ? mdbk_admin_obj.week_days
+        : ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
     const DOCTOR_PHOTO_PLACEHOLDER = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>';
     // Availability section header icons — same markup as the ones rendered
     // server-side for the Edit modal, so the View modal's read-only copy
@@ -418,15 +426,17 @@ document.addEventListener('DOMContentLoaded', function() {
 
         let schedule = {};
         try { schedule = JSON.parse(card.dataset.schedule) || {}; } catch (e) {}
-        const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+        const days = DOCTOR_DAYS;
+        const dayLabels = (typeof mdbk_admin_obj !== 'undefined' && mdbk_admin_obj.day_labels) || {};
+        const offLabel = (typeof mdbk_admin_obj !== 'undefined' && mdbk_admin_obj.off_label) || 'Off';
         let scheduleRows = '';
         days.forEach((day) => {
             const d = schedule[day];
             const working = d && d.active;
             const hours = working
                 ? (escHtml(mdbkFormatTimeDisplay(d.from)) || '—') + ' – ' + (escHtml(mdbkFormatTimeDisplay(d.to)) || '—')
-                : '<span class="mdbk-view-day-off">Off</span>';
-            scheduleRows += '<div class="mdbk-view-day-row' + (working ? '' : ' is-off') + '"><span class="mdbk-view-day-name">' + day + '</span><span class="mdbk-view-day-hours">' + hours + '</span></div>';
+                : '<span class="mdbk-view-day-off">' + escHtml(offLabel) + '</span>';
+            scheduleRows += '<div class="mdbk-view-day-row' + (working ? '' : ' is-off') + '"><span class="mdbk-view-day-name">' + escHtml(dayLabels[day] || day) + '</span><span class="mdbk-view-day-hours">' + hours + '</span></div>';
         });
 
         function formatDateStr(dateStr) {

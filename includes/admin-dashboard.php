@@ -1982,7 +1982,7 @@ class MDBK_Admin_Dashboard {
                     $spec_name = ($spec && !is_wp_error($spec)) ? $spec[0]->name : __('General', 'doctor-appointment');
                     $spec_id = ($spec && !is_wp_error($spec)) ? $spec[0]->term_id : 0;
                     $colors = self::specialty_colors($spec_id);
-                    $days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+                    $days = \MDBK\MDBK_Appointment_Manager::get_week_day_order();
                     $format_dates = function($dates) {
                         $dates = $dates;
                         sort($dates);
@@ -2026,9 +2026,10 @@ class MDBK_Admin_Dashboard {
                             <summary class="mdbk-availability-header"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="3"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg><h4><?php _e('Weekly Availability', 'doctor-appointment'); ?></h4><span class="mdbk-availability-chevron"></span></summary>
                             <div class="mdbk-view-schedule-list">
                                 <div class="mdbk-view-day-row mdbk-view-day-header"><span><?php _e('Day', 'doctor-appointment'); ?></span><span><?php _e('Hours', 'doctor-appointment'); ?></span></div>
+                                <?php $day_labels = \MDBK\MDBK_Appointment_Manager::get_day_labels(); ?>
                                 <?php foreach ($days as $day): $d = $schedule[$day] ?? null; $working = $d && !empty($d['active']); ?>
                                 <div class="mdbk-view-day-row<?php echo $working ? '' : ' is-off'; ?>">
-                                    <span class="mdbk-view-day-name"><?php echo esc_html($day); ?></span>
+                                    <span class="mdbk-view-day-name"><?php echo esc_html($day_labels[$day]); ?></span>
                                     <span class="mdbk-view-day-hours"><?php if ($working): ?><?php echo esc_html(($d['from'] ? date_i18n(get_option('time_format'), strtotime($d['from'])) : '—') . ' – ' . ($d['to'] ? date_i18n(get_option('time_format'), strtotime($d['to'])) : '—')); ?><?php else: ?><span class="mdbk-view-day-off"><?php _e('Off', 'doctor-appointment'); ?></span><?php endif; ?></span>
                                 </div>
                                 <?php endforeach; ?>
@@ -2911,9 +2912,10 @@ class MDBK_Admin_Dashboard {
                 <details class="mdbk-availability-section" open>
                     <summary class="mdbk-availability-header"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="3"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg><h4><?php _e('Weekly Availability', 'doctor-appointment'); ?></h4><span class="mdbk-availability-chevron"></span></summary>
                     <div class="mdbk-day-grid">
-                    <?php foreach(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] as $day): ?>
+                    <?php $day_labels = \MDBK\MDBK_Appointment_Manager::get_day_labels(); ?>
+                    <?php foreach(\MDBK\MDBK_Appointment_Manager::get_week_day_order() as $day): ?>
                     <div class="mdbk-day-row is-off">
-                        <span class="mdbk-day-name"><?php echo esc_html($day); ?></span>
+                        <span class="mdbk-day-name"><?php echo esc_html($day_labels[$day]); ?></span>
                         <label class="mdbk-toggle mdbk-mini-toggle"><input type="checkbox" name="schedule[<?php echo esc_attr($day); ?>][active]" value="1" class="mdbk-day-check" onchange="this.closest('.mdbk-day-row').classList.toggle('is-off', !this.checked)"><span class="mdbk-toggle-slider"></span></label>
                         <div class="mdbk-day-times">
                             <input type="time" name="schedule[<?php echo esc_attr($day); ?>][from]">

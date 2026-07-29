@@ -44,6 +44,9 @@ if ( ! class_exists( 'MDBK_Doctor_Appointment' ) ) {
             // Not a WordPress.org-hosted plugin, so translations are never
             // auto-loaded the way core/WP.org plugins get for free — this
             // is the one line that actually makes languages/*.mo get read.
+            // Language itself just follows WordPress's own site/per-user
+            // settings (Settings > General, or each admin's own Profile
+            // page) — no separate in-plugin language switcher.
             add_action( 'init', array( $this, 'load_textdomain' ) );
             add_action( 'wp_enqueue_scripts', array( $this, 'enqueue_scripts' ) );
             add_action( 'admin_enqueue_scripts', array( $this, 'admin_enqueue_scripts' ) );
@@ -155,6 +158,21 @@ if ( ! class_exists( 'MDBK_Doctor_Appointment' ) ) {
                 // whatever timezone the admin's own browser happens to be
                 // in — current_time() is WP's timezone-aware clock.
                 'today'    => current_time( 'Y-m-d' ),
+                // Doctor Edit form's Weekly Availability day order — one
+                // source of truth (Settings > General > "Week Starts On")
+                // instead of a second hardcoded Monday-first list drifting
+                // out of sync with the PHP-rendered form's own order.
+                'week_days' => \MDBK\MDBK_Appointment_Manager::get_week_day_order(),
+                // Translated day-name labels for the JS-rendered "Doctor
+                // View" read-only modal (admin-script.js) — the day names
+                // themselves (this array's KEYS) have to stay literal
+                // English everywhere else (the _mdbk_schedule meta's own
+                // array keys, the Edit form's schedule[Monday][active]
+                // field names), so only these VALUES are ever shown to a
+                // user as text. See get_day_labels() in
+                // appointment-manager.php.
+                'day_labels' => \MDBK\MDBK_Appointment_Manager::get_day_labels(),
+                'off_label'  => __( 'Off', 'doctor-appointment' ),
             ], $this->clinic_branding_data() ) );
 
             // The "Chamber QR" page renders its QR client-side with the same

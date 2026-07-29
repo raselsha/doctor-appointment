@@ -616,8 +616,16 @@ document.addEventListener('DOMContentLoaded', function() {
             if (currentDoctorSlotEnabled) {
                 loadModalSlots(selectedDateStr);
             } else {
+                // Mirrors the slot-enabled branch above (loadModalSlots's own
+                // callback calls both of these) — without collapsing the
+                // calendar+time column into the compact "Selected: ..."
+                // summary here too, they stayed fully expanded for a
+                // slot-disabled doctor, pushing the patient details form far
+                // down the page and making the whole modal scroll instead of
+                // just the picker.
                 showSerialBookingNotice();
                 showDetails();
+                showDatetimeSummary();
             }
         });
     }
