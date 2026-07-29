@@ -5,7 +5,10 @@
     background: #f8fafc;
     border-radius: 24px;
     overflow: hidden;
-    font-family: 'Inter', sans-serif;
+    /* Same Bengali fallback as admin-style.css — this is the staff kiosk's
+       own queue display, patient names/status labels here can be Bangla
+       too once the site's locale is switched. */
+    font-family: 'Inter', 'Hind Siliguri', sans-serif;
     color: #1e293b;
     box-shadow: 0 15px 40px rgba(0, 0, 0, 0.08);
 }
@@ -55,7 +58,7 @@
 .mdbk-stat-value span:first-child {
     font-size: 32px;
     font-weight: 800;
-    color: #0061d5;
+    color: var(--mdbk-primary);
 }
 
 .mdbk-stat-value span:last-child {
@@ -77,11 +80,11 @@
 .mdbk-now-serving {
     margin: 0 24px 30px 24px;
     padding: 24px;
-    background: #0061d5;
+    background: var(--mdbk-primary);
     border-radius: 16px;
     color: #fff;
     position: relative;
-    box-shadow: 0 10px 25px rgba(0, 97, 213, 0.2);
+    box-shadow: 0 10px 25px color-mix(in srgb, var(--mdbk-primary) 20%, transparent);
 }
 
 .mdbk-serving-label {
@@ -139,7 +142,7 @@
 
 .mdbk-btn-complete {
     background: #fff;
-    color: #0061d5;
+    color: var(--mdbk-primary);
     border: none;
 }
 
@@ -201,7 +204,7 @@
     align-items: center;
     justify-content: center;
     font-weight: 800;
-    color: #0061d5;
+    color: var(--mdbk-primary);
     font-size: 16px;
 }
 
@@ -232,7 +235,7 @@
     background: #fff;
     border: 1px solid #e2e8f0;
     border-radius: 12px;
-    color: #0061d5;
+    color: var(--mdbk-primary);
     font-weight: 700;
     text-transform: uppercase;
     font-size: 13px;
@@ -254,7 +257,7 @@
 
 .mdbk-btn-small {
     background: #e0e7ff;
-    color: #0061d5;
+    color: var(--mdbk-primary);
     border: none;
     width: 32px;
     height: 32px;
@@ -268,7 +271,7 @@
 }
 
 .mdbk-btn-small:hover {
-    background: #0061d5;
+    background: var(--mdbk-primary);
     color: #fff;
 }
 
@@ -353,7 +356,7 @@
 
 .mdbk-checkin-row button {
     padding: 10px 18px;
-    background: #0061d5;
+    background: var(--mdbk-primary);
     color: #fff;
     border: none;
     border-radius: 10px;
@@ -363,7 +366,7 @@
 }
 
 .mdbk-checkin-row button:hover {
-    background: #0056bc;
+    background: var(--mdbk-primary-dark);
 }
 
 #mdbk-checkin-result {
@@ -472,7 +475,11 @@
     flex-direction: column;
     align-items: flex-start;
     gap: 4px;
-    overflow: hidden;
+    /* No overflow:hidden here (only .mdbk-queue-list-heading h2 needs its
+       own, for the name's text-overflow:ellipsis) — this container used to
+       have it too, which clipped the pulse dot's box-shadow ripple right
+       at its left edge, since the dot sits flush against this box's own
+       edge with nothing between them for the ripple to expand into. */
 }
 
 .mdbk-queue-list-specialty {
@@ -486,6 +493,13 @@
     white-space: nowrap;
 }
 
+.mdbk-queue-doctor-name-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+}
+
 .mdbk-queue-list-heading h2 {
     font-size: 18px;
     font-weight: 800;
@@ -494,6 +508,21 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+}
+
+/* Doctor-is-visiting pulse dot, leading the doctor's name — same green and
+   ripple technique as .mdbk-queue-list-row.mdbk-serving's own pulse below,
+   so the two read as the same "actively being seen right now" signal. */
+.mdbk-live-pulse-dot { display: inline-block; width: 7px; height: 7px; margin-right: 2px; border-radius: 50%; background: #cbd5e1; vertical-align: middle; }
+.mdbk-live-pulse-dot.mdbk-live-pulse-active {
+    background: #34c777;
+    box-shadow: 0 0 0 0 rgba(52, 199, 89, .5);
+    animation: mdbk-serving-pulse-dot 1.6s ease-out infinite;
+}
+@keyframes mdbk-serving-pulse-dot {
+    0%   { box-shadow: 0 0 0 0 rgba(52, 199, 89, .5); }
+    70%  { box-shadow: 0 0 0 6px rgba(52, 199, 89, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(52, 199, 89, 0); }
 }
 
 .mdbk-queue-list-count {
@@ -542,7 +571,7 @@
 
 .mdbk-queue-list-number {
     font-weight: 800;
-    color: #0061d5;
+    color: var(--mdbk-primary);
     font-size: 14px;
     transition: color .3s ease;
 }

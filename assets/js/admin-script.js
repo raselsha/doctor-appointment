@@ -13,6 +13,26 @@ document.addEventListener('DOMContentLoaded', function() {
         return new Date();
     }
 
+    /**
+     * "09:00" -> "9:00 AM" (or left as "09:00" if the site's WordPress
+     * Settings > General > Time Format is a 24-hour one — see
+     * mdbk_admin_obj.time_format_24h, doctor-appointment.php's
+     * clinic_branding_data()) — used everywhere this admin JS renders a
+     * doctor's schedule hours (the "View" popup's client-rendered
+     * version), so it never disagrees with the server-rendered one.
+     */
+    function mdbkFormatTimeDisplay(time24) {
+        if (!time24) return '';
+        if (typeof mdbk_admin_obj !== 'undefined' && mdbk_admin_obj.time_format_24h) return time24;
+        var parts = time24.split(':');
+        var hour = parseInt(parts[0], 10);
+        var minute = parts[1];
+        var suffix = hour >= 12 ? 'PM' : 'AM';
+        var hour12 = hour % 12;
+        if (hour12 === 0) hour12 = 12;
+        return hour12 + ':' + minute + ' ' + suffix;
+    }
+
     function initModal(modalId, openSelector, formId, editClass, populateFn) {
         const modal = document.getElementById(modalId);
         if (!modal) return;
@@ -190,8 +210,24 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     const docExtraCal = createMiniCalendar('mdbk-doc-extra-cal', 'mdbk-doc-extra-dates-input', getRegularActiveWeekdays);
     const docOffCal = createMiniCalendar('mdbk-doc-off-cal', 'mdbk-doc-off-dates-input', getRegularActiveWeekdays);
+    // Enabling a day with no hours set yet defaults it to a normal
+    // 9-to-5 rather than leaving the from/to time inputs blank (which
+    // get_available_slots() would just treat as "closed that day" —
+    // see appointment-manager.php); disabling clears them back to
+    // empty, so re-enabling always lands on that same clean default
+    // instead of silently keeping a stale time from before.
     document.querySelectorAll('.mdbk-day-check').forEach(function(cb) {
         cb.addEventListener('change', function() {
+            const row = cb.closest('.mdbk-day-row');
+            const fromInput = row ? row.querySelector('.mdbk-day-times input[name$="[from]"]') : null;
+            const toInput = row ? row.querySelector('.mdbk-day-times input[name$="[to]"]') : null;
+            if (cb.checked) {
+                if (fromInput && !fromInput.value) fromInput.value = '09:00';
+                if (toInput && !toInput.value) toInput.value = '17:00';
+            } else {
+                if (fromInput) fromInput.value = '';
+                if (toInput) toInput.value = '';
+            }
             if (docExtraCal) docExtraCal.rerender();
             if (docOffCal) docOffCal.rerender();
         });
@@ -388,7 +424,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const d = schedule[day];
             const working = d && d.active;
             const hours = working
-                ? (escHtml(d.from) || '—') + ' – ' + (escHtml(d.to) || '—')
+                ? (escHtml(mdbkFormatTimeDisplay(d.from)) || '—') + ' – ' + (escHtml(mdbkFormatTimeDisplay(d.to)) || '—')
                 : '<span class="mdbk-view-day-off">Off</span>';
             scheduleRows += '<div class="mdbk-view-day-row' + (working ? '' : ' is-off') + '"><span class="mdbk-view-day-name">' + day + '</span><span class="mdbk-view-day-hours">' + hours + '</span></div>';
         });
@@ -884,6 +920,34 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (res && res.success) {
                     card.classList.toggle('is-inactive', !res.data.active);
                 } else {
+                    input.checked = wasChecked;
+                    alert((res && res.data && res.data.message) || 'Something went wrong, please try again.');
+                }
+            })
+            .catch(() => {
+                input.checked = wasChecked;
+                alert('Something went wrong, please try again.');
+            });
+    });
+
+    // Per-doctor Live Queue on/off toggle on the Today's Queue page's group
+    // header — same optimistic-update-then-revert-on-failure pattern as the
+    // specialty card's Active toggle above. The toggle sits inside a
+    // <summary> element (doctor group is a <details>), so its own onclick
+    // already stops propagation to avoid opening/closing the group.
+    document.addEventListener('change', (e) => {
+        const input = e.target.closest('.mdbk-doctor-live-queue-checkbox');
+        if (!input || typeof mdbk_admin_obj === 'undefined') return;
+        const doctorId = input.dataset.doctorId;
+        const wasChecked = !input.checked;
+        const body = new URLSearchParams();
+        body.set('action', 'mdbk_toggle_doctor_live_queue');
+        body.set('nonce', mdbk_admin_obj.nonce);
+        body.set('doctor_id', doctorId);
+        fetch(mdbk_admin_obj.ajax_url, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body.toString() })
+            .then((r) => r.json())
+            .then((res) => {
+                if (!res || !res.success) {
                     input.checked = wasChecked;
                     alert((res && res.data && res.data.message) || 'Something went wrong, please try again.');
                 }

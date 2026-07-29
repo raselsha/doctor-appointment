@@ -1,6 +1,9 @@
 #mdbk-admin-dashboard {
     margin: 20px 20px 0 0;
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    /* 'Hind Siliguri' (enqueued in doctor-appointment.php) only actually
+       renders for Bengali characters — 'Inter' has none, so Latin text is
+       untouched and only Bangla-translated strings pick up the fallback. */
+    font-family: 'Inter', 'Hind Siliguri', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     color: #1e293b;
 }
 
@@ -444,6 +447,31 @@
 .mdbk-admin-doctor-active-toggle { gap: 6px; }
 .mdbk-admin-doctor-active-text { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; color: #9ca3af; }
 .mdbk-admin-doctor-active-toggle input:checked ~ .mdbk-admin-doctor-active-text { color: #16a34a; }
+
+/* Trailing "add new" card at the end of the grid — deliberately its own
+   standalone class, not .mdbk-admin-doctor-card (see the PHP comment in
+   render_doctors_page() for why), so it needs its own full box styling
+   here rather than an "-add" modifier layered on the base card rule.
+   Centered icon+label layout (not the base card's avatar-left grid) —
+   matches the same dashed-border/blue-accent treatment as the Specialties
+   grid's own .mdbk-specialty-card-add. */
+.mdbk-admin-doctor-card-add {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 20px 14px;
+    border: 1px dashed #cbd5e1;
+    border-radius: 14px;
+    background: #fafbfc;
+    text-align: center;
+    text-decoration: none;
+    transition: border-color 0.2s ease, background 0.2s ease;
+}
+.mdbk-admin-doctor-card-add:hover { border-color: #0061d5; background: rgba(0, 97, 213, .04); }
+.mdbk-admin-doctor-card-add-icon { width: 52px; height: 52px; border-radius: 12px; background: rgba(0, 97, 213, .1); color: #0061d5; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.mdbk-admin-doctor-card-add-label { font-size: 13px; font-weight: 700; color: #0061d5; }
 .mdbk-admin-doctor-card-actions { display: flex; gap: 6px; }
 
 /* Generic small toggle switch used by the doctor card's Active/Inactive control —
@@ -727,6 +755,27 @@ button.mdbk-mini-cal-nav-btn:hover { background: #f1f5f9; }
 .mdbk-mini-toggle-text { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; color: #9ca3af; }
 .mdbk-mini-toggle input:checked ~ .mdbk-mini-toggle-text { color: #0061d5; }
 
+/* Today's Queue's per-doctor "visiting" pulse dot (leads the doctor's name
+   — render_patient_list_html() in admin-dashboard.php) — a quiet
+   broadcast-style "this doctor is actively seeing a patient right now"
+   cue. .mdbk-live-pulse-active is set directly by PHP from
+   $serving_doctor_ids on every render (including every AJAX
+   fragment-refresh after Start Visiting/Mark Visited/etc.), so it always
+   reflects current state with no JS involved — a plain static gray dot
+   whenever nobody's actually being seen (doctor on a break, or between
+   patients). */
+.mdbk-live-pulse-dot { display: inline-block; width: 6px; height: 6px; margin-right: 2px; border-radius: 50%; background: #cbd5e1; vertical-align: middle; }
+.mdbk-live-pulse-dot.mdbk-live-pulse-active {
+    background: #16a34a;
+    box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.55);
+    animation: mdbk-live-pulse 1.6s ease-out infinite;
+}
+@keyframes mdbk-live-pulse {
+    0%   { box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.55); }
+    70%  { box-shadow: 0 0 0 6px rgba(22, 163, 74, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(22, 163, 74, 0); }
+}
+
 /* Editable weekly-availability rows (Add/Edit modal) — day name, on/off
    toggle, and a from–to time range, all on one line. */
 .mdbk-day-grid { display: flex; flex-direction: column; gap: 4px; }
@@ -990,7 +1039,40 @@ button.mdbk-mini-cal-nav-btn:hover { background: #f1f5f9; }
    the chevron now sits at the end of this cluster instead). */
 .mdbk-doctor-group-actions { display: flex; align-items: center; gap: 6px; margin-left: auto; }
 .mdbk-doctor-group-actions .mdbk-icon-btn { width: 26px; height: 26px; }
-.mdbk-doctor-group-actions .mdbk-availability-chevron { margin-left: 4px; }
+/* Collapse/expand chevron, made into a proper circular button here (bigger
+   hit area, background, bolder arrow, hover state) instead of the plain
+   thin corner-border arrow .mdbk-availability-chevron is elsewhere — this
+   is the primary "there's more, click to expand" affordance on a page
+   staff use constantly, so it needs to read clearly, not just be inferred
+   from cursor:pointer on the whole row. Rendered as an inline SVG
+   <polyline> (see render_patient_list_html() in admin-dashboard.php)
+   rather than the border-corner trick .mdbk-availability-chevron uses
+   elsewhere — that trick's rotate(45deg)/rotate(-135deg) pairing assumes
+   the box's visual center lines up with its layout box, which broke once
+   this became a bigger padded circle (arrow drifted off-center). An SVG
+   rotates exactly around its own center regardless of the button's
+   padding, so the outer circle itself is reset to no transform (overriding
+   the plain .mdbk-doctor-group[open] .mdbk-availability-chevron rule
+   above, which still applies to every OTHER use of this class) and all
+   rotation happens on the <svg> child instead. */
+.mdbk-doctor-group-actions .mdbk-availability-chevron {
+    width: 22px;
+    height: 22px;
+    margin-left: 4px;
+    border: none;
+    border-radius: 50%;
+    background: #eef2f7;
+    color: #475569;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transform: none;
+    transition: background 0.2s ease, color 0.2s ease;
+}
+.mdbk-doctor-group-actions .mdbk-availability-chevron svg { display: block; transition: transform 0.2s ease; }
+.mdbk-doctor-group-actions .mdbk-availability-chevron:hover { background: #dbeafe; color: #0061d5; }
+.mdbk-doctor-group[open] .mdbk-doctor-group-actions .mdbk-availability-chevron { transform: none; background: #dbeafe; color: #0061d5; }
+.mdbk-doctor-group[open] .mdbk-doctor-group-actions .mdbk-availability-chevron svg { transform: rotate(180deg); }
 /* "Expand All" / "Collapse All" — sits in the card-header next to
    "Today's Queue" / "Patient List" via that header's own
    justify-content:space-between, only rendered when this page is
@@ -1148,6 +1230,15 @@ button.mdbk-mini-cal-nav-btn:hover { background: #f1f5f9; }
 .mdbk-specialty-card-actions .mdbk-action-btn { opacity: .55; }
 .mdbk-specialty-card:hover .mdbk-action-btn,
 .mdbk-specialty-card-actions .mdbk-action-btn:hover { opacity: 1; }
+
+/* Trailing "add new" card at the end of the grid — dashed border instead
+   of the solid one real cards use, so it reads as "click to create" rather
+   than an actual specialty. Text-decoration:none since this one's an <a>,
+   unlike the real cards (plain divs). */
+.mdbk-specialty-card-add { justify-content: center; border-style: dashed; border-color: #cbd5e1; cursor: pointer; background: #fafbfc; text-decoration: none; }
+.mdbk-specialty-card-add:hover { border-color: #0061d5; background: rgba(0, 97, 213, .04); }
+.mdbk-specialty-card-add .mdbk-specialty-card-icon { background: rgba(0, 97, 213, .1); color: #0061d5; }
+.mdbk-specialty-card-add .mdbk-specialty-card-name { color: #0061d5; }
 
 .mdbk-patient-row-ticket { background: #f1f5f9; color: #64748b; font-size: 11px; font-weight: 800; letter-spacing: .2px; padding: 3px 8px; border-radius: 6px; cursor: help; }
 /* Patient ID (persistent — the linked mdbk_patient CPT, same across every

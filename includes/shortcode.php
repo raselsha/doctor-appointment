@@ -19,6 +19,10 @@ class MDBK_Shortcode {
         // no QR-render dependency of its own (this page shows a phone-entry
         // form, not a QR image), so no priority-30 ordering need here.
         add_action('wp_footer', [$this, 'render_chamber_checkin_view']);
+        // One shared modal (not one per doctor card) for the "Today's
+        // Patients" button on render_doctor_list()'s cards — populated via
+        // AJAX per click, same pattern as the booking modal above.
+        add_action('wp_footer', [$this, 'render_today_patients_modal']);
 
         // Queue AJAX endpoints — nopriv because the queue is a public/kiosk
         // display, same trust model the plain-POST version already had
@@ -44,6 +48,7 @@ class MDBK_Shortcode {
 
         $atts = shortcode_atts([
             'department'  => '',
+            'doctor'      => '',
             'limit'       => -1,
             'orderby'     => 'title',
             'order'       => 'ASC',
@@ -57,7 +62,10 @@ class MDBK_Shortcode {
             'orderby'        => sanitize_key($atts['orderby']),
             'order'          => strtoupper($atts['order']) === 'DESC' ? 'DESC' : 'ASC',
             // Doctors default to active — the meta only ever gets written (to 'no')
-            // once someone flips a card's toggle off in wp-admin.
+            // once someone flips a card's toggle off in wp-admin. Kept even for
+            // a single-doctor request ('doctor' attribute below) — an inactive
+            // doctor shouldn't become bookable again just by linking straight
+            // to their own page.
             'meta_query'     => [
                 'relation' => 'OR',
                 ['key' => '_mdbk_doctor_active', 'compare' => 'NOT EXISTS'],
@@ -65,7 +73,17 @@ class MDBK_Shortcode {
             ],
         ];
 
-        if (!empty($atts['department'])) {
+        // [mdbk_doctor_list doctor="6"] (or a slug) — a single doctor's own
+        // page, reusing this exact same card markup (bio, contact,
+        // availability, Today's Patients/Book Appointment) instead of a
+        // separate template, so it never drifts from the grid version.
+        if (!empty($atts['doctor'])) {
+            $args['p'] = is_numeric($atts['doctor']) ? intval($atts['doctor']) : 0;
+            if (!$args['p']) {
+                $args['name'] = sanitize_title($atts['doctor']);
+            }
+            $args['posts_per_page'] = 1;
+        } elseif (!empty($atts['department'])) {
             $args['tax_query'] = [
                 [
                     'taxonomy' => 'mdbk_department',
@@ -96,6 +114,52 @@ class MDBK_Shortcode {
                         $show_email  = get_post_meta($doctor_id, '_mdbk_show_email', true);
                         $schedule    = get_post_meta($doctor_id, '_mdbk_schedule', true);
                         $departments = get_the_terms($doctor_id, 'mdbk_department');
+
+                        $today          = current_time('Y-m-d');
+                        $today_day_name = current_time('l');
+                        $extra_dates    = get_post_meta($doctor_id, '_mdbk_extra_dates', true);
+                        if (!is_array($extra_dates)) $extra_dates = [];
+                        $off_dates = get_post_meta($doctor_id, '_mdbk_off_dates', true);
+                        if (!is_array($off_dates)) $off_dates = [];
+                        // This month's upcoming extra (one-off) working
+                        // dates — past ones already happened, so aren't
+                        // useful information for a prospective patient here.
+                        $month_extra_dates = array_values(array_filter($extra_dates, function($d) use ($today) {
+                            return $d >= $today && substr($d, 0, 7) === substr($today, 0, 7);
+                        }));
+                        sort($month_extra_dates);
+                        // An extra date borrows the first active weekday's
+                        // hours as its own stand-in — same rule
+                        // get_available_slots() itself uses, so this display
+                        // never promises hours the booking flow wouldn't
+                        // actually honor.
+                        $extra_date_from = $extra_date_to = '';
+                        if (is_array($schedule)) {
+                            foreach ($schedule as $day_hours) {
+                                if (!empty($day_hours['active']) && !empty($day_hours['from']) && !empty($day_hours['to'])) {
+                                    $extra_date_from = $day_hours['from'];
+                                    $extra_date_to   = $day_hours['to'];
+                                    break;
+                                }
+                            }
+                        }
+                        // Same precedence as get_available_slots(): an off
+                        // date closes the doctor outright regardless of the
+                        // weekly pattern or any extra date.
+                        if (in_array($today, $off_dates, true)) {
+                            $is_working_today = false;
+                        } elseif (is_array($schedule) && !empty($schedule[$today_day_name]['active'])) {
+                            $is_working_today = true;
+                        } else {
+                            $is_working_today = in_array($today, $extra_dates, true);
+                        }
+                        // "Today's Patients" is staff/manager/admin/doctor
+                        // only (per feedback — not a public feature after
+                        // all) — MDBK_CAP_QUEUE covers front-desk/manager/
+                        // admin, MDBK_CAP_DOCTOR covers a doctor viewing
+                        // their own card, same capability pair used
+                        // throughout the admin side of this plugin.
+                        $can_see_today_patients = $is_working_today && (current_user_can(MDBK_CAP_QUEUE) || current_user_can(MDBK_CAP_DOCTOR));
                         ?>
 
                         <article class="mdbk-doctor-card">
@@ -173,20 +237,38 @@ class MDBK_Shortcode {
 
                                             <?php if (!empty($time['active'])) : ?>
 
-                                                <li>
+                                                <li<?php echo ($day === $today_day_name && $is_working_today) ? ' class="is-today"' : ''; ?>>
                                                     <span class="day">
                                                         <?php echo esc_html($day); ?>
+                                                        <?php if ($day === $today_day_name && $is_working_today) : ?><span class="mdbk-today-tag"><?php _e('Today', 'doctor-appointment'); ?></span><?php endif; ?>
                                                     </span>
 
                                                     <span class="time">
-                                                        <?php echo esc_html($time['from'] ?? ''); ?>
+                                                        <?php echo esc_html(!empty($time['from']) ? date_i18n(get_option('time_format'), strtotime($time['from'])) : ''); ?>
                                                         -
-                                                        <?php echo esc_html($time['to'] ?? ''); ?>
+                                                        <?php echo esc_html(!empty($time['to']) ? date_i18n(get_option('time_format'), strtotime($time['to'])) : ''); ?>
                                                     </span>
                                                 </li>
 
                                             <?php endif; ?>
 
+                                        <?php endforeach; ?>
+
+                                        <?php foreach ($month_extra_dates as $extra_date) : $is_extra_today = ($extra_date === $today); ?>
+                                            <li class="mdbk-extra-date-row<?php echo $is_extra_today ? ' is-today' : ''; ?>">
+                                                <span class="day">
+                                                    <?php echo esc_html(date_i18n('M j', strtotime($extra_date))); ?>
+                                                    <span class="mdbk-special-tag"><?php _e('Special', 'doctor-appointment'); ?></span>
+                                                    <?php if ($is_extra_today) : ?><span class="mdbk-today-tag"><?php _e('Today', 'doctor-appointment'); ?></span><?php endif; ?>
+                                                </span>
+                                                <?php if ($extra_date_from && $extra_date_to) : ?>
+                                                <span class="time">
+                                                    <?php echo esc_html(date_i18n(get_option('time_format'), strtotime($extra_date_from))); ?>
+                                                    -
+                                                    <?php echo esc_html(date_i18n(get_option('time_format'), strtotime($extra_date_to))); ?>
+                                                </span>
+                                                <?php endif; ?>
+                                            </li>
                                         <?php endforeach; ?>
 
                                     </ul>
@@ -197,12 +279,22 @@ class MDBK_Shortcode {
 
                             <div class="mdbk-doctor-footer">
 
-                                <button type="button" class="mdbk-doctor-book-btn mdbk-book-trigger"
-                                data-mdbk-doctor-id="<?php echo esc_attr($doctor_id); ?>">
+                                <div class="mdbk-doctor-footer-buttons">
+                                    <?php if ($can_see_today_patients) : ?>
+                                    <button type="button" class="mdbk-doctor-today-btn mdbk-today-patients-trigger"
+                                    data-mdbk-doctor-id="<?php echo esc_attr($doctor_id); ?>"
+                                    data-mdbk-doctor-name="<?php echo esc_attr(get_the_title($doctor_id)); ?>">
+                                        <?php _e("Today's Patients", 'doctor-appointment'); ?>
+                                    </button>
+                                    <?php endif; ?>
 
-                                    <?php _e('Book Appointment', 'doctor-appointment'); ?>
+                                    <button type="button" class="mdbk-doctor-book-btn mdbk-book-trigger"
+                                    data-mdbk-doctor-id="<?php echo esc_attr($doctor_id); ?>">
 
-                                </button>
+                                        <?php _e('Book Appointment', 'doctor-appointment'); ?>
+
+                                    </button>
+                                </div>
 
                             </div>
 
@@ -288,6 +380,33 @@ class MDBK_Shortcode {
                 <div class="mdbk-modal-body">
                     <div class="mdbk-modal-message"></div>
                     <?php $this->render_booking_widget_fields(); ?>
+                </div>
+            </div>
+        </div>
+        <?php
+    }
+
+    /**
+     * Shared "Today's Patients" modal for render_doctor_list()'s cards —
+     * one instance regardless of how many doctor cards are on the page,
+     * populated per click via AJAX (ajax_get_today_patient_summary()).
+     * Only printed at all for a logged-in staff/manager/admin/doctor
+     * viewer — the same people the button itself is restricted to — so a
+     * logged-out visitor's page source never even contains this markup.
+     */
+    public function render_today_patients_modal() {
+        if (!current_user_can(MDBK_CAP_QUEUE) && !current_user_can(MDBK_CAP_DOCTOR)) {
+            return;
+        }
+        ?>
+        <div id="mdbk-today-patients-modal" class="mdbk-modal-overlay">
+            <div class="mdbk-modal-card">
+                <div class="mdbk-modal-header">
+                    <h3 id="mdbk-today-patients-modal-title"><?php _e("Today's Patients", 'doctor-appointment'); ?></h3>
+                    <span class="mdbk-modal-close" id="mdbk-today-patients-modal-close">&times;</span>
+                </div>
+                <div class="mdbk-modal-body">
+                    <div id="mdbk-today-patients-list"></div>
                 </div>
             </div>
         </div>
@@ -542,7 +661,11 @@ class MDBK_Shortcode {
     private function render_booking_widget_fields() {
         $specialties = get_terms([
             'taxonomy'   => 'mdbk_department',
-            'hide_empty' => false,
+            // A specialty with zero doctors assigned isn't a real choice
+            // for a patient booking — it would only ever lead to "No
+            // doctors available for this specialty." hide_empty (WP's own
+            // published-post count per term) filters those out.
+            'hide_empty' => true,
             // Specialties default to active — the meta only ever gets
             // written (to 'no') once someone flips a card's toggle off in
             // wp-admin. Same pattern as doctors' own active/inactive meta.
@@ -751,10 +874,25 @@ class MDBK_Shortcode {
      * unauthenticated page, not just a summary.
      */
     public function render_queue_list($atts = []) {
+        // Global Settings' "Enable Live Queue" toggle — when off, skip the
+        // nonce/script entirely (not just hide the markup) so the public
+        // polling endpoint has nothing live to poll from this page.
+        if (get_option('mdbk_enable_live_queue', 'yes') === 'no') {
+            return '<p class="mdbk-no-doctors">' . esc_html__('The live queue display is currently turned off.', 'doctor-appointment') . '</p>';
+        }
+
         $atts = shortcode_atts(['doctor' => ''], $atts, 'mdbk_queue_list');
         $doctor_id = intval($atts['doctor']);
         if (!$doctor_id && isset($_GET['mdbk_doctor_id'])) {
             $doctor_id = intval($_GET['mdbk_doctor_id']);
+        }
+
+        // Per-doctor override (Today's Queue page's own Live Queue toggle,
+        // next to each doctor's name) — a doctor explicitly opted out this
+        // way, on an otherwise globally-enabled feature, shown as its own
+        // distinct message rather than silently rendering nothing.
+        if ($doctor_id && !\MDBK\MDBK_Appointment_Manager::is_doctor_live_queue_enabled($doctor_id)) {
+            return '<p class="mdbk-no-doctors">' . esc_html__("This doctor's live queue display is currently turned off.", 'doctor-appointment') . '</p>';
         }
 
         $queue_js_ver = file_exists(MDBK_PATH . 'assets/js/queue-view-script.js') ? filemtime(MDBK_PATH . 'assets/js/queue-view-script.js') : MDBK_VERSION;
@@ -780,6 +918,14 @@ class MDBK_Shortcode {
                 ['key' => '_mdbk_doctor_active', 'value' => 'no', 'compare' => '!='],
             ],
         ]);
+
+        // All-doctors mode: a doctor toggled off individually just drops
+        // out of this stacked list (same as an inactive doctor already
+        // does above), rather than showing an per-instance disabled block
+        // among otherwise-live ones.
+        $doctors = array_values(array_filter($doctors, function($doctor) {
+            return \MDBK\MDBK_Appointment_Manager::is_doctor_live_queue_enabled($doctor->ID);
+        }));
 
         ob_start();
         ?>
@@ -868,13 +1014,31 @@ class MDBK_Shortcode {
         });
 
         $departments = get_the_terms($doctor_id, 'mdbk_department');
+        // Same idea as the pulse dot on the admin Bookings page: lit and
+        // pulsing only while this doctor actually has someone in "serving"
+        // status right now, so a waiting patient can tell "doctor is with
+        // someone" from "doctor's on a break" at a glance. $patients is
+        // already sorted serving-first (see the usort() above), so index 0
+        // being 'mdbk_serving' is enough — no extra query needed. Kept as a
+        // sibling of <h2>, not a child of it — the h2 itself needs its own
+        // overflow:hidden/text-overflow:ellipsis for long doctor names,
+        // which would otherwise clip the dot's box-shadow ripple right at
+        // its left edge (the dot sits flush against the h2's start with no
+        // room for the ripple to expand into). Refreshed on every poll by
+        // queue-view-script.js explicitly syncing this element — it isn't
+        // inside .mdbk-queue-list-columns/-count/-updated, the only three
+        // things that script already knew to reconcile.
+        $doctor_is_visiting = !empty($patients) && $patients[0]->post_status === 'mdbk_serving';
 
         ob_start();
         ?>
         <div class="mdbk-queue-list-card">
         <div class="mdbk-queue-list-heading">
             <div class="mdbk-queue-list-heading-main">
-                <h2><?php echo esc_html(get_the_title($doctor_id)); ?></h2>
+                <div class="mdbk-queue-doctor-name-row">
+                    <span class="mdbk-live-pulse-dot<?php echo $doctor_is_visiting ? ' mdbk-live-pulse-active' : ''; ?>" title="<?php esc_attr_e('Doctor is currently visiting a patient', 'doctor-appointment'); ?>"></span>
+                    <h2><?php echo esc_html(get_the_title($doctor_id)); ?></h2>
+                </div>
                 <?php if (!empty($departments) && !is_wp_error($departments)) : ?>
                     <span class="mdbk-queue-list-specialty"><?php echo esc_html($departments[0]->name); ?></span>
                 <?php endif; ?>

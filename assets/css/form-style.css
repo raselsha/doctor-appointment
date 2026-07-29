@@ -18,8 +18,8 @@
    consistent design instead of the date/time area looking like the only
    "designed" part. */
 .mdbk-card-section {
-    background: rgba(0, 97, 213, .05);
-    border: 1px solid rgba(0, 97, 213, .15);
+    background: color-mix(in srgb, var(--mdbk-primary) 5%, transparent);
+    border: 1px solid color-mix(in srgb, var(--mdbk-primary) 15%, transparent);
     border-radius: 16px;
     padding: 14px;
 }
@@ -35,7 +35,7 @@
 }
 
 .mdbk-required {
-    color: #0061d5;
+    color: var(--mdbk-primary);
 }
 
 /* Specialty dropdown — custom chevron over a native <select> so it doesn't
@@ -59,9 +59,9 @@ button.mdbk-custom-select-trigger {
     gap: 10px;
     width: 100%;
     padding: 10px 14px;
-    border: 1.5px solid rgba(0, 97, 213, .25);
+    border: 1.5px solid color-mix(in srgb, var(--mdbk-primary) 25%, transparent);
     border-radius: 8px;
-    background: rgba(0, 97, 213, .06);
+    background: color-mix(in srgb, var(--mdbk-primary) 6%, transparent);
     color: #0f2a4a;
     font-size: 14px;
     font-weight: 500;
@@ -74,29 +74,29 @@ button.mdbk-custom-select-trigger {
 
 button.mdbk-custom-select-trigger:focus {
     outline: none;
-    border-color: rgba(0, 97, 213, .25);
+    border-color: color-mix(in srgb, var(--mdbk-primary) 25%, transparent);
     color: #0f2a4a;
-    background: rgba(0, 97, 213, .06);
+    background: color-mix(in srgb, var(--mdbk-primary) 6%, transparent);
 }
 
 button.mdbk-custom-select-trigger:hover {
-    border-color: rgba(0, 97, 213, .4);
+    border-color: color-mix(in srgb, var(--mdbk-primary) 40%, transparent);
     color: #0f2a4a;
-    background: rgba(0, 97, 213, .06);
+    background: color-mix(in srgb, var(--mdbk-primary) 6%, transparent);
 }
 
 .mdbk-custom-select.open button.mdbk-custom-select-trigger {
     outline: none;
-    border-color: #0061d5;
-    box-shadow: 0 0 0 4px rgba(0, 97, 213, .1);
+    border-color: var(--mdbk-primary);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--mdbk-primary) 10%, transparent);
 }
 
 .mdbk-custom-select-chevron {
     flex-shrink: 0;
     width: 8px;
     height: 8px;
-    border-right: 2px solid #0061d5;
-    border-bottom: 2px solid #0061d5;
+    border-right: 2px solid var(--mdbk-primary);
+    border-bottom: 2px solid var(--mdbk-primary);
     transform: rotate(45deg);
     transition: transform .2s ease;
 }
@@ -129,12 +129,12 @@ button.mdbk-custom-select-trigger:hover {
 }
 
 .mdbk-custom-select-option:hover {
-    background: rgba(0, 97, 213, .08);
+    background: color-mix(in srgb, var(--mdbk-primary) 8%, transparent);
 }
 
 .mdbk-custom-select-option.selected {
-    background: rgba(0, 97, 213, .1);
-    color: #0061d5;
+    background: color-mix(in srgb, var(--mdbk-primary) 10%, transparent);
+    color: var(--mdbk-primary);
     font-weight: 600;
 }
 
@@ -180,8 +180,8 @@ select.mdbk-form-control {
 
 .mdbk-form-control:focus {
     outline: none;
-    border-color: #0061d5;
-    box-shadow: 0 0 0 4px rgba(0, 97, 213, 0.1);
+    border-color: var(--mdbk-primary);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--mdbk-primary) 10%, transparent);
 }
 
 /*
@@ -199,8 +199,8 @@ input[type="email"].mdbk-form-control:focus,
 input[type="number"].mdbk-form-control:focus,
 select.mdbk-form-control:focus {
     outline: none;
-    border-color: #0061d5;
-    box-shadow: 0 0 0 4px rgba(0, 97, 213, 0.1);
+    border-color: var(--mdbk-primary);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--mdbk-primary) 10%, transparent);
 }
 
 .mdbk-optional {
@@ -213,7 +213,7 @@ select.mdbk-form-control:focus {
 button.mdbk-submit-btn {
     width: 100%;
     padding: 16px;
-    background: #0061d5;
+    background: var(--mdbk-primary);
     color: #fff;
     border: none;
     border-radius: 12px;
@@ -225,10 +225,10 @@ button.mdbk-submit-btn {
 }
 
 button.mdbk-submit-btn:hover {
-    background: #0056bc;
+    background: var(--mdbk-primary-dark);
     color: #fff;
     transform: translateY(-1px);
-    box-shadow: 0 6px 20px rgba(0, 97, 213, 0.25);
+    box-shadow: 0 6px 20px color-mix(in srgb, var(--mdbk-primary) 25%, transparent);
 }
 
 /* Grid for Age and Mobile */
@@ -265,6 +265,23 @@ button.mdbk-submit-btn:hover {
     align-items: flex-start;
     padding-top: 40px;
     overflow-y: auto;
+}
+
+/* Same reasoning as front-end.css's own :lang(bn) rule — the booking
+   modal/inline widget has no font-family of its own (inherits the active
+   theme's), which is left alone for an English site; only a Bengali site
+   locale switches it to a font that actually has Bengali glyphs. */
+:lang(bn) .mdbk-modal-overlay,
+:lang(bn) .mdbk-modal-overlay input,
+:lang(bn) .mdbk-modal-overlay select,
+:lang(bn) .mdbk-modal-overlay textarea,
+:lang(bn) .mdbk-modal-overlay button,
+:lang(bn) .mdbk-booking-inline,
+:lang(bn) .mdbk-booking-inline input,
+:lang(bn) .mdbk-booking-inline select,
+:lang(bn) .mdbk-booking-inline textarea,
+:lang(bn) .mdbk-booking-inline button {
+    font-family: 'Hind Siliguri', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
 .mdbk-modal-card {
@@ -406,7 +423,7 @@ button.mdbk-submit-btn:hover {
     align-items: center;
     justify-content: center;
     background: #eef6ff;
-    color: #0061d5;
+    color: var(--mdbk-primary);
     font-size: 16px;
     font-weight: 700;
 }
@@ -462,7 +479,7 @@ button.mdbk-submit-btn:hover {
     display: flex;
     align-items: center;
     gap: 12px;
-    background: #0061d5;
+    background: var(--mdbk-primary);
     padding: 14px 16px;
     border-radius: 16px;
 }
@@ -516,8 +533,8 @@ button.mdbk-selected-doc-change:hover {
     display: flex;
     flex-direction: column;
     gap: 10px;
-    background: rgba(0, 97, 213, .05);
-    border: 1px solid rgba(0, 97, 213, .15);
+    background: color-mix(in srgb, var(--mdbk-primary) 5%, transparent);
+    border: 1px solid color-mix(in srgb, var(--mdbk-primary) 15%, transparent);
     border-radius: 16px;
     padding: 14px;
 }
@@ -575,8 +592,8 @@ button.mdbk-cal-nav-btn {
 }
 
 button.mdbk-cal-nav-btn:hover {
-    background: #0061d5;
-    border-color: #0061d5;
+    background: var(--mdbk-primary);
+    border-color: var(--mdbk-primary);
     color: #fff;
 }
 
@@ -615,7 +632,7 @@ button.mdbk-cal-nav-btn:hover {
 
 .mdbk-cal-day.today {
     font-weight: 700;
-    color: #0061d5;
+    color: var(--mdbk-primary);
 }
 
 .mdbk-cal-day.today::after {
@@ -631,10 +648,10 @@ button.mdbk-cal-nav-btn:hover {
 }
 
 .mdbk-cal-day.selected {
-    background: #0061d5;
+    background: var(--mdbk-primary);
     color: #fff;
     font-weight: 700;
-    box-shadow: 0 2px 8px rgba(0, 97, 213, .25);
+    box-shadow: 0 2px 8px color-mix(in srgb, var(--mdbk-primary) 25%, transparent);
 }
 
 .mdbk-cal-day.selected.today::after {
@@ -681,8 +698,8 @@ button.mdbk-cal-nav-btn:hover {
     display: flex;
     gap: 14px;
     align-items: stretch;
-    background: rgba(0, 97, 213, .05);
-    border: 1px solid rgba(0, 97, 213, .15);
+    background: color-mix(in srgb, var(--mdbk-primary) 5%, transparent);
+    border: 1px solid color-mix(in srgb, var(--mdbk-primary) 15%, transparent);
     border-radius: 16px;
     padding: 14px;
 }
@@ -751,7 +768,7 @@ button.mdbk-datetime-change {
     margin-left: auto;
     flex-shrink: 0;
     background: transparent;
-    color: #0061d5;
+    color: var(--mdbk-primary);
     border: none;
     padding: 0;
     font-size: 13px;
@@ -813,14 +830,14 @@ button.mdbk-slot-btn {
  * re-asserting color here, hovering silently reverted the text to white.
  */
 button.mdbk-slot-btn:hover:not(:disabled) {
-    border-color: #0061d5;
-    background: #0061d5;
+    border-color: var(--mdbk-primary);
+    background: var(--mdbk-primary);
     color: #fff;
 }
 
 button.mdbk-slot-btn.selected {
-    border-color: #0061d5;
-    background: #0061d5;
+    border-color: var(--mdbk-primary);
+    background: var(--mdbk-primary);
     color: #fff;
 }
 
@@ -918,7 +935,7 @@ button.mdbk-slot-btn.mdbk-slot-taken {
 .mdbk-confirmation-close-btn {
     margin-top: 14px;
     padding: 12px 28px;
-    background: #0061d5;
+    background: var(--mdbk-primary);
     color: #fff;
     border: none;
     border-radius: 10px;
@@ -928,7 +945,7 @@ button.mdbk-slot-btn.mdbk-slot-taken {
 }
 
 .mdbk-confirmation-close-btn:hover {
-    background: #0056bc;
+    background: var(--mdbk-primary-dark);
 }
 
 .mdbk-confirmation-actions {
@@ -941,7 +958,7 @@ button.mdbk-slot-btn.mdbk-slot-taken {
     flex: 1;
     padding: 11px 14px;
     background: #fff;
-    color: #0061d5;
+    color: var(--mdbk-primary);
     border: 1px solid #cbd5e1;
     border-radius: 10px;
     font-size: 13px;

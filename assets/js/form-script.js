@@ -205,9 +205,14 @@ document.addEventListener('DOMContentLoaded', function() {
     /**
      * "09:00" -> "9:00 AM" for display only — the underlying 24-hour value
      * (submitted, sorted, and compared everywhere else in the booking flow)
-     * is left untouched.
+     * is left untouched. Left as-is when the site's WordPress
+     * Settings > General > Time Format is a 24-hour one — see
+     * mdbk_form_obj.time_format_24h, doctor-appointment.php's
+     * clinic_branding_data() — so this respects the same whole-system
+     * preference the doctor availability list and admin schedule views do.
      */
     function formatTime12h(time24) {
+        if (typeof mdbk_form_obj !== 'undefined' && mdbk_form_obj.time_format_24h) return time24;
         var parts = time24.split(':');
         var hour = parseInt(parts[0], 10);
         var minute = parts[1];
@@ -930,6 +935,82 @@ document.addEventListener('DOMContentLoaded', function() {
     if (inlineContainer) {
         openBookingModal(inlineContainer.getAttribute('data-mdbk-doctor-id'));
     }
+
+    /**
+     * "Today's Patients" button on the doctor card (shortcode.php's
+     * render_doctor_list()) — only rendered at all for a doctor working
+     * today AND a logged-in staff/manager/admin/doctor viewer (see
+     * $can_see_today_patients there), and the AJAX handler itself
+     * (ajax_get_today_patient_summary() in appointment-manager.php) is
+     * gated the same way server-side, not just hidden client-side. Opens
+     * the one shared modal (render_today_patients_modal()) and populates
+     * it with the doctor's full today's-patient list — names are fine
+     * here since this is staff-only, not the public feature it started
+     * as. Re-fetches fresh on every open rather than caching, so the list
+     * never goes stale while browsing.
+     */
+    var todayPatientsModal = document.getElementById('mdbk-today-patients-modal');
+    var todayPatientsList = document.getElementById('mdbk-today-patients-list');
+    var todayPatientsTitle = document.getElementById('mdbk-today-patients-modal-title');
+
+    function closeTodayPatientsModal() {
+        if (todayPatientsModal) todayPatientsModal.style.display = 'none';
+    }
+    if (todayPatientsModal) {
+        var todayPatientsCloseBtn = document.getElementById('mdbk-today-patients-modal-close');
+        if (todayPatientsCloseBtn) todayPatientsCloseBtn.addEventListener('click', closeTodayPatientsModal);
+        todayPatientsModal.addEventListener('click', function(e) {
+            if (e.target === todayPatientsModal) closeTodayPatientsModal();
+        });
+    }
+
+    document.addEventListener('click', function(e) {
+        var trigger = e.target.closest('.mdbk-today-patients-trigger');
+        if (!trigger || !todayPatientsModal || !todayPatientsList) return;
+        e.preventDefault();
+        var doctorId = trigger.getAttribute('data-mdbk-doctor-id');
+        var doctorName = trigger.getAttribute('data-mdbk-doctor-name') || '';
+
+        if (todayPatientsTitle) {
+            todayPatientsTitle.textContent = doctorName ? (doctorName + ' — Today’s Patients') : 'Today’s Patients';
+        }
+        todayPatientsList.innerHTML = '<p class="mdbk-today-patients-loading">Loading...</p>';
+        todayPatientsModal.style.display = 'flex';
+
+        var formData = new FormData();
+        formData.append('action', 'mdbk_get_today_patient_summary');
+        formData.append('doctor_id', doctorId);
+        formData.append('nonce', mdbk_form_obj.nonce);
+
+        fetch(mdbk_form_obj.ajax_url, { method: 'POST', body: formData })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (!data.success) {
+                    todayPatientsList.innerHTML = '<p class="mdbk-today-patients-loading">Could not load today’s patients.</p>';
+                    return;
+                }
+                var d = data.data;
+                if (!d.patients.length) {
+                    todayPatientsList.innerHTML = '<p class="mdbk-today-patients-loading">No patients today.</p>';
+                    return;
+                }
+                var rows = d.patients.map(function(p) {
+                    return '<div class="mdbk-today-patient-row">' +
+                        '<span class="mdbk-today-patient-ticket">' + mdbkEscHtml(p.ticket) + '</span>' +
+                        '<span class="mdbk-today-patient-name">' + mdbkEscHtml(p.patient_name) + '</span>' +
+                        '<span class="mdbk-today-patient-time">' + mdbkEscHtml(p.time) + '</span>' +
+                        '<span class="mdbk-today-patient-status mdbk-status-' + mdbkEscHtml(p.status_slug) + '">' + mdbkEscHtml(p.status_label) + '</span>' +
+                        '</div>';
+                }).join('');
+                todayPatientsList.innerHTML =
+                    '<div class="mdbk-today-patients-summary">' + d.total + (d.total === 1 ? ' patient today' : ' patients today') +
+                    ' — ' + d.waiting + ' waiting, ' + d.serving + ' being seen, ' + d.completed + ' completed</div>' +
+                    '<div class="mdbk-today-patients-rows">' + rows + '</div>';
+            })
+            .catch(function() {
+                todayPatientsList.innerHTML = '<p class="mdbk-today-patients-loading">Could not load today’s patients.</p>';
+            });
+    });
 
     function resetModal() {
         if (modal) {

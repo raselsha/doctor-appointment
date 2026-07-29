@@ -42,6 +42,10 @@ class MDBK_Appointment_Manager {
         add_action('wp_ajax_nopriv_mdbk_get_doctor_slots', [$this, 'ajax_get_doctor_slots']);
         add_action('wp_ajax_mdbk_submit_appointment', [$this, 'ajax_handle_submission']);
         add_action('wp_ajax_nopriv_mdbk_submit_appointment', [$this, 'ajax_handle_submission']);
+        // No _nopriv variant — this is staff/manager/admin/doctor only
+        // (per feedback), not a public feature; see the capability check
+        // at the top of the handler too.
+        add_action('wp_ajax_mdbk_get_today_patient_summary', [$this, 'ajax_get_today_patient_summary']);
 
         add_filter('mdbk_email_body', [$this, 'append_checkin_link_to_email'], 10, 4);
     }
@@ -478,28 +482,39 @@ class MDBK_Appointment_Manager {
         if (!$duration) $duration = intval(get_option('mdbk_default_slot_duration', 20));
         if ($duration <= 0) $duration = 20;
 
-        $start = strtotime($date . ' ' . $from);
-        $end   = strtotime($date . ' ' . $to);
-        if (!$start || !$end || $start >= $end) return [];
+        // Built via an explicit DateTimeZone (WordPress's own configured
+        // site timezone, Settings > General) rather than bare strtotime()/
+        // date(), which both silently fall back to PHP's server-level
+        // default timezone (the `date.timezone` ini setting) — that's UTC
+        // on this dev box, but is NOT guaranteed on every host, and a
+        // mismatch there previously made "now" (current_time()) and the
+        // doctor's own start/end times get computed on two different
+        // timezone bases, corrupting the past-time filter below on any
+        // server where PHP's default timezone isn't UTC.
+        $tz = wp_timezone();
+        try {
+            $start = (new \DateTime($date . ' ' . $from, $tz))->getTimestamp();
+            $end   = (new \DateTime($date . ' ' . $to, $tz))->getTimestamp();
+        } catch (\Exception $e) {
+            return [];
+        }
+        if ($start >= $end) return [];
 
         $booked = self::get_booked_slot_times($doctor_id, $date);
 
         // For today's date, a slot that has already passed the current
         // moment isn't a real option any more — drop it instead of just
         // marking it unavailable, so it's not shown at all. $start/$end/$t
-        // above come from strtotime() under PHP's default timezone (UTC on
-        // this server), treating the doctor's schedule strings ("09:00")
-        // as literal wall-clock values with no real-world timezone meaning
-        // — so "now" has to be built the same way: current_time('timestamp')
-        // (WP's configured local time re-based onto that same UTC epoch),
-        // not time() (the server's actual, unrelated UTC clock).
+        // are now true, timezone-correct Unix timestamps (via the explicit
+        // DateTimeZone above), so a plain time() — the real current
+        // moment — is the right thing to compare against.
         $is_today = $date === current_time('Y-m-d');
-        $now      = current_time('timestamp');
+        $now      = time();
 
         $slots = [];
         for ($t = $start; $t < $end; $t += $duration * 60) {
             if ($is_today && $t < $now) continue;
-            $time_str = date('H:i', $t);
+            $time_str = wp_date('H:i', $t, $tz);
             $slots[]  = [
                 'time'      => $time_str,
                 'available' => !in_array($time_str, $booked, true),
@@ -746,6 +761,17 @@ class MDBK_Appointment_Manager {
             update_post_meta($doctor_id, '_mdbk_chamber_token', $token);
         }
         return $token;
+    }
+
+    /**
+     * Per-doctor override for Global Settings' "Enable Live Queue" toggle —
+     * lets one specific doctor's public queue display be switched off (e.g.
+     * a room not using the screen) without turning every other doctor's
+     * off too. Default enabled, same as _mdbk_doctor_active's own
+     * absent-meta-means-yes rule.
+     */
+    public static function is_doctor_live_queue_enabled($doctor_id) {
+        return get_post_meta(intval($doctor_id), '_mdbk_live_queue_enabled', true) !== 'no';
     }
 
     /**
@@ -1107,6 +1133,66 @@ class MDBK_Appointment_Manager {
             'thumbnail'       => get_the_post_thumbnail_url($doctor->ID, 'thumbnail') ?: '',
             'slot_enabled'    => self::is_slot_enabled($doctor->ID),
         ]);
+    }
+
+    /**
+     * Today's full patient list for one doctor — shown in a modal from
+     * the "Today's Patients" button on the frontend doctor card
+     * (shortcode.php's render_doctor_list()/render_today_patients_modal()),
+     * only when that doctor is actually working today AND the viewer is
+     * logged in as staff/manager/admin/doctor (MDBK_CAP_QUEUE or
+     * MDBK_CAP_DOCTOR — not public, per feedback). Names are fine to
+     * return here now that this is staff-only — the same information is
+     * already visible elsewhere in the admin to these same roles.
+     */
+    public function ajax_get_today_patient_summary() {
+        check_ajax_referer('mdbk_form_nonce', 'nonce');
+
+        if (!current_user_can(MDBK_CAP_QUEUE) && !current_user_can(MDBK_CAP_DOCTOR)) {
+            wp_send_json_error(__('You do not have permission to do this.', 'doctor-appointment'));
+            return;
+        }
+
+        $doctor_id = intval($_POST['doctor_id'] ?? 0);
+        if (!$doctor_id || get_post_type($doctor_id) !== 'mdbk_doctor') {
+            wp_send_json_error(__('Doctor not found.', 'doctor-appointment'));
+            return;
+        }
+
+        $today = current_time('Y-m-d');
+        $apps = get_posts([
+            'post_type'   => 'mdbk_appointment',
+            'post_status' => \MDBK\MDBK_CPT::APPOINTMENT_STATUSES,
+            'numberposts' => -1,
+            'meta_key'    => '_mdbk_ticket_number',
+            'orderby'     => 'meta_value_num',
+            'order'       => 'ASC',
+            'meta_query'  => [
+                'relation' => 'AND',
+                ['key' => '_mdbk_doctor_id', 'value' => $doctor_id],
+                ['key' => '_mdbk_appointment_date', 'value' => $today],
+            ],
+        ]);
+
+        $counts = ['waiting' => 0, 'serving' => 0, 'completed' => 0, 'no_show' => 0];
+        $patients = [];
+        foreach ($apps as $a) {
+            $display_slug = self::get_display_status_slug($a->ID);
+            $count_key = str_replace('-', '_', self::post_status_to_slug($a->post_status));
+            if (isset($counts[$count_key])) $counts[$count_key]++;
+
+            $ticket = get_post_meta($a->ID, '_mdbk_ticket_number', true);
+            $slot_time = get_post_meta($a->ID, '_mdbk_slot_time', true);
+            $patients[] = [
+                'ticket'       => $ticket ? self::format_ticket_number($ticket) : '',
+                'patient_name' => get_post_meta($a->ID, '_mdbk_patient_name', true),
+                'time'         => $slot_time ? date_i18n(get_option('time_format'), strtotime($slot_time)) : '',
+                'status_slug'  => $display_slug,
+                'status_label' => self::status_display_label($display_slug),
+            ];
+        }
+
+        wp_send_json_success(array_merge(['total' => count($apps), 'patients' => $patients], $counts));
     }
 }
 

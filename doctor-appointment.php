@@ -41,11 +41,19 @@ if ( ! class_exists( 'MDBK_Doctor_Appointment' ) ) {
 
             $this->define_constants();
             $this->include_plugin_files();
+            // Not a WordPress.org-hosted plugin, so translations are never
+            // auto-loaded the way core/WP.org plugins get for free — this
+            // is the one line that actually makes languages/*.mo get read.
+            add_action( 'init', array( $this, 'load_textdomain' ) );
             add_action( 'wp_enqueue_scripts', array( $this, 'enqueue_scripts' ) );
             add_action( 'admin_enqueue_scripts', array( $this, 'admin_enqueue_scripts' ) );
             // Self-heals existing installs that pull code updates without
             // reactivating the plugin (activate() alone would miss them).
             add_action( 'init', array( '\MDBK\MDBK_Migrations', 'maybe_migrate' ), 20 );
+        }
+
+        public function load_textdomain() {
+            load_plugin_textdomain( 'doctor-appointment', false, dirname( plugin_basename( __FILE__ ) ) . '/languages' );
         }
 
         /**
@@ -103,6 +111,17 @@ if ( ! class_exists( 'MDBK_Doctor_Appointment' ) ) {
                 'clinic_logo'    => $logo_id ? wp_get_attachment_image_url( $logo_id, 'thumbnail' ) : '',
                 'clinic_contact' => get_option( 'mdbk_clinic_contact', '' ),
                 'clinic_address' => get_option( 'mdbk_clinic_address', '' ),
+                // Whole-system 12/24-hour display is WordPress's own
+                // Settings > General > Time Format — deliberately not a
+                // second, separate setting in this plugin's own Global
+                // Settings. No 'a'/'A' (meridiem) token in the admin's
+                // configured format is treated as an explicit 24-hour
+                // preference; JS-side time displays (doctor availability
+                // list, schedule "View" popup, booking slot buttons) key
+                // off this same flag so they never disagree with what
+                // date_i18n(get_option('time_format'), ...) already
+                // produces server-side.
+                'time_format_24h' => stripos( get_option( 'time_format', 'g:i a' ), 'a' ) === false,
             ];
         }
 
@@ -112,7 +131,20 @@ if ( ! class_exists( 'MDBK_Doctor_Appointment' ) ) {
             }
             $admin_js_ver = filemtime(MDBK_PATH . 'assets/js/admin-script.js');
             wp_enqueue_media(); // needed for the doctor photo picker's wp.media() uploader
-            wp_enqueue_style('mdbk-admin-style', MDBK_URL . 'assets/css/admin-style.css', array(), filemtime( MDBK_PATH . 'assets/css/admin-style.css' ));
+            // Bengali web font — 'Inter' (this panel's own font stack, see
+            // admin-style.css) has no Bengali glyphs at all, so without this
+            // a Bangla-translated UI (see languages/doctor-appointment-bn_BD.mo)
+            // would fall back to whatever Bengali font the visitor's OS
+            // happens to ship, which varies wildly in quality/availability.
+            // Self-hosted Kalpurush was tried first, per the site owner's
+            // own request, but its sizing didn't read consistently against
+            // Inter across the panel — Hind Siliguri (Google Fonts) has
+            // metrics deliberately balanced against Latin UI sans fonts, so
+            // its size actually matches Inter/system fonts at the same
+            // font-size instead of looking mismatched from one spot to
+            // the next.
+            wp_enqueue_style('mdbk-bn-font', 'https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&display=swap', array(), null);
+            wp_enqueue_style('mdbk-admin-style', MDBK_URL . 'assets/css/admin-style.css', array('mdbk-bn-font'), filemtime( MDBK_PATH . 'assets/css/admin-style.css' ));
             wp_enqueue_style('front-end-style', MDBK_URL . 'assets/css/front-end.css', array(), filemtime( MDBK_PATH . 'assets/css/front-end.css' ));
             wp_enqueue_script('mdbk-admin-script', MDBK_URL . 'assets/js/admin-script.js', array(), $admin_js_ver, true);
             wp_localize_script( 'mdbk-admin-script', 'mdbk_admin_obj', array_merge( [
@@ -152,9 +184,29 @@ if ( ! class_exists( 'MDBK_Doctor_Appointment' ) ) {
          */
         public function enqueue_scripts() {
             $form_js_ver = filemtime(MDBK_PATH . 'assets/js/form-script.js');
-            wp_enqueue_style( 'mdbk-front-end', MDBK_URL . 'assets/css/front-end.css', array(), filemtime( MDBK_PATH . 'assets/css/front-end.css' ) );
-            wp_enqueue_style( 'mdbk-form-style', MDBK_URL . 'assets/css/form-style.css', array(), filemtime( MDBK_PATH . 'assets/css/form-style.css' ) );
-            wp_enqueue_style( 'mdbk-queue-style', MDBK_URL . 'assets/css/queue-style.css', array(), filemtime( MDBK_PATH . 'assets/css/queue-style.css' ) );
+            // Same Google Fonts Hind Siliguri as admin_enqueue_scripts() —
+            // see that comment. Patient-facing pages (doctor list, booking
+            // widget, Live Queue) are exactly where a Bangla-translated UI
+            // actually gets read by end users, not just staff.
+            wp_enqueue_style('mdbk-bn-font', 'https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&display=swap', array(), null);
+            wp_enqueue_style( 'mdbk-front-end', MDBK_URL . 'assets/css/front-end.css', array('mdbk-bn-font'), filemtime( MDBK_PATH . 'assets/css/front-end.css' ) );
+            wp_enqueue_style( 'mdbk-form-style', MDBK_URL . 'assets/css/form-style.css', array('mdbk-bn-font'), filemtime( MDBK_PATH . 'assets/css/form-style.css' ) );
+            wp_enqueue_style( 'mdbk-queue-style', MDBK_URL . 'assets/css/queue-style.css', array('mdbk-bn-font'), filemtime( MDBK_PATH . 'assets/css/queue-style.css' ) );
+
+            // Global Settings' Primary/Secondary Color as CSS custom
+            // properties — every frontend color declaration across
+            // front-end.css/form-style.css/queue-style.css reads from
+            // these (each file also has its own hardcoded :root fallback,
+            // so nothing breaks if this option is somehow missing), so
+            // changing the two settings re-themes every patient-facing
+            // button/highlight/link at once instead of needing a CSS edit.
+            // Re-validated through sanitize_hex_color() here too (not just
+            // at save time) since this gets echoed directly into a <style>
+            // tag — a corrupted or hand-edited option value should just
+            // fall back to the default, never reach the page as raw CSS.
+            $primary_color   = sanitize_hex_color( get_option( 'mdbk_color_primary', '' ) ) ?: \MDBK\MDBK_Admin_Dashboard::DEFAULT_COLOR_PRIMARY;
+            $secondary_color = sanitize_hex_color( get_option( 'mdbk_color_secondary', '' ) ) ?: \MDBK\MDBK_Admin_Dashboard::DEFAULT_COLOR_SECONDARY;
+            wp_add_inline_style( 'mdbk-front-end', ':root{--mdbk-primary:' . $primary_color . ';--mdbk-primary-dark:color-mix(in srgb, var(--mdbk-primary) 85%, black);--mdbk-secondary:' . $secondary_color . ';}' );
 
             // Vendored qrcode-generator (kazuhikoarase, MIT) — renders the
             // check-in QR entirely client-side, no third-party service ever

@@ -1,7 +1,35 @@
+/* Fallback values only — Global Settings' Primary/Secondary Color (if set)
+   overrides these via a small inline style block added in
+   doctor-appointment.php's enqueue_scripts(), so every frontend-facing
+   surface (buttons, highlights, links) can be re-themed to match the
+   site's own theme colors from one place, without editing this file. */
+:root {
+    --mdbk-primary: #0061d5;
+    --mdbk-primary-dark: #0056bc;
+    --mdbk-secondary: #16a34a;
+}
+
 .mdbk-doctor-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     gap: 20px;
+}
+
+/* These widgets have no font-family of their own by default — every
+   element just inherits whatever font the active THEME declares, which is
+   deliberately left alone for an English site (no unrequested visual
+   change to someone else's theme). Only once the site's own locale is
+   actually Bengali (WordPress sets <html lang="bn-..."> via
+   language_attributes(), see get_locale()) does this switch to 'Hind
+   Siliguri' (enqueued in doctor-appointment.php) — 'Inter' etc. have no
+   Bengali glyphs at all, so without this, Bangla-translated frontend text
+   would fall back to whatever the visitor's OS happens to ship. */
+:lang(bn) .mdbk-doctor-grid,
+:lang(bn) .mdbk-doctor-grid input,
+:lang(bn) .mdbk-doctor-grid select,
+:lang(bn) .mdbk-doctor-grid textarea,
+:lang(bn) .mdbk-doctor-grid button {
+    font-family: 'Hind Siliguri', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
 .mdbk-doctor-card {
@@ -38,8 +66,8 @@
 }
 
 .mdbk-doctor-departments span {
-    background: #eef6ff;
-    color: #2563eb;
+    background: color-mix(in srgb, var(--mdbk-primary) 8%, white);
+    color: var(--mdbk-primary);
     font-size: 11px;
     font-weight: 600;
     padding: 4px 10px;
@@ -143,10 +171,182 @@
     color: #6b7280;
 }
 
+/* Today's own row (a regular working day, or a one-off "extra" date that
+   happens to be today) — bled out to the card's full width so it reads as
+   a highlighted band, not just a tinted line. Uses the secondary color
+   (Global Settings) rather than primary, so it reads as a distinct status
+   accent instead of just another primary-colored CTA. */
+.mdbk-doctor-schedule li.is-today {
+    background: color-mix(in srgb, var(--mdbk-secondary) 10%, white);
+    margin: 0 -16px;
+    padding: 6px 16px;
+    border-bottom-color: transparent;
+}
+
+.mdbk-doctor-schedule li.is-today .day,
+.mdbk-doctor-schedule li.is-today .time {
+    color: var(--mdbk-secondary);
+}
+
+.mdbk-today-tag,
+.mdbk-special-tag {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 1px 6px;
+    border-radius: 999px;
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .3px;
+    vertical-align: middle;
+}
+
+.mdbk-today-tag {
+    background: var(--mdbk-secondary);
+    color: #fff;
+}
+
+.mdbk-special-tag {
+    background: #fef3c7;
+    color: #92400e;
+}
+
 .mdbk-doctor-footer {
     margin-top: auto;
     padding: 12px 20px 16px;
 }
+
+.mdbk-doctor-footer-buttons {
+    display: flex;
+    gap: 8px;
+}
+
+/* Book Appointment sizes to its own text when Today's Patients sits next
+   to it (so the row doesn't stretch one button just to fill the space);
+   when it's the only button in the footer (no Today's Patients — e.g. a
+   logged-out visitor, or a doctor not working today), it goes back to
+   the original full-width layout. */
+.mdbk-doctor-footer-buttons:not(:has(.mdbk-doctor-today-btn)) > button.mdbk-doctor-book-btn {
+    width: 100%;
+}
+
+/* `button.` element qualifier — same reason as button.mdbk-doctor-book-btn
+   below: a theme's own higher-specificity button reset otherwise wins the
+   color/border on source-order ties, which is what made this button show
+   up in the theme's own accent color instead of the plugin's. */
+button.mdbk-doctor-today-btn {
+    flex-shrink: 0;
+    padding: 0 14px;
+    min-height: 40px;
+    background: #fff;
+    color: var(--mdbk-secondary);
+    border: 1px solid color-mix(in srgb, var(--mdbk-secondary) 40%, white);
+    border-radius: 10px;
+    font-weight: 600;
+    font-size: 13px;
+    cursor: pointer;
+    font-family: inherit;
+    white-space: nowrap;
+    transition: background .2s ease;
+}
+
+/* :focus and :active need their own qualified rules too — Hello
+   Elementor's reset styles those states separately from the base/hover
+   ones (its own accent color otherwise leaks through on click or
+   keyboard focus even after the fixes above). */
+button.mdbk-doctor-today-btn:hover,
+button.mdbk-doctor-today-btn:focus {
+    background: color-mix(in srgb, var(--mdbk-secondary) 10%, white);
+    color: var(--mdbk-secondary);
+    border-color: color-mix(in srgb, var(--mdbk-secondary) 40%, white);
+    outline: none;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--mdbk-secondary) 20%, transparent);
+}
+
+button.mdbk-doctor-today-btn:active {
+    background: color-mix(in srgb, var(--mdbk-secondary) 18%, white);
+    color: var(--mdbk-secondary);
+    border-color: color-mix(in srgb, var(--mdbk-secondary) 40%, white);
+}
+
+/* "Today's Patients" modal (shortcode.php's render_today_patients_modal(),
+   populated via ajax_get_today_patient_summary()) — reuses the same
+   .mdbk-modal-overlay/.mdbk-modal-card shell every other frontend modal
+   already uses. */
+.mdbk-today-patients-loading {
+    text-align: center;
+    color: #6b7280;
+    padding: 20px 0;
+    margin: 0;
+}
+
+.mdbk-today-patients-summary {
+    padding: 8px 12px;
+    margin-bottom: 12px;
+    background: color-mix(in srgb, var(--mdbk-secondary) 10%, white);
+    color: var(--mdbk-secondary);
+    border-radius: 8px;
+    font-size: 12px;
+    text-align: center;
+}
+
+.mdbk-today-patients-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.mdbk-today-patient-row {
+    display: grid;
+    grid-template-columns: 50px 1fr 90px 110px;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 4px;
+    border-bottom: 1px solid #f1f5f9;
+    font-size: 13px;
+}
+
+.mdbk-today-patient-row:last-child {
+    border-bottom: none;
+}
+
+.mdbk-today-patient-ticket {
+    font-weight: 700;
+    color: var(--mdbk-primary);
+    font-size: 12px;
+}
+
+.mdbk-today-patient-name {
+    font-weight: 600;
+    color: #1e293b;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mdbk-today-patient-time {
+    color: #6b7280;
+    font-size: 12px;
+}
+
+.mdbk-today-patient-status {
+    justify-self: end;
+    padding: 3px 8px;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .3px;
+    text-align: center;
+    white-space: nowrap;
+}
+
+.mdbk-status-waiting { background: #ffedd5; color: #c2410c; }
+.mdbk-status-serving { background: #d1fae5; color: #065f46; }
+.mdbk-status-completed { background: #f1f5f9; color: #475569; }
+.mdbk-status-no-show { background: #fee2e2; color: #b91c1c; }
+.mdbk-status-not-checked-in { background: #f1f5f9; color: #94a3b8; }
+.mdbk-status-upcoming { background: #fef3c7; color: #92400e; }
 
 /*
  * `button.` element qualifier (not just `.mdbk-doctor-book-btn`) is required
@@ -160,9 +360,9 @@ button.mdbk-doctor-book-btn {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 100%;
+    padding: 0 20px;
     min-height: 40px;
-    background: #2563eb;
+    background: var(--mdbk-primary);
     color: #fff;
     border: none;
     border-radius: 10px;
@@ -173,8 +373,16 @@ button.mdbk-doctor-book-btn {
     transition: background .2s ease;
 }
 
-button.mdbk-doctor-book-btn:hover {
-    background: #1d4ed8;
+button.mdbk-doctor-book-btn:hover,
+button.mdbk-doctor-book-btn:focus {
+    background: var(--mdbk-primary-dark);
+    color: #fff;
+    outline: none;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--mdbk-primary) 25%, transparent);
+}
+
+button.mdbk-doctor-book-btn:active {
+    background: var(--mdbk-primary-dark);
     color: #fff;
 }
 

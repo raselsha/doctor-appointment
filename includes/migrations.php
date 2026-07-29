@@ -8,7 +8,7 @@ defined('ABSPATH') || exit;
 
 class MDBK_Migrations {
 
-    const DB_VERSION = 7;
+    const DB_VERSION = 8;
 
     /**
      * Run pending migrations, gated on mdbk_db_version. This is the only
@@ -65,6 +65,14 @@ class MDBK_Migrations {
             // re-adding the scoped one, so this is safe to re-run even on
             // a site where a Manager account was already created under
             // the old (too-broad) definition.
+            MDBK_Roles::activate();
+        }
+
+        if ($current < 8) {
+            // Grants mdbk_manager_role the 'upload_files' capability — a
+            // Manager account couldn't use "Select Image"/"Upload Photo"
+            // for doctor photos, specialty icons, or the clinic logo
+            // otherwise. Same idempotent re-run.
             MDBK_Roles::activate();
         }
 

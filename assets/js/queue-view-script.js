@@ -109,6 +109,18 @@ document.addEventListener('DOMContentLoaded', function() {
                 var newCountEl = tmp.querySelector('.mdbk-queue-list-count');
                 if (countEl && newCountEl) countEl.textContent = newCountEl.textContent;
 
+                // "Doctor is visiting" pulse dot — lives in the heading,
+                // outside .mdbk-queue-list-columns/-count above, so it was
+                // never being refreshed on poll at all (stayed frozen at
+                // whatever it was on initial page load, e.g. still
+                // pulsing well after the doctor had already been marked as
+                // having finished with that patient). Synced explicitly here.
+                var dotEl = bodyEl.querySelector('.mdbk-live-pulse-dot');
+                var newDotEl = tmp.querySelector('.mdbk-live-pulse-dot');
+                if (dotEl && newDotEl) {
+                    dotEl.classList.toggle('mdbk-live-pulse-active', newDotEl.classList.contains('mdbk-live-pulse-active'));
+                }
+
                 var updatedEl = bodyEl.querySelector('.mdbk-queue-updated');
                 var newUpdatedEl = tmp.querySelector('.mdbk-queue-updated');
                 if (updatedEl && newUpdatedEl) updatedEl.textContent = newUpdatedEl.textContent;

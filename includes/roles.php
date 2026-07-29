@@ -87,6 +87,16 @@ class MDBK_Roles {
         if ($manager_role) {
             $manager_role->add_cap(MDBK_CAP_ADMIN);
             $manager_role->add_cap(MDBK_CAP_QUEUE);
+            // Same as the doctor role below — wp.media()'s own AJAX
+            // handlers require this core capability regardless of what
+            // this plugin's own checks allow, or "Select Image"/"Upload
+            // Photo" (doctor photos, specialty icons, the clinic logo in
+            // Global Settings) silently does nothing for a Manager
+            // account. Unlike a doctor, a Manager isn't restricted to
+            // "their own uploads only" (see restrict_media_to_own_uploads()
+            // in admin-dashboard.php) — full admin-equivalent access to
+            // the media library matches everything else Manager can do.
+            $manager_role->add_cap('upload_files');
         }
     }
 

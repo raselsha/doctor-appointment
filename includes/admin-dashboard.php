@@ -17,6 +17,7 @@ class MDBK_Admin_Dashboard {
         add_action('admin_init', [$this, 'handle_change_password_save']);
         add_action('admin_init', [$this, 'handle_global_settings_save']);
         add_action('wp_ajax_mdbk_toggle_doctor_active', [$this, 'ajax_toggle_doctor_active']);
+        add_action('wp_ajax_mdbk_toggle_doctor_live_queue', [$this, 'ajax_toggle_doctor_live_queue']);
         add_action('wp_ajax_mdbk_toggle_specialty_active', [$this, 'ajax_toggle_specialty_active']);
         add_action('wp_ajax_mdbk_mark_visited', [$this, 'ajax_mark_visited']);
         add_action('wp_ajax_mdbk_admin_checkin', [$this, 'ajax_admin_checkin']);
@@ -136,6 +137,29 @@ class MDBK_Admin_Dashboard {
         $active = get_post_meta($doctor_id, '_mdbk_doctor_active', true) === 'no' ? 'yes' : 'no';
         update_post_meta($doctor_id, '_mdbk_doctor_active', $active);
         wp_send_json_success(['active' => $active === 'yes']);
+    }
+
+    /**
+     * Per-doctor Live Queue on/off — the toggle next to each doctor's name
+     * on the Today's Queue page (grouped view), or standalone in the card
+     * header (single-doctor view — see render_schedule_today_view()).
+     * Front-desk staff/admin (MDBK_CAP_QUEUE) can flip any doctor's; a pure
+     * doctor account (MDBK_CAP_DOCTOR only, no MDBK_CAP_QUEUE) may only
+     * flip their OWN — same ownership pattern as ajax_mark_visited().
+     */
+    public function ajax_toggle_doctor_live_queue() {
+        check_ajax_referer('mdbk_admin_nonce', 'nonce');
+        $doctor_id = isset($_POST['doctor_id']) ? intval($_POST['doctor_id']) : 0;
+        if (!$doctor_id || get_post_type($doctor_id) !== 'mdbk_doctor') wp_send_json_error(['message' => __('Invalid doctor.', 'doctor-appointment')]);
+        if (!current_user_can('manage_options') && !current_user_can(MDBK_CAP_QUEUE)) {
+            $own_doctor_id = \MDBK\MDBK_Appointment_Manager::get_doctor_id_for_user(get_current_user_id());
+            if (!$own_doctor_id || $own_doctor_id !== $doctor_id) {
+                wp_send_json_error(['message' => __('You can only control your own Live Queue.', 'doctor-appointment')]);
+            }
+        }
+        $enabled = get_post_meta($doctor_id, '_mdbk_live_queue_enabled', true) === 'no' ? 'yes' : 'no';
+        update_post_meta($doctor_id, '_mdbk_live_queue_enabled', $enabled);
+        wp_send_json_success(['enabled' => $enabled === 'yes']);
     }
 
     public function ajax_toggle_specialty_active() {
@@ -779,9 +803,25 @@ class MDBK_Admin_Dashboard {
         update_option('mdbk_clinic_address', sanitize_textarea_field($_POST['clinic_address'] ?? ''));
         $logo_id = !empty($_POST['clinic_logo_id']) ? intval($_POST['clinic_logo_id']) : 0;
         if ($logo_id) { update_option('mdbk_clinic_logo', $logo_id); } else { delete_option('mdbk_clinic_logo'); }
+        // sanitize_hex_color() returns '' for anything invalid rather than
+        // silently keeping a bad value — falls through to update_option's
+        // own default handling (get_option()'s fallback) the same as an
+        // unset option would.
+        $primary_color = sanitize_hex_color($_POST['color_primary'] ?? '');
+        update_option('mdbk_color_primary', $primary_color ?: self::DEFAULT_COLOR_PRIMARY);
+        $secondary_color = sanitize_hex_color($_POST['color_secondary'] ?? '');
+        update_option('mdbk_color_secondary', $secondary_color ?: self::DEFAULT_COLOR_SECONDARY);
+        update_option('mdbk_enable_live_queue', isset($_POST['enable_live_queue']) ? 'yes' : 'no');
         wp_redirect(admin_url('admin.php?page=mdbk-global-settings&success=1'));
         exit;
     }
+
+    // Matches the plugin's own already-established frontend brand colors
+    // (assets/css/front-end.css's :root fallback) — a fresh install's
+    // Global Settings starts on exactly what the CSS already looked like
+    // before this setting existed, not some arbitrary new default.
+    const DEFAULT_COLOR_PRIMARY = '#0061d5';
+    const DEFAULT_COLOR_SECONDARY = '#16a34a';
 
     public function render_global_settings_page() {
         $clinic_name = get_option('mdbk_clinic_name', '');
@@ -789,6 +829,9 @@ class MDBK_Admin_Dashboard {
         $clinic_address = get_option('mdbk_clinic_address', '');
         $clinic_logo_id = get_option('mdbk_clinic_logo', 0);
         $clinic_logo_url = $clinic_logo_id ? wp_get_attachment_image_url($clinic_logo_id, 'thumbnail') : '';
+        $color_primary = get_option('mdbk_color_primary', self::DEFAULT_COLOR_PRIMARY);
+        $color_secondary = get_option('mdbk_color_secondary', self::DEFAULT_COLOR_SECONDARY);
+        $enable_live_queue = get_option('mdbk_enable_live_queue', 'yes') !== 'no';
         ?>
         <div id="mdbk-admin-dashboard"><div class="mdbk-admin-wrapper"><?php $this->render_sidebar('global-settings'); ?>
             <div class="mdbk-main-content">
@@ -819,6 +862,25 @@ class MDBK_Admin_Dashboard {
                         <div style="margin-top:16px;"><label class="mdbk-form-label" for="mdbk-clinic-name"><?php _e('Clinic Name', 'doctor-appointment'); ?></label><input type="text" name="clinic_name" id="mdbk-clinic-name" class="mdbk-input" value="<?php echo esc_attr($clinic_name); ?>" placeholder="<?php esc_attr_e('e.g. Shafiul Amraz Medical Center', 'doctor-appointment'); ?>"></div>
                         <div style="margin-top:16px;"><label class="mdbk-form-label" for="mdbk-clinic-contact"><?php _e('Contact Info', 'doctor-appointment'); ?></label><input type="text" name="clinic_contact" id="mdbk-clinic-contact" class="mdbk-input" value="<?php echo esc_attr($clinic_contact); ?>" placeholder="<?php esc_attr_e('e.g. 01700-000000, info@clinic.com', 'doctor-appointment'); ?>"></div>
                         <div style="margin-top:16px;"><label class="mdbk-form-label" for="mdbk-clinic-address"><?php _e('Address', 'doctor-appointment'); ?></label><textarea name="clinic_address" id="mdbk-clinic-address" class="mdbk-input" rows="3" placeholder="<?php esc_attr_e('e.g. House 12, Road 5, Dhaka', 'doctor-appointment'); ?>"><?php echo esc_textarea($clinic_address); ?></textarea></div>
+                        <div class="mdbk-form-row mdbk-form-row-duo" style="margin-top:16px;">
+                            <div>
+                                <label class="mdbk-form-label" for="mdbk-color-primary"><?php _e('Primary Color', 'doctor-appointment'); ?></label>
+                                <input type="color" name="color_primary" id="mdbk-color-primary" value="<?php echo esc_attr($color_primary); ?>" style="width:100%; height:42px; padding:4px; border:1px solid #e2e8f0; border-radius:10px; cursor:pointer;">
+                            </div>
+                            <div>
+                                <label class="mdbk-form-label" for="mdbk-color-secondary"><?php _e('Secondary Color', 'doctor-appointment'); ?></label>
+                                <input type="color" name="color_secondary" id="mdbk-color-secondary" value="<?php echo esc_attr($color_secondary); ?>" style="width:100%; height:42px; padding:4px; border:1px solid #e2e8f0; border-radius:10px; cursor:pointer;">
+                            </div>
+                        </div>
+                        <p class="mdbk-form-hint"><?php _e('Used on the patient-facing booking pages (buttons, highlights, links) — match these to your site theme, or leave as the defaults.', 'doctor-appointment'); ?></p>
+                        <div style="margin-top:16px; display:flex; align-items:center; gap:10px;">
+                            <label class="mdbk-toggle">
+                                <input type="checkbox" name="enable_live_queue" value="1" <?php checked($enable_live_queue); ?>>
+                                <span class="mdbk-toggle-slider"></span>
+                            </label>
+                            <label class="mdbk-form-label" for="mdbk-enable-live-queue" style="margin:0;"><?php _e('Enable Live Queue (the public [mdbk_queue_list] display)', 'doctor-appointment'); ?></label>
+                        </div>
+                        <p class="mdbk-form-hint"><?php _e('When off, the Live Queue page(s) show a simple "not available" message instead of the queue — useful if you don\'t want walk-in patients\' names visible on a public screen.', 'doctor-appointment'); ?></p>
                         <button type="submit" name="mdbk_save_global_settings" class="mdbk-btn-save" style="margin-top:16px;"><?php _e('Save Settings', 'doctor-appointment'); ?></button>
                     </form>
                 </div>
@@ -1093,7 +1155,7 @@ class MDBK_Admin_Dashboard {
         ?>
         <div id="mdbk-admin-dashboard"><div class="mdbk-admin-wrapper"><?php $this->render_sidebar('doctors'); ?>
             <div class="mdbk-main-content">
-                <div class="mdbk-header"><h1><?php _e('Staff Management', 'doctor-appointment'); ?></h1></div>
+                <div class="mdbk-header"><h1><?php _e('Doctor Directory', 'doctor-appointment'); ?></h1></div>
 
                 <div class="mdbk-staff-filters-bar">
                     <a href="#" class="mdbk-btn-add mdbk-add-doctor"><?php _e('+ Add New Doctor', 'doctor-appointment'); ?></a>
@@ -1125,6 +1187,21 @@ class MDBK_Admin_Dashboard {
                     <?php if (empty($doctors)): ?>
                         <p class="mdbk-admin-doctor-empty"><?php _e('No doctors found.', 'doctor-appointment'); ?></p>
                     <?php else: foreach ($doctors as $d): echo $this->render_doctor_card($d); endforeach; endif; ?>
+                    <?php // Trailing "add new" card — reuses .mdbk-add-doctor
+                    // (same class the header button above uses) so
+                    // initModal()'s querySelectorAll binding picks it up
+                    // for free. Deliberately NOT .mdbk-admin-doctor-card —
+                    // that class is what the search/specialty-filter/
+                    // pagination JS above queries and toggles .is-hidden on
+                    // (allCards()/matchingCards()), and this card has none
+                    // of the data-name/data-specialty attributes that logic
+                    // expects, so it must stay outside that class entirely
+                    // to remain visible on every page/filter/search state
+                    // rather than being paginated or filtered away. ?>
+                    <a href="#" class="mdbk-admin-doctor-card-add mdbk-add-doctor">
+                        <div class="mdbk-admin-doctor-card-add-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg></div>
+                        <div class="mdbk-admin-doctor-card-add-label"><?php _e('Add New Doctor', 'doctor-appointment'); ?></div>
+                    </a>
                 </div>
                 <p class="mdbk-admin-doctor-empty" id="mdbk-doctor-no-match" style="display:none;"><?php _e('No doctors match your search or filters.', 'doctor-appointment'); ?></p>
 
@@ -1790,7 +1867,28 @@ class MDBK_Admin_Dashboard {
                 </div>
             </div>
             <div class="mdbk-card" style="margin-bottom:20px;">
-                <div class="mdbk-card-header"><h3><?php _e("Today's Queue", 'doctor-appointment'); ?></h3><?php if ($group_by_doctor) echo $group_toggle_buttons; ?></div>
+                <div class="mdbk-card-header">
+                    <h3><?php _e("Today's Queue", 'doctor-appointment'); ?></h3>
+                    <?php if ($group_by_doctor) : ?>
+                        <?php echo $group_toggle_buttons; ?>
+                    <?php elseif ($doctor_id) :
+                        // Single-doctor view — either a pure doctor account's
+                        // own forced scope (no per-doctor group header exists
+                        // here to carry this toggle, see the comment above
+                        // this function) or staff/admin filtered to one
+                        // doctor via the dropdown. Same toggle/classes as the
+                        // grouped view's own per-doctor header (see
+                        // render_patient_list_html()), reusing its existing
+                        // JS handler as-is — just rendered standalone here
+                        // instead of inside a <details> summary.
+                        $live_queue_enabled = \MDBK\MDBK_Appointment_Manager::is_doctor_live_queue_enabled($doctor_id);
+                        ?>
+                        <label class="mdbk-toggle mdbk-mini-toggle mdbk-doctor-live-queue-toggle" title="<?php esc_attr_e('Live Queue display for this doctor', 'doctor-appointment'); ?>">
+                            <input type="checkbox" class="mdbk-doctor-live-queue-checkbox" data-doctor-id="<?php echo esc_attr($doctor_id); ?>" <?php checked($live_queue_enabled); ?>>
+                            <span class="mdbk-toggle-slider"></span><span class="mdbk-mini-toggle-text"><?php _e('Live Queue', 'doctor-appointment'); ?></span>
+                        </label>
+                    <?php endif; ?>
+                </div>
                 <?php if ($today_apps_display): ?>
                 <div class="mdbk-patient-list" id="mdbk-today-queue-list" data-view-doctor-id="<?php echo esc_attr($doctor_id); ?>">
                     <?php echo $this->render_patient_list_html($today_apps_display, $group_by_doctor, $serving_doctor_ids, true); ?>
@@ -1931,7 +2029,7 @@ class MDBK_Admin_Dashboard {
                                 <?php foreach ($days as $day): $d = $schedule[$day] ?? null; $working = $d && !empty($d['active']); ?>
                                 <div class="mdbk-view-day-row<?php echo $working ? '' : ' is-off'; ?>">
                                     <span class="mdbk-view-day-name"><?php echo esc_html($day); ?></span>
-                                    <span class="mdbk-view-day-hours"><?php if ($working): ?><?php echo esc_html(($d['from'] ?: '—') . ' – ' . ($d['to'] ?: '—')); ?><?php else: ?><span class="mdbk-view-day-off"><?php _e('Off', 'doctor-appointment'); ?></span><?php endif; ?></span>
+                                    <span class="mdbk-view-day-hours"><?php if ($working): ?><?php echo esc_html(($d['from'] ? date_i18n(get_option('time_format'), strtotime($d['from'])) : '—') . ' – ' . ($d['to'] ? date_i18n(get_option('time_format'), strtotime($d['to'])) : '—')); ?><?php else: ?><span class="mdbk-view-day-off"><?php _e('Off', 'doctor-appointment'); ?></span><?php endif; ?></span>
                                 </div>
                                 <?php endforeach; ?>
                             </div>
@@ -2230,14 +2328,54 @@ class MDBK_Admin_Dashboard {
             $export_args = ['page' => 'mdbk-schedule', 'filter_doctor' => $doc_id, 'mdbk_export' => 'csv'];
             if ($is_today_group) $export_args['filter_date'] = current_time('Y-m-d');
             $doc_export_url = wp_nonce_url(add_query_arg($export_args, admin_url('admin.php')), 'mdbk_export_csv');
+            // Per-doctor Live Queue on/off — an independent override on top
+            // of Global Settings' own master switch (see render_queue_list()
+            // in shortcode.php, which checks both). Only meaningful on the
+            // Today's Queue grouping (Live Queue is inherently a "today"
+            // display) and only for a real doctor row (not the "Unassigned"
+            // bucket, doc_id 0, which has no _mdbk_live_queue_enabled meta
+            // to own).
+            $show_live_queue_control = $is_today_group && $doc_id;
+            $live_queue_enabled = $show_live_queue_control ? \MDBK\MDBK_Appointment_Manager::is_doctor_live_queue_enabled($doc_id) : false;
+            // Streaming pulse dot — read-only, automatic: it's lit and
+            // pulsing exactly while this doctor currently has someone in
+            // "serving" status (i.e. actually visiting a patient right
+            // now), and goes back to a plain static dot the moment nobody's
+            // being seen (patient finished, or doctor stepped out/on a
+            // break) — $serving_doctor_ids is already computed per-render
+            // by get_serving_doctor_ids(), and this same header HTML is
+            // regenerated on every AJAX action (Start Visiting/Mark
+            // Visited/Check-In/Skip — see render_today_queue_rows()), so
+            // the dot always reflects current state with no separate JS
+            // sync needed. Only meaningful for Today's Queue (a past date's
+            // "serving" status isn't a live thing to watch).
+            $show_visiting_dot = $is_today_group && $doc_id;
+            $doctor_is_visiting = $show_visiting_dot && isset($serving_doctor_ids[$doc_id]);
 
             $html .= '<details class="mdbk-doctor-group" open>';
-            $html .= '<summary class="mdbk-doctor-group-header"><span class="mdbk-doctor-group-name">' . esc_html($doc_name) . '</span><span class="mdbk-doctor-group-count">' . esc_html(sprintf(_n('%d patient', '%d patients', $count, 'doctor-appointment'), $count)) . '</span>';
+            $html .= '<summary class="mdbk-doctor-group-header">';
+            if ($show_visiting_dot) {
+                $html .= '<span class="mdbk-live-pulse-dot' . ($doctor_is_visiting ? ' mdbk-live-pulse-active' : '') . '" title="' . esc_attr__('Doctor is currently visiting a patient', 'doctor-appointment') . '"></span> ';
+            }
+            $html .= '<span class="mdbk-doctor-group-name">' . esc_html($doc_name) . '</span><span class="mdbk-doctor-group-count">' . esc_html(sprintf(_n('%d patient', '%d patients', $count, 'doctor-appointment'), $count)) . '</span>';
             $html .= '<span class="mdbk-doctor-group-actions">';
+            if ($show_live_queue_control) {
+                $html .= '<label class="mdbk-toggle mdbk-mini-toggle mdbk-doctor-live-queue-toggle" title="' . esc_attr__('Live Queue display for this doctor', 'doctor-appointment') . '" onclick="event.stopPropagation();">';
+                $html .= '<input type="checkbox" class="mdbk-doctor-live-queue-checkbox" data-doctor-id="' . esc_attr($doc_id) . '"' . checked($live_queue_enabled, true, false) . '>';
+                $html .= '<span class="mdbk-toggle-slider"></span><span class="mdbk-mini-toggle-text">' . esc_html__('Live Queue', 'doctor-appointment') . '</span>';
+                $html .= '</label>';
+            }
             $html .= '<button type="button" class="mdbk-icon-btn mdbk-print-group" title="' . esc_attr__('Print', 'doctor-appointment') . '" onclick="event.preventDefault();event.stopPropagation();"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg></button>';
             $html .= '<a href="' . esc_url($doc_export_url) . '" class="mdbk-icon-btn" title="' . esc_attr__('Export CSV', 'doctor-appointment') . '" onclick="event.stopPropagation();"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg></a>';
             $html .= '<button type="button" class="mdbk-icon-btn mdbk-download-group-image" title="' . esc_attr__('Download as Image', 'doctor-appointment') . '" onclick="event.preventDefault();event.stopPropagation();"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg></button>';
-            $html .= '<span class="mdbk-availability-chevron"></span>';
+            // An inline SVG chevron here (not the plain border-corner trick
+            // .mdbk-availability-chevron uses elsewhere) — that trick's
+            // rotate(45deg)/rotate(-135deg) pairing relies on the box's
+            // visual center matching its layout box exactly, which broke
+            // (arrow drifted left, wrong angle) once this element grew into
+            // a bigger circular button; an SVG rotates cleanly around its
+            // own exact center regardless of the button's padding.
+            $html .= '<span class="mdbk-availability-chevron"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></span>';
             $html .= '</span></summary>';
             $html .= '<div class="mdbk-patient-list mdbk-doctor-group-list">';
             foreach ($doc_apps as $a) {
@@ -2652,6 +2790,15 @@ class MDBK_Admin_Dashboard {
                 <div class="mdbk-header"><h1><?php _e('Medical Specialties', 'doctor-appointment'); ?></h1><a href="#" class="mdbk-btn-add mdbk-add-specialty"><?php _e('+ Add Specialty', 'doctor-appointment'); ?></a></div>
                 <div class="mdbk-specialty-grid">
                     <?php foreach ($terms as $t) : $this->render_specialty_card($t); endforeach; ?>
+                    <?php // Trailing "add new" card — reuses the exact same
+                    // .mdbk-add-specialty class the header button above
+                    // already uses, so initModal()'s own querySelectorAll
+                    // binding (admin-script.js) picks this up for free, no
+                    // new JS needed. ?>
+                    <a href="#" class="mdbk-specialty-card mdbk-specialty-card-add mdbk-add-specialty">
+                        <div class="mdbk-specialty-card-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg></div>
+                        <div class="mdbk-specialty-card-name"><?php _e('Add Specialty', 'doctor-appointment'); ?></div>
+                    </a>
                 </div>
             </div></div><?php $this->render_specialty_modal_html(); ?></div>
         <?php

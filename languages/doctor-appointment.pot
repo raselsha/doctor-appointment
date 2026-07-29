@@ -1,0 +1,1788 @@
+# Copyright (C) 2026 Shahadat Hossain
+# This file is distributed under the GPL v2 or later.
+msgid ""
+msgstr ""
+"Project-Id-Version: Doctor Appointment Booking 1.2.0\n"
+"Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/doctor-appointment\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"POT-Creation-Date: 2026-07-29T13:44:41+00:00\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"X-Generator: WP-CLI 2.12.0\n"
+"X-Domain: doctor-appointment\n"
+
+#. Plugin Name of the plugin
+#: doctor-appointment.php
+msgid "Doctor Appointment Booking"
+msgstr ""
+
+#. Plugin URI of the plugin
+#: doctor-appointment.php
+msgid "https://wordpress.org/plugins/doctor-appointment"
+msgstr ""
+
+#. Description of the plugin
+#: doctor-appointment.php
+msgid "Create doctor appointment booking forms for clinics, hospitals, and medical centers with an easy scheduling system."
+msgstr ""
+
+#. Author of the plugin
+#: doctor-appointment.php
+msgid "Shahadat Hossain"
+msgstr ""
+
+#. Author URI of the plugin
+#: doctor-appointment.php
+msgid "https://shahadat.com.bd"
+msgstr ""
+
+#: includes/admin-dashboard.php:134
+#: includes/admin-dashboard.php:167
+#: includes/admin-dashboard.php:188
+#: includes/admin-dashboard.php:277
+#: includes/admin-dashboard.php:323
+#: includes/admin-dashboard.php:360
+msgid "Unauthorized."
+msgstr ""
+
+#: includes/admin-dashboard.php:136
+#: includes/admin-dashboard.php:153
+msgid "Invalid doctor."
+msgstr ""
+
+#: includes/admin-dashboard.php:157
+msgid "You can only control your own Live Queue."
+msgstr ""
+
+#: includes/admin-dashboard.php:169
+msgid "Invalid specialty."
+msgstr ""
+
+#: includes/admin-dashboard.php:193
+#: includes/admin-dashboard.php:282
+#: includes/admin-dashboard.php:328
+#: includes/admin-dashboard.php:365
+#: includes/appointment-manager.php:687
+#: includes/appointment-manager.php:716
+msgid "Invalid appointment."
+msgstr ""
+
+#: includes/admin-dashboard.php:204
+#: includes/admin-dashboard.php:290
+#: includes/admin-dashboard.php:335
+msgid "You can only update your own patients."
+msgstr ""
+
+#: includes/admin-dashboard.php:215
+msgid "Only today's patients can be marked as visited."
+msgstr ""
+
+#: includes/admin-dashboard.php:225
+msgid "This patient must be started (Start Visiting) before they can be marked as visited."
+msgstr ""
+
+#: includes/admin-dashboard.php:296
+msgid "Only today's patients can be skipped."
+msgstr ""
+
+#: includes/admin-dashboard.php:299
+msgid "Only a checked-in, waiting patient can be skipped."
+msgstr ""
+
+#: includes/admin-dashboard.php:392
+#: includes/admin-dashboard.php:424
+#: includes/admin-dashboard.php:580
+#: includes/admin-dashboard.php:606
+#: includes/admin-dashboard.php:630
+#: includes/admin-dashboard.php:691
+#: includes/admin-dashboard.php:782
+#: includes/admin-dashboard.php:799
+#: includes/admin-dashboard.php:1556
+#: includes/admin-dashboard.php:1611
+#: includes/admin-dashboard.php:1935
+#: includes/admin-dashboard.php:2064
+#: includes/appointment-manager.php:1152
+msgid "You do not have permission to do this."
+msgstr ""
+
+#: includes/admin-dashboard.php:439
+msgid "Email is required for a doctor account."
+msgstr ""
+
+#: includes/admin-dashboard.php:504
+msgid "An account with this email already exists. Please use a different email for this doctor."
+msgstr ""
+
+#: includes/admin-dashboard.php:620
+msgid "Name and email are required."
+msgstr ""
+
+#: includes/admin-dashboard.php:634
+msgid "That email is already used by another account."
+msgstr ""
+
+#: includes/admin-dashboard.php:656
+msgid "An account with this email already exists."
+msgstr ""
+
+#: includes/admin-dashboard.php:736
+msgid "That time slot is already booked."
+msgstr ""
+
+#: includes/admin-dashboard.php:838
+#: includes/admin-dashboard.php:2840
+msgid "Global Settings"
+msgstr ""
+
+#: includes/admin-dashboard.php:841
+msgid "Settings saved."
+msgstr ""
+
+#: includes/admin-dashboard.php:847
+msgid "Logo"
+msgstr ""
+
+#: includes/admin-dashboard.php:857
+#: includes/admin-dashboard.php:3164
+msgid "Select Image"
+msgstr ""
+
+#: includes/admin-dashboard.php:858
+#: includes/admin-dashboard.php:2857
+#: includes/admin-dashboard.php:3165
+msgid "Remove"
+msgstr ""
+
+#: includes/admin-dashboard.php:862
+msgid "Clinic Name"
+msgstr ""
+
+#: includes/admin-dashboard.php:862
+msgid "e.g. Shafiul Amraz Medical Center"
+msgstr ""
+
+#: includes/admin-dashboard.php:863
+msgid "Contact Info"
+msgstr ""
+
+#: includes/admin-dashboard.php:863
+msgid "e.g. 01700-000000, info@clinic.com"
+msgstr ""
+
+#: includes/admin-dashboard.php:864
+#: includes/admin-dashboard.php:2655
+#: includes/admin-dashboard.php:2997
+msgid "Address"
+msgstr ""
+
+#: includes/admin-dashboard.php:864
+msgid "e.g. House 12, Road 5, Dhaka"
+msgstr ""
+
+#: includes/admin-dashboard.php:867
+msgid "Primary Color"
+msgstr ""
+
+#: includes/admin-dashboard.php:871
+msgid "Secondary Color"
+msgstr ""
+
+#: includes/admin-dashboard.php:875
+msgid "Used on the patient-facing booking pages (buttons, highlights, links) — match these to your site theme, or leave as the defaults."
+msgstr ""
+
+#: includes/admin-dashboard.php:881
+msgid "Enable Live Queue (the public [mdbk_queue_list] display)"
+msgstr ""
+
+#: includes/admin-dashboard.php:883
+msgid "When off, the Live Queue page(s) show a simple \"not available\" message instead of the queue — useful if you don't want walk-in patients' names visible on a public screen."
+msgstr ""
+
+#: includes/admin-dashboard.php:884
+msgid "Save Settings"
+msgstr ""
+
+#: includes/admin-dashboard.php:1067
+msgid "Medical Overview"
+msgstr ""
+
+#: includes/admin-dashboard.php:1067
+msgid "Track your daily operations."
+msgstr ""
+
+#: includes/admin-dashboard.php:1067
+msgid "Quick search..."
+msgstr ""
+
+#: includes/admin-dashboard.php:1067
+#: includes/admin-dashboard.php:1664
+msgid "+ New Booking"
+msgstr ""
+
+#: includes/admin-dashboard.php:1072
+#: includes/admin-dashboard.php:2812
+#: includes/cpt-register.php:123
+#: includes/cpt-register.php:125
+#: includes/cpt-register.php:138
+msgid "Doctors"
+msgstr ""
+
+#: includes/admin-dashboard.php:1079
+#: includes/admin-dashboard.php:2828
+#: includes/cpt-register.php:193
+#: includes/cpt-register.php:195
+#: includes/cpt-register.php:208
+msgid "Patients"
+msgstr ""
+
+#: includes/admin-dashboard.php:1086
+msgid "Bookings"
+msgstr ""
+
+#: includes/admin-dashboard.php:1093
+#: includes/admin-dashboard.php:1843
+msgid "Today's Bookings"
+msgstr ""
+
+#: includes/admin-dashboard.php:1101
+msgid "Patient Bookings"
+msgstr ""
+
+#: includes/admin-dashboard.php:1102
+#: includes/admin-dashboard.php:1127
+#: includes/admin-dashboard.php:1722
+msgid "View All"
+msgstr ""
+
+#: includes/admin-dashboard.php:1106
+msgid "No bookings today."
+msgstr ""
+
+#: includes/admin-dashboard.php:1123
+#, php-format
+msgid "%sy"
+msgstr ""
+
+#: includes/admin-dashboard.php:1138
+#, php-format
+msgid "%s — All Patients Today"
+msgstr ""
+
+#: includes/admin-dashboard.php:1158
+msgid "Doctor Directory"
+msgstr ""
+
+#: includes/admin-dashboard.php:1161
+msgid "+ Add New Doctor"
+msgstr ""
+
+#: includes/admin-dashboard.php:1163
+#, php-format
+msgid "Showing %1$d Doctors of %2$d Total"
+msgstr ""
+
+#: includes/admin-dashboard.php:1166
+msgid "Search doctors…"
+msgstr ""
+
+#: includes/admin-dashboard.php:1168
+#: includes/admin-dashboard.php:2865
+#: includes/admin-dashboard.php:3026
+msgid "Specialty"
+msgstr ""
+
+#: includes/admin-dashboard.php:1170
+#: includes/admin-dashboard.php:3029
+#: includes/admin-dashboard.php:3033
+#: includes/admin-dashboard.php:3039
+msgid "All Specialties"
+msgstr ""
+
+#: includes/admin-dashboard.php:1175
+msgid "Switch view"
+msgstr ""
+
+#: includes/admin-dashboard.php:1176
+msgid "Grid view"
+msgstr ""
+
+#: includes/admin-dashboard.php:1179
+msgid "List view"
+msgstr ""
+
+#: includes/admin-dashboard.php:1188
+#: includes/shortcode.php:312
+#: includes/shortcode.php:938
+msgid "No doctors found."
+msgstr ""
+
+#: includes/admin-dashboard.php:1203
+#: includes/cpt-register.php:127
+#: includes/cpt-register.php:128
+msgid "Add New Doctor"
+msgstr ""
+
+#: includes/admin-dashboard.php:1206
+msgid "No doctors match your search or filters."
+msgstr ""
+
+#: includes/admin-dashboard.php:1209
+msgid "Previous page"
+msgstr ""
+
+#: includes/admin-dashboard.php:1211
+msgid "Next page"
+msgstr ""
+
+#: includes/admin-dashboard.php:1230
+msgid "Chamber Check-In QR"
+msgstr ""
+
+#: includes/admin-dashboard.php:1232
+#: includes/appointment-manager.php:1105
+#: includes/appointment-manager.php:1109
+#: includes/appointment-manager.php:1158
+msgid "Doctor not found."
+msgstr ""
+
+#: includes/admin-dashboard.php:1239
+msgid "Print this and post it in the chamber — patients scan it with their own phone to check themselves in."
+msgstr ""
+
+#: includes/admin-dashboard.php:1241
+#: includes/admin-dashboard.php:1739
+#: includes/admin-dashboard.php:2368
+msgid "Print"
+msgstr ""
+
+#: includes/admin-dashboard.php:1270
+#: includes/admin-dashboard.php:1982
+msgid "General"
+msgstr ""
+
+#: includes/admin-dashboard.php:1317
+#: includes/admin-dashboard.php:3175
+msgid "Active"
+msgstr ""
+
+#: includes/admin-dashboard.php:1317
+msgid "Inactive"
+msgstr ""
+
+#: includes/admin-dashboard.php:1322
+msgid "View"
+msgstr ""
+
+#: includes/admin-dashboard.php:1325
+#: includes/admin-dashboard.php:3146
+msgid "Edit"
+msgstr ""
+
+#: includes/admin-dashboard.php:1329
+msgid "Chamber QR"
+msgstr ""
+
+#: includes/admin-dashboard.php:1334
+#: includes/admin-dashboard.php:3147
+msgid "Delete"
+msgstr ""
+
+#: includes/admin-dashboard.php:1334
+msgid "Delete this doctor?"
+msgstr ""
+
+#: includes/admin-dashboard.php:1398
+#: includes/admin-dashboard.php:1758
+msgid "No bookings found."
+msgstr ""
+
+#: includes/admin-dashboard.php:1403
+msgid "Queue"
+msgstr ""
+
+#: includes/admin-dashboard.php:1403
+#: includes/cpt-register.php:194
+#: includes/roles.php:46
+#: includes/shortcode.php:451
+#: includes/shortcode.php:685
+msgid "Patient"
+msgstr ""
+
+#: includes/admin-dashboard.php:1403
+#: includes/admin-dashboard.php:3045
+#: includes/appointment-manager.php:228
+#: includes/appointment-manager.php:314
+#: includes/cpt-register.php:124
+#: includes/roles.php:29
+#: includes/shortcode.php:452
+#: includes/shortcode.php:686
+#: includes/shortcode.php:851
+msgid "Doctor"
+msgstr ""
+
+#: includes/admin-dashboard.php:1403
+#: includes/admin-dashboard.php:2975
+#: includes/admin-dashboard.php:3101
+#: includes/appointment-manager.php:199
+#: includes/shortcode.php:769
+#: includes/shortcode.php:770
+msgid "Age"
+msgstr ""
+
+#: includes/admin-dashboard.php:1403
+#: includes/admin-dashboard.php:2521
+#: includes/shortcode.php:455
+#: includes/shortcode.php:688
+msgid "Time"
+msgstr ""
+
+#: includes/admin-dashboard.php:1403
+#: includes/admin-dashboard.php:3065
+#: includes/appointment-manager.php:218
+#: includes/appointment-manager.php:316
+msgid "Status"
+msgstr ""
+
+#: includes/admin-dashboard.php:1409
+#: includes/admin-dashboard.php:1455
+msgid "N/A"
+msgstr ""
+
+#: includes/admin-dashboard.php:1452
+#: includes/admin-dashboard.php:2505
+msgid "Queue number"
+msgstr ""
+
+#: includes/admin-dashboard.php:1454
+#: includes/admin-dashboard.php:2507
+#: includes/admin-dashboard.php:2580
+msgid "Patient ID"
+msgstr ""
+
+#: includes/admin-dashboard.php:1461
+msgid "Visit"
+msgstr ""
+
+#: includes/admin-dashboard.php:1463
+#: includes/admin-dashboard.php:2543
+#: includes/shortcode.php:559
+#: includes/shortcode.php:571
+msgid "Check In"
+msgstr ""
+
+#: includes/admin-dashboard.php:1470
+#: includes/admin-dashboard.php:2589
+msgid "Delete?"
+msgstr ""
+
+#: includes/admin-dashboard.php:1618
+#: includes/admin-dashboard.php:1661
+#: includes/admin-dashboard.php:2819
+msgid "Booking"
+msgstr ""
+
+#: includes/admin-dashboard.php:1619
+#: includes/admin-dashboard.php:1964
+msgid "This account is not linked to a doctor profile."
+msgstr ""
+
+#: includes/admin-dashboard.php:1661
+msgid "All dates"
+msgstr ""
+
+#: includes/admin-dashboard.php:1661
+#: includes/admin-dashboard.php:2360
+#: includes/admin-dashboard.php:2626
+#, php-format
+msgid "%d patient"
+msgid_plural "%d patients"
+msgstr[0] ""
+msgstr[1] ""
+
+#: includes/admin-dashboard.php:1674
+msgid "Previous day"
+msgstr ""
+
+#: includes/admin-dashboard.php:1675
+#: includes/shortcode.php:243
+#: includes/shortcode.php:262
+msgid "Today"
+msgstr ""
+
+#: includes/admin-dashboard.php:1676
+msgid "Next day"
+msgstr ""
+
+#: includes/admin-dashboard.php:1681
+#: includes/admin-dashboard.php:2631
+msgid "Search name, phone, or email..."
+msgstr ""
+
+#: includes/admin-dashboard.php:1684
+#: includes/cpt-register.php:126
+msgid "All Doctors"
+msgstr ""
+
+#: includes/admin-dashboard.php:1691
+msgid "All Statuses"
+msgstr ""
+
+#: includes/admin-dashboard.php:1692
+#: includes/admin-dashboard.php:3068
+#: includes/admin-dashboard.php:3072
+#: includes/admin-dashboard.php:3078
+#: includes/appointment-manager.php:116
+#: includes/appointment-manager.php:220
+#: includes/shortcode.php:1070
+msgid "Waiting"
+msgstr ""
+
+#: includes/admin-dashboard.php:1693
+#: includes/admin-dashboard.php:3073
+#: includes/admin-dashboard.php:3079
+#: includes/appointment-manager.php:117
+#: includes/appointment-manager.php:221
+#: includes/shortcode.php:1064
+msgid "Visiting"
+msgstr ""
+
+#: includes/admin-dashboard.php:1694
+#: includes/admin-dashboard.php:3074
+#: includes/admin-dashboard.php:3080
+#: includes/appointment-manager.php:222
+msgid "Completed"
+msgstr ""
+
+#: includes/admin-dashboard.php:1695
+#: includes/admin-dashboard.php:3075
+#: includes/admin-dashboard.php:3081
+#: includes/appointment-manager.php:119
+#: includes/appointment-manager.php:223
+#: includes/shortcode.php:1168
+#: includes/shortcode.php:1217
+msgid "No Show"
+msgstr ""
+
+#: includes/admin-dashboard.php:1697
+#: includes/admin-dashboard.php:2642
+msgid "Filter"
+msgstr ""
+
+#: includes/admin-dashboard.php:1700
+msgid "Clear"
+msgstr ""
+
+#: includes/admin-dashboard.php:1703
+msgid "All Dates"
+msgstr ""
+
+#: includes/admin-dashboard.php:1710
+#, php-format
+msgid "No bookings for %s."
+msgstr ""
+
+#: includes/admin-dashboard.php:1717
+#: includes/admin-dashboard.php:1737
+#: includes/admin-dashboard.php:2326
+msgid "Unassigned"
+msgstr ""
+
+#: includes/admin-dashboard.php:1737
+#, php-format
+msgid "%1$s — %2$s"
+msgstr ""
+
+#: includes/admin-dashboard.php:1740
+#: includes/admin-dashboard.php:2369
+msgid "Export CSV"
+msgstr ""
+
+#: includes/admin-dashboard.php:1825
+msgid "Expand All"
+msgstr ""
+
+#: includes/admin-dashboard.php:1825
+msgid "Collapse All"
+msgstr ""
+
+#: includes/admin-dashboard.php:1836
+msgid "Total Patients"
+msgstr ""
+
+#: includes/admin-dashboard.php:1850
+msgid "Visited Today"
+msgstr ""
+
+#: includes/admin-dashboard.php:1857
+msgid "No Show Today"
+msgstr ""
+
+#: includes/admin-dashboard.php:1864
+#: includes/admin-dashboard.php:2539
+#: includes/appointment-manager.php:121
+msgid "Upcoming"
+msgstr ""
+
+#: includes/admin-dashboard.php:1871
+msgid "Today's Queue"
+msgstr ""
+
+#: includes/admin-dashboard.php:1886
+#: includes/admin-dashboard.php:2363
+msgid "Live Queue display for this doctor"
+msgstr ""
+
+#: includes/admin-dashboard.php:1888
+#: includes/admin-dashboard.php:2365
+msgid "Live Queue"
+msgstr ""
+
+#: includes/admin-dashboard.php:1897
+#: includes/admin-dashboard.php:1908
+#: includes/admin-dashboard.php:2647
+msgid "No patients match your search."
+msgstr ""
+
+#: includes/admin-dashboard.php:1897
+#: includes/shortcode.php:1086
+msgid "No patients in queue today."
+msgstr ""
+
+#: includes/admin-dashboard.php:1902
+msgid "Other Dates"
+msgstr ""
+
+#: includes/admin-dashboard.php:1908
+msgid "No other bookings yet."
+msgstr ""
+
+#: includes/admin-dashboard.php:1942
+msgid "My Profile"
+msgstr ""
+
+#: includes/admin-dashboard.php:1946
+msgid "MANAGER"
+msgstr ""
+
+#: includes/admin-dashboard.php:1946
+msgid "FRONT DESK STAFF"
+msgstr ""
+
+#: includes/admin-dashboard.php:1958
+msgid "Username"
+msgstr ""
+
+#: includes/admin-dashboard.php:1959
+#: includes/admin-dashboard.php:2019
+#: includes/admin-dashboard.php:2654
+#: includes/admin-dashboard.php:2750
+#: includes/admin-dashboard.php:2886
+#: includes/admin-dashboard.php:2972
+#: includes/admin-dashboard.php:3097
+#: includes/shortcode.php:215
+#: includes/shortcode.php:762
+msgid "Email"
+msgstr ""
+
+#: includes/admin-dashboard.php:2020
+#: includes/admin-dashboard.php:2653
+#: includes/admin-dashboard.php:2751
+#: includes/admin-dashboard.php:2890
+#: includes/admin-dashboard.php:2971
+#: includes/admin-dashboard.php:3096
+#: includes/shortcode.php:206
+msgid "Phone"
+msgstr ""
+
+#: includes/admin-dashboard.php:2021
+msgid "Slot Duration"
+msgstr ""
+
+#: includes/admin-dashboard.php:2021
+msgid "min"
+msgstr ""
+
+#: includes/admin-dashboard.php:2024
+msgid "Bio"
+msgstr ""
+
+#: includes/admin-dashboard.php:2026
+#: includes/admin-dashboard.php:2912
+msgid "Weekly Availability"
+msgstr ""
+
+#: includes/admin-dashboard.php:2028
+msgid "Day"
+msgstr ""
+
+#: includes/admin-dashboard.php:2028
+msgid "Hours"
+msgstr ""
+
+#: includes/admin-dashboard.php:2032
+msgid "Off"
+msgstr ""
+
+#: includes/admin-dashboard.php:2039
+#: includes/admin-dashboard.php:2929
+msgid "Monthly Availability"
+msgstr ""
+
+#: includes/admin-dashboard.php:2041
+#: includes/admin-dashboard.php:2932
+msgid "Extra Working Dates"
+msgstr ""
+
+#: includes/admin-dashboard.php:2042
+#: includes/admin-dashboard.php:2938
+msgid "Off Dates"
+msgstr ""
+
+#: includes/admin-dashboard.php:2047
+msgid "Edit Profile"
+msgstr ""
+
+#: includes/admin-dashboard.php:2071
+#: includes/admin-dashboard.php:2836
+msgid "Change Password"
+msgstr ""
+
+#: includes/admin-dashboard.php:2074
+msgid "Password updated successfully."
+msgstr ""
+
+#: includes/admin-dashboard.php:2083
+msgid "New Password"
+msgstr ""
+
+#: includes/admin-dashboard.php:2086
+#: includes/admin-dashboard.php:2098
+#: includes/admin-dashboard.php:2132
+msgid "Show password"
+msgstr ""
+
+#: includes/admin-dashboard.php:2090
+msgid "At least 8 characters."
+msgstr ""
+
+#: includes/admin-dashboard.php:2095
+msgid "Confirm New Password"
+msgstr ""
+
+#: includes/admin-dashboard.php:2104
+msgid "Update Password"
+msgstr ""
+
+#: includes/admin-dashboard.php:2105
+msgid "Tip: pressing Enter after typing also submits the form."
+msgstr ""
+
+#: includes/admin-dashboard.php:2131
+msgid "Hide password"
+msgstr ""
+
+#: includes/admin-dashboard.php:2150
+msgid "at least 8 characters."
+msgstr ""
+
+#: includes/admin-dashboard.php:2157
+msgid "✓ Passwords match."
+msgstr ""
+
+#: includes/admin-dashboard.php:2158
+msgid "Passwords do not match yet."
+msgstr ""
+
+#: includes/admin-dashboard.php:2168
+#: includes/admin-dashboard.php:2169
+msgid "Very weak"
+msgstr ""
+
+#: includes/admin-dashboard.php:2170
+msgid "Weak"
+msgstr ""
+
+#: includes/admin-dashboard.php:2171
+msgid "Medium"
+msgstr ""
+
+#: includes/admin-dashboard.php:2172
+msgid "Strong"
+msgstr ""
+
+#: includes/admin-dashboard.php:2196
+msgid "Password strength unknown"
+msgstr ""
+
+#: includes/admin-dashboard.php:2236
+msgid "Password must be at least 8 characters."
+msgstr ""
+
+#: includes/admin-dashboard.php:2240
+msgid "Passwords do not match."
+msgstr ""
+
+#: includes/admin-dashboard.php:2358
+#: includes/shortcode.php:1039
+msgid "Doctor is currently visiting a patient"
+msgstr ""
+
+#: includes/admin-dashboard.php:2370
+#: includes/shortcode.php:468
+#: includes/shortcode.php:693
+msgid "Download as Image"
+msgstr ""
+
+#: includes/admin-dashboard.php:2516
+#: includes/admin-dashboard.php:3106
+#: includes/appointment-manager.php:315
+#: includes/shortcode.php:453
+#: includes/shortcode.php:687
+msgid "Date"
+msgstr ""
+
+#: includes/admin-dashboard.php:2526
+#: includes/shortcode.php:1206
+msgid "Recall to queue"
+msgstr ""
+
+#: includes/admin-dashboard.php:2526
+#: includes/shortcode.php:1206
+msgid "Skip — temporarily away"
+msgstr ""
+
+#: includes/admin-dashboard.php:2529
+msgid "Recall"
+msgstr ""
+
+#: includes/admin-dashboard.php:2532
+msgid "Skip"
+msgstr ""
+
+#: includes/admin-dashboard.php:2537
+msgid "Currently Visiting — click to mark as visited"
+msgstr ""
+
+#: includes/admin-dashboard.php:2537
+msgid "Mark Visited"
+msgstr ""
+
+#: includes/admin-dashboard.php:2541
+msgid "Waiting — click to start visiting"
+msgstr ""
+
+#: includes/admin-dashboard.php:2541
+msgid "Start Visit"
+msgstr ""
+
+#: includes/admin-dashboard.php:2545
+#: includes/appointment-manager.php:120
+msgid "Not Checked In"
+msgstr ""
+
+#: includes/admin-dashboard.php:2547
+msgid "Another patient is currently being seen"
+msgstr ""
+
+#: includes/admin-dashboard.php:2586
+msgid "Total visits"
+msgstr ""
+
+#: includes/admin-dashboard.php:2626
+msgid "Patient Directory"
+msgstr ""
+
+#: includes/admin-dashboard.php:2626
+msgid "+ Add Patient"
+msgstr ""
+
+#: includes/admin-dashboard.php:2632
+#: includes/admin-dashboard.php:2980
+#: includes/admin-dashboard.php:2984
+#: includes/admin-dashboard.php:2989
+#: includes/admin-dashboard.php:3102
+#: includes/shortcode.php:776
+#: includes/shortcode.php:780
+#: includes/shortcode.php:784
+msgid "Male"
+msgstr ""
+
+#: includes/admin-dashboard.php:2632
+#: includes/admin-dashboard.php:2985
+#: includes/admin-dashboard.php:2990
+#: includes/admin-dashboard.php:3102
+#: includes/shortcode.php:781
+#: includes/shortcode.php:785
+msgid "Female"
+msgstr ""
+
+#: includes/admin-dashboard.php:2632
+#: includes/admin-dashboard.php:2986
+#: includes/admin-dashboard.php:2991
+#: includes/admin-dashboard.php:3102
+msgid "Other"
+msgstr ""
+
+#: includes/admin-dashboard.php:2634
+msgid "All Genders"
+msgstr ""
+
+#: includes/admin-dashboard.php:2640
+msgid "Clear filters"
+msgstr ""
+
+#: includes/admin-dashboard.php:2647
+msgid "No patients yet."
+msgstr ""
+
+#: includes/admin-dashboard.php:2651
+msgid "ID"
+msgstr ""
+
+#: includes/admin-dashboard.php:2652
+#: includes/admin-dashboard.php:3169
+msgid "Name"
+msgstr ""
+
+#: includes/admin-dashboard.php:2656
+msgid "Age/Gender"
+msgstr ""
+
+#: includes/admin-dashboard.php:2657
+msgid "Visits"
+msgstr ""
+
+#: includes/admin-dashboard.php:2679
+#: includes/roles.php:16
+msgid "Front Desk"
+msgstr ""
+
+#: includes/admin-dashboard.php:2680
+#: includes/roles.php:71
+msgid "Manager"
+msgstr ""
+
+#: includes/admin-dashboard.php:2692
+msgid "User ID"
+msgstr ""
+
+#: includes/admin-dashboard.php:2699
+msgid "Remove this staff account?"
+msgstr ""
+
+#: includes/admin-dashboard.php:2723
+#: includes/admin-dashboard.php:2813
+msgid "Staff"
+msgstr ""
+
+#: includes/admin-dashboard.php:2723
+#, php-format
+msgid "%d staff account"
+msgid_plural "%d staff accounts"
+msgstr[0] ""
+msgstr[1] ""
+
+#: includes/admin-dashboard.php:2723
+msgid "+ Add Staff"
+msgstr ""
+
+#: includes/admin-dashboard.php:2728
+msgid "No staff accounts yet."
+msgstr ""
+
+#: includes/admin-dashboard.php:2742
+msgid "Add Staff"
+msgstr ""
+
+#: includes/admin-dashboard.php:2746
+#: includes/admin-dashboard.php:2863
+#: includes/admin-dashboard.php:2967
+#: includes/shortcode.php:752
+msgid "Full Name"
+msgstr ""
+
+#: includes/admin-dashboard.php:2754
+msgid "Role"
+msgstr ""
+
+#: includes/admin-dashboard.php:2772
+msgid "Front Desk: Booking + Patients panel only. Manager: same panel, but full admin-level access to everything (Doctors, Staff, Specialties, Dashboard, Settings)."
+msgstr ""
+
+#: includes/admin-dashboard.php:2774
+msgid "A new account gets an email with a link to set their own password."
+msgstr ""
+
+#: includes/admin-dashboard.php:2777
+#: includes/admin-dashboard.php:2947
+#: includes/admin-dashboard.php:3002
+#: includes/admin-dashboard.php:3116
+msgid "Cancel"
+msgstr ""
+
+#: includes/admin-dashboard.php:2778
+msgid "Save Staff"
+msgstr ""
+
+#: includes/admin-dashboard.php:2790
+msgid "Medical Specialties"
+msgstr ""
+
+#: includes/admin-dashboard.php:2790
+msgid "+ Add Specialty"
+msgstr ""
+
+#: includes/admin-dashboard.php:2800
+#: includes/admin-dashboard.php:3156
+msgid "Add Specialty"
+msgstr ""
+
+#: includes/admin-dashboard.php:2811
+msgid "Dashboard"
+msgstr ""
+
+#: includes/admin-dashboard.php:2835
+msgid "Profile"
+msgstr ""
+
+#: includes/admin-dashboard.php:2839
+msgid "Specialties"
+msgstr ""
+
+#: includes/admin-dashboard.php:2842
+msgid "Medical Center"
+msgstr ""
+
+#: includes/admin-dashboard.php:2848
+msgid "Add Doctor"
+msgstr ""
+
+#: includes/admin-dashboard.php:2852
+msgid "Photo"
+msgstr ""
+
+#: includes/admin-dashboard.php:2856
+msgid "Upload Photo"
+msgstr ""
+
+#: includes/admin-dashboard.php:2886
+#: includes/admin-dashboard.php:2890
+msgid "Public"
+msgstr ""
+
+#: includes/admin-dashboard.php:2898
+msgid "Time Slot Booking"
+msgstr ""
+
+#: includes/admin-dashboard.php:2899
+msgid "Enabled"
+msgstr ""
+
+#: includes/admin-dashboard.php:2901
+msgid "Off: patients are booked serially by queue number — no time picker."
+msgstr ""
+
+#: includes/admin-dashboard.php:2903
+msgid "Slot Duration (minutes)"
+msgstr ""
+
+#: includes/admin-dashboard.php:2907
+msgid "Bio / Description"
+msgstr ""
+
+#: includes/admin-dashboard.php:2908
+msgid "Specialty, experience, qualifications..."
+msgstr ""
+
+#: includes/admin-dashboard.php:2933
+msgid "Open for booking on these dates even if the weekday is normally off."
+msgstr ""
+
+#: includes/admin-dashboard.php:2939
+msgid "Closed on these dates even if the weekday is normally active."
+msgstr ""
+
+#: includes/admin-dashboard.php:2948
+msgid "Save Profile"
+msgstr ""
+
+#: includes/admin-dashboard.php:2958
+msgid "Doctor Details"
+msgstr ""
+
+#: includes/admin-dashboard.php:2963
+msgid "Add Patient"
+msgstr ""
+
+#: includes/admin-dashboard.php:2977
+#: includes/admin-dashboard.php:3102
+#: includes/appointment-manager.php:209
+#: includes/shortcode.php:773
+msgid "Gender"
+msgstr ""
+
+#: includes/admin-dashboard.php:3003
+msgid "Save Record"
+msgstr ""
+
+#: includes/admin-dashboard.php:3020
+msgid "Add Booking"
+msgstr ""
+
+#: includes/admin-dashboard.php:3091
+#: includes/appointment-manager.php:193
+msgid "Patient Name"
+msgstr ""
+
+#: includes/admin-dashboard.php:3108
+#: includes/appointment-manager.php:246
+msgid "Slot Time"
+msgstr ""
+
+#: includes/admin-dashboard.php:3110
+msgid "Serial booking — queue number is assigned automatically."
+msgstr ""
+
+#: includes/admin-dashboard.php:3117
+msgid "Save Booking"
+msgstr ""
+
+#: includes/admin-dashboard.php:3139
+#, php-format
+msgid "%d doctor"
+msgid_plural "%d doctors"
+msgstr[0] ""
+msgstr[1] ""
+
+#: includes/admin-dashboard.php:3141
+msgid "Active/Inactive"
+msgstr ""
+
+#: includes/admin-dashboard.php:3147
+msgid "Delete this specialty?"
+msgstr ""
+
+#: includes/admin-dashboard.php:3160
+msgid "Icon / Image (SVG or PNG)"
+msgstr ""
+
+#: includes/admin-dashboard.php:3177
+msgid "Save Specialty"
+msgstr ""
+
+#: includes/appointment-manager.php:74
+msgid "Your check-in details:"
+msgstr ""
+
+#: includes/appointment-manager.php:76
+#, php-format
+msgid "Ticket: %s"
+msgstr ""
+
+#: includes/appointment-manager.php:79
+#, php-format
+msgid "Date: %s"
+msgstr ""
+
+#: includes/appointment-manager.php:82
+#, php-format
+msgid "Time: %s"
+msgstr ""
+
+#: includes/appointment-manager.php:84
+#, php-format
+msgid "View your booking and check in here: %s"
+msgstr ""
+
+#: includes/appointment-manager.php:118
+msgid "Visited"
+msgstr ""
+
+#: includes/appointment-manager.php:158
+msgid "Appointment Details"
+msgstr ""
+
+#: includes/appointment-manager.php:203
+msgid "Phone Number"
+msgstr ""
+
+#: includes/appointment-manager.php:230
+msgid "Select Doctor"
+msgstr ""
+
+#: includes/appointment-manager.php:242
+msgid "Appointment Date"
+msgstr ""
+
+#: includes/appointment-manager.php:253
+msgid "Ticket Number"
+msgstr ""
+
+#: includes/appointment-manager.php:259
+msgid "Symptoms"
+msgstr ""
+
+#: includes/appointment-manager.php:313
+msgid "Patient Info"
+msgstr ""
+
+#: includes/appointment-manager.php:690
+msgid "This booking is not awaiting check-in (already checked in, served, or cancelled)."
+msgstr ""
+
+#: includes/appointment-manager.php:693
+#: includes/appointment-manager.php:725
+msgid "This booking is not for today."
+msgstr ""
+
+#: includes/appointment-manager.php:719
+msgid "Only a waiting patient can be started."
+msgstr ""
+
+#: includes/appointment-manager.php:722
+msgid "This patient has not checked in yet."
+msgstr ""
+
+#: includes/appointment-manager.php:741
+msgid "Another patient is already being seen — mark them visited first."
+msgstr ""
+
+#: includes/appointment-manager.php:869
+msgid "This slot is being booked by someone else right now. Please try again."
+msgstr ""
+
+#: includes/appointment-manager.php:874
+msgid "That time slot is no longer available. Please choose another."
+msgstr ""
+
+#: includes/appointment-manager.php:886
+#, php-format
+msgid "Booking: %s"
+msgstr ""
+
+#: includes/appointment-manager.php:934
+msgid "Please fill in all required fields."
+msgstr ""
+
+#: includes/appointment-manager.php:940
+msgid "Please enter a valid Bangladeshi mobile number (e.g. 01XXXXXXXXX)."
+msgstr ""
+
+#: includes/appointment-manager.php:945
+msgid "Please enter a valid email address."
+msgstr ""
+
+#: includes/appointment-manager.php:961
+msgid "Appointment booked successfully! We will contact you soon."
+msgstr ""
+
+#: includes/appointment-manager.php:970
+msgid "Something went wrong. Please try again."
+msgstr ""
+
+#: includes/appointment-manager.php:1087
+msgid "No doctors found for this specialty."
+msgstr ""
+
+#: includes/cpt-register.php:36
+msgctxt "appointment status"
+msgid "Waiting"
+msgstr ""
+
+#: includes/cpt-register.php:42
+#, php-format
+msgid "Waiting <span class=\"count\">(%s)</span>"
+msgid_plural "Waiting <span class=\"count\">(%s)</span>"
+msgstr[0] ""
+msgstr[1] ""
+
+#: includes/cpt-register.php:46
+msgctxt "appointment status"
+msgid "Visiting"
+msgstr ""
+
+#: includes/cpt-register.php:52
+#, php-format
+msgid "Visiting <span class=\"count\">(%s)</span>"
+msgid_plural "Visiting <span class=\"count\">(%s)</span>"
+msgstr[0] ""
+msgstr[1] ""
+
+#: includes/cpt-register.php:56
+msgctxt "appointment status"
+msgid "Completed"
+msgstr ""
+
+#: includes/cpt-register.php:62
+#, php-format
+msgid "Completed <span class=\"count\">(%s)</span>"
+msgid_plural "Completed <span class=\"count\">(%s)</span>"
+msgstr[0] ""
+msgstr[1] ""
+
+#: includes/cpt-register.php:66
+msgctxt "appointment status"
+msgid "No Show"
+msgstr ""
+
+#: includes/cpt-register.php:72
+#, php-format
+msgid "No Show <span class=\"count\">(%s)</span>"
+msgid_plural "No Show <span class=\"count\">(%s)</span>"
+msgstr[0] ""
+msgstr[1] ""
+
+#: includes/cpt-register.php:89
+msgctxt "taxonomy general name"
+msgid "Departments"
+msgstr ""
+
+#: includes/cpt-register.php:90
+msgctxt "taxonomy singular name"
+msgid "Department"
+msgstr ""
+
+#: includes/cpt-register.php:91
+msgid "Search Departments"
+msgstr ""
+
+#: includes/cpt-register.php:92
+msgid "All Departments"
+msgstr ""
+
+#: includes/cpt-register.php:93
+msgid "Parent Department"
+msgstr ""
+
+#: includes/cpt-register.php:94
+msgid "Parent Department:"
+msgstr ""
+
+#: includes/cpt-register.php:95
+msgid "Edit Department"
+msgstr ""
+
+#: includes/cpt-register.php:96
+msgid "Update Department"
+msgstr ""
+
+#: includes/cpt-register.php:97
+msgid "Add New Department"
+msgstr ""
+
+#: includes/cpt-register.php:98
+msgid "New Department Name"
+msgstr ""
+
+#: includes/cpt-register.php:99
+msgid "Departments"
+msgstr ""
+
+#: includes/cpt-register.php:129
+msgid "Edit Doctor"
+msgstr ""
+
+#: includes/cpt-register.php:130
+msgid "New Doctor"
+msgstr ""
+
+#: includes/cpt-register.php:131
+msgid "View Doctor"
+msgstr ""
+
+#: includes/cpt-register.php:132
+msgid "Search Doctors"
+msgstr ""
+
+#: includes/cpt-register.php:133
+msgid "No Doctors found"
+msgstr ""
+
+#: includes/cpt-register.php:134
+msgid "No Doctors found in Trash"
+msgstr ""
+
+#: includes/cpt-register.php:160
+#: includes/cpt-register.php:162
+#: includes/cpt-register.php:175
+msgid "Appointments"
+msgstr ""
+
+#: includes/cpt-register.php:161
+msgid "Appointment"
+msgstr ""
+
+#: includes/cpt-register.php:163
+msgid "All Appointments"
+msgstr ""
+
+#: includes/cpt-register.php:164
+#: includes/cpt-register.php:165
+msgid "Add New Appointment"
+msgstr ""
+
+#: includes/cpt-register.php:166
+msgid "Edit Appointment"
+msgstr ""
+
+#: includes/cpt-register.php:167
+msgid "New Appointment"
+msgstr ""
+
+#: includes/cpt-register.php:168
+msgid "View Appointment"
+msgstr ""
+
+#: includes/cpt-register.php:169
+msgid "Search Appointments"
+msgstr ""
+
+#: includes/cpt-register.php:170
+msgid "No Appointments found"
+msgstr ""
+
+#: includes/cpt-register.php:171
+msgid "No Appointments found in Trash"
+msgstr ""
+
+#: includes/cpt-register.php:196
+msgid "All Patients"
+msgstr ""
+
+#: includes/cpt-register.php:197
+#: includes/cpt-register.php:198
+msgid "Add New Patient"
+msgstr ""
+
+#: includes/cpt-register.php:199
+msgid "Edit Patient"
+msgstr ""
+
+#: includes/cpt-register.php:200
+msgid "New Patient"
+msgstr ""
+
+#: includes/cpt-register.php:201
+msgid "View Patient"
+msgstr ""
+
+#: includes/cpt-register.php:202
+msgid "Search Patients"
+msgstr ""
+
+#: includes/cpt-register.php:203
+msgid "No Patients found"
+msgstr ""
+
+#: includes/cpt-register.php:204
+msgid "No Patients found in Trash"
+msgstr ""
+
+#: includes/notifications.php:61
+msgid "New Appointment Booked"
+msgstr ""
+
+#: includes/notifications.php:61
+msgid "Your Appointment is Confirmed"
+msgstr ""
+
+#: includes/notifications.php:62
+msgid "You're Up Next"
+msgstr ""
+
+#: includes/notifications.php:63
+msgid "Thank You for Your Visit"
+msgstr ""
+
+#: includes/notifications.php:65
+msgid "Appointment Update"
+msgstr ""
+
+#: includes/notifications.php:70
+#, php-format
+msgid ""
+"A new appointment has been booked.\n"
+"\n"
+"Patient: %1$s\n"
+"When: %2$s"
+msgstr ""
+
+#: includes/notifications.php:78
+#, php-format
+msgid ""
+"Hi %1$s,\n"
+"\n"
+"Your appointment with %2$s is confirmed for %3$s.\n"
+"\n"
+"See you then!"
+msgstr ""
+
+#: includes/notifications.php:86
+#, php-format
+msgid ""
+"Hi %1$s,\n"
+"\n"
+"You're up next with %2$s. Please head to the reception area."
+msgstr ""
+
+#: includes/notifications.php:93
+#, php-format
+msgid ""
+"Hi %1$s,\n"
+"\n"
+"Thank you for visiting %2$s today. We hope you feel better soon!"
+msgstr ""
+
+#: includes/shortcode.php:232
+msgid "Availability"
+msgstr ""
+
+#: includes/shortcode.php:261
+msgid "Special"
+msgstr ""
+
+#: includes/shortcode.php:287
+#: includes/shortcode.php:405
+msgid "Today's Patients"
+msgstr ""
+
+#: includes/shortcode.php:294
+#: includes/shortcode.php:377
+#: includes/shortcode.php:798
+msgid "Book Appointment"
+msgstr ""
+
+#: includes/shortcode.php:433
+msgid "Your Booking"
+msgstr ""
+
+#: includes/shortcode.php:438
+msgid "We could not find that booking. The link may be old or the booking may have been removed."
+msgstr ""
+
+#: includes/shortcode.php:448
+#: includes/shortcode.php:462
+#: includes/shortcode.php:1202
+msgid "Checked In"
+msgstr ""
+
+#: includes/shortcode.php:448
+#: includes/shortcode.php:462
+#: includes/shortcode.php:682
+msgid "Booking Confirmed"
+msgstr ""
+
+#: includes/shortcode.php:450
+#: includes/shortcode.php:684
+msgid "Ticket"
+msgstr ""
+
+#: includes/shortcode.php:459
+#: includes/shortcode.php:691
+msgid "Show this QR code at check-in."
+msgstr ""
+
+#: includes/shortcode.php:469
+#: includes/shortcode.php:694
+msgid "Print / Save as PDF"
+msgstr ""
+
+#: includes/shortcode.php:564
+#: includes/shortcode.php:1390
+msgid "This check-in QR code is not valid."
+msgstr ""
+
+#: includes/shortcode.php:566
+#, php-format
+msgid "Checking in for %s"
+msgstr ""
+
+#: includes/shortcode.php:568
+msgid "Enter the phone number you booked with"
+msgstr ""
+
+#: includes/shortcode.php:569
+#: includes/shortcode.php:759
+msgid "01XXXXXXXXX"
+msgstr ""
+
+#: includes/shortcode.php:616
+msgid "Multiple bookings match this number — select yours:"
+msgstr ""
+
+#: includes/shortcode.php:696
+msgid "Close"
+msgstr ""
+
+#: includes/shortcode.php:700
+msgid "Choose Specialty & Doctor"
+msgstr ""
+
+#: includes/shortcode.php:729
+msgid "Pick Date & Time"
+msgstr ""
+
+#: includes/shortcode.php:737
+msgid "Select a date first"
+msgstr ""
+
+#: includes/shortcode.php:742
+msgid "Selected:"
+msgstr ""
+
+#: includes/shortcode.php:744
+msgid "Change"
+msgstr ""
+
+#: includes/shortcode.php:753
+msgid "e.g. Shafiul Islam"
+msgstr ""
+
+#: includes/shortcode.php:758
+msgid "Mobile Number"
+msgstr ""
+
+#: includes/shortcode.php:759
+msgid "Enter a valid Bangladeshi mobile number, e.g. 01XXXXXXXXX"
+msgstr ""
+
+#: includes/shortcode.php:762
+msgid "(optional)"
+msgstr ""
+
+#: includes/shortcode.php:763
+msgid "you@example.com"
+msgstr ""
+
+#: includes/shortcode.php:792
+msgid "Description of Symptoms"
+msgstr ""
+
+#: includes/shortcode.php:793
+msgid "Briefly describe your symptoms..."
+msgstr ""
+
+#: includes/shortcode.php:836
+msgid "Queue Management"
+msgstr ""
+
+#: includes/shortcode.php:837
+msgid "Real-time patient flow."
+msgstr ""
+
+#: includes/shortcode.php:841
+msgid "Check-In"
+msgstr ""
+
+#: includes/shortcode.php:843
+msgid "Scan or paste check-in code"
+msgstr ""
+
+#: includes/shortcode.php:844
+msgid "Verify"
+msgstr ""
+
+#: includes/shortcode.php:881
+msgid "The live queue display is currently turned off."
+msgstr ""
+
+#: includes/shortcode.php:895
+msgid "This doctor's live queue display is currently turned off."
+msgstr ""
+
+#: includes/shortcode.php:1046
+msgid "patients"
+msgstr ""
+
+#: includes/shortcode.php:1067
+#: includes/shortcode.php:1200
+msgid "Away"
+msgstr ""
+
+#: includes/shortcode.php:1090
+#: includes/shortcode.php:1226
+#, php-format
+msgid "Updated %s"
+msgstr ""
+
+#: includes/shortcode.php:1147
+msgid "Active Queue"
+msgstr ""
+
+#: includes/shortcode.php:1150
+msgid "Patients waiting"
+msgstr ""
+
+#: includes/shortcode.php:1153
+msgid "Live"
+msgstr ""
+
+#: includes/shortcode.php:1157
+msgid "Now Visiting"
+msgstr ""
+
+#: includes/shortcode.php:1167
+msgid "Complete"
+msgstr ""
+
+#: includes/shortcode.php:1171
+msgid "No patient currently visiting."
+msgstr ""
+
+#: includes/shortcode.php:1173
+msgid "Call Next Patient"
+msgstr ""
+
+#: includes/shortcode.php:1181
+msgid "Upcoming Patients"
+msgstr ""
+
+#: includes/shortcode.php:1215
+msgid "Visit Now"
+msgstr ""
+
+#: includes/shortcode.php:1222
+msgid "No upcoming patients."
+msgstr ""
+
+#: includes/shortcode.php:1268
+msgid "Someone is already visiting. Complete or mark no-show first."
+msgstr ""
+
+#: includes/shortcode.php:1276
+msgid "No patients waiting."
+msgstr ""
+
+#: includes/shortcode.php:1295
+#: includes/shortcode.php:1328
+msgid "Invalid request."
+msgstr ""
+
+#: includes/shortcode.php:1304
+msgid "Someone is already visiting."
+msgstr ""
+
+#: includes/shortcode.php:1356
+msgid "Check-in code not found."
+msgstr ""
+
+#: includes/shortcode.php:1395
+msgid "Please enter your phone number."
+msgstr ""
+
+#: includes/shortcode.php:1409
+msgid "Booking not found."
+msgstr ""
+
+#: includes/shortcode.php:1426
+msgid "No waiting booking found for today with this phone number."
+msgstr ""
+
+#: includes/shortcode.php:1449
+#, php-format
+msgid "%1$s checked in — ticket %2$s."
+msgstr ""
