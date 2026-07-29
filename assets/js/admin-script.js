@@ -631,6 +631,36 @@ document.addEventListener('DOMContentLoaded', function() {
         window.addEventListener('click', (e) => { if (e.target === modal) modal.style.display = 'none'; });
     });
 
+    // Shared by the modal print button below and the doctor-group Print/
+    // Download-Image buttons on the Booking page — one clean, dependency-
+    // free table style used everywhere a patient list gets exported as a
+    // standalone document/image, rather than trying to drag the admin
+    // screen's own CSS along.
+    const MDBK_PRINT_STYLES = 'body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;padding:24px;color:#1e293b;background:#fff;margin:0;text-align:center;}' +
+        '.mdbk-print-logo{max-width:64px;max-height:64px;margin:0 auto 8px;display:block;}' +
+        '.mdbk-print-clinic-name{margin:0 0 3px;font-size:15px;font-weight:700;}' +
+        '.mdbk-print-clinic-meta{margin:0 0 3px;font-size:11px;color:#64748b;}' +
+        'h2{margin:14px 0 16px;font-size:18px;text-align:left;}' +
+        'table{width:100%;border-collapse:collapse;font-size:13px;text-align:left;}' +
+        'th,td{padding:8px 10px;border-bottom:1px solid #94a3b8;text-align:left;}' +
+        'th{background:#f8fafc;text-transform:uppercase;font-size:11px;color:#64748b;}';
+    // Logo/name/contact/address from Global Settings — shown above every
+    // print/download-image output on this page so a printed patient list
+    // is identifiable as belonging to this clinic. Empty fields just
+    // don't render their line.
+    function mdbkBuildClinicHeaderHtml() {
+        const obj = typeof mdbk_admin_obj !== 'undefined' ? mdbk_admin_obj : {};
+        let html = '';
+        if (obj.clinic_logo) html += '<img class="mdbk-print-logo" src="' + obj.clinic_logo + '" alt="">';
+        if (obj.clinic_name) html += '<p class="mdbk-print-clinic-name">' + obj.clinic_name + '</p>';
+        if (obj.clinic_contact) html += '<p class="mdbk-print-clinic-meta">' + obj.clinic_contact + '</p>';
+        if (obj.clinic_address) html += '<p class="mdbk-print-clinic-meta">' + obj.clinic_address + '</p>';
+        return html;
+    }
+    function mdbkBuildPrintBody(titleText, bodyHtml) {
+        return mdbkBuildClinicHeaderHtml() + '<h2>' + titleText + '</h2>' + bodyHtml;
+    }
+
     // Print just this modal's table — window.print() on the main page would
     // try to print the whole admin screen behind the overlay, so this opens
     // a small standalone print window with only the modal's own title +
@@ -645,20 +675,98 @@ document.addEventListener('DOMContentLoaded', function() {
             const win = window.open('', '_blank', 'width=900,height=700');
             if (!win) return;
             win.document.write(
-                '<html><head><title>' + (title ? title.textContent : 'Print') + '</title><style>' +
-                'body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;padding:24px;color:#1e293b;}' +
-                'h2{margin:0 0 16px;font-size:18px;}' +
-                'table{width:100%;border-collapse:collapse;font-size:13px;}' +
-                'th,td{padding:8px 10px;border-bottom:1px solid #e2e8f0;text-align:left;}' +
-                'th{background:#f8fafc;text-transform:uppercase;font-size:11px;color:#64748b;}' +
-                '</style></head><body>' +
-                '<h2>' + (title ? title.textContent : '') + '</h2>' +
-                body.innerHTML +
+                '<html><head><title>' + (title ? title.textContent : 'Print') + '</title><style>' + MDBK_PRINT_STYLES + '</style></head><body>' +
+                mdbkBuildPrintBody(title ? title.textContent : '', body.innerHTML) +
                 '</body></html>'
             );
             win.document.close();
             win.focus();
             win.print();
+        });
+    });
+
+    // Per-doctor Print/Download Image on the Booking page's collapsible
+    // group headers — both read from the group's own hidden
+    // .mdbk-doctor-group-print-table (a plain <table>, server-rendered by
+    // render_today_queue_table()) rather than the visible
+    // .mdbk-doctor-group-list, since that's flex/grid patient-row markup
+    // this standalone page/canvas has no matching CSS for.
+    document.querySelectorAll('.mdbk-print-group').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            const group = btn.closest('.mdbk-doctor-group');
+            if (!group) return;
+            const name = group.querySelector('.mdbk-doctor-group-name');
+            const table = group.querySelector('.mdbk-doctor-group-print-table');
+            if (!table) return;
+            const titleText = name ? name.textContent : 'Print';
+            const win = window.open('', '_blank', 'width=900,height=700');
+            if (!win) return;
+            win.document.write(
+                '<html><head><title>' + titleText + '</title><style>' + MDBK_PRINT_STYLES + '</style></head><body>' +
+                mdbkBuildPrintBody(titleText, table.innerHTML) +
+                '</body></html>'
+            );
+            win.document.close();
+            win.focus();
+            win.print();
+        });
+    });
+
+    // Renders the same title+table markup onto an off-screen element, then
+    // rasterizes it (via an SVG <foreignObject>, the one dependency-free
+    // way to turn arbitrary HTML into a bitmap) into a downloadable PNG.
+    // No charting/screenshot library is vendored in this plugin, so this
+    // stays plain browser APIs rather than pulling one in for a single button.
+    function mdbkDownloadHtmlAsImage(titleText, bodyHtml, filename) {
+        const width = 640;
+        const innerHtml = '<div style="font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',Roboto,sans-serif;padding:24px;color:#1e293b;background:#fff;box-sizing:border-box;width:' + width + 'px;"><style>' + MDBK_PRINT_STYLES + '</style>' + mdbkBuildPrintBody(titleText, bodyHtml) + '</div>';
+        const container = document.createElement('div');
+        container.style.cssText = 'position:fixed;left:-9999px;top:0;width:' + width + 'px;';
+        container.innerHTML = innerHtml;
+        document.body.appendChild(container);
+        requestAnimationFrame(function() {
+            const height = Math.max(container.scrollHeight, 60);
+            document.body.removeChild(container);
+            const svgMarkup = '<svg xmlns="http://www.w3.org/2000/svg" width="' + width + '" height="' + height + '">' +
+                '<foreignObject width="100%" height="100%"><div xmlns="http://www.w3.org/1999/xhtml">' + innerHtml + '</div></foreignObject>' +
+                '</svg>';
+            const svgUrl = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgMarkup);
+            const img = new Image();
+            img.onload = function() {
+                const scale = 2;
+                const canvas = document.createElement('canvas');
+                canvas.width = width * scale;
+                canvas.height = height * scale;
+                const ctx = canvas.getContext('2d');
+                ctx.scale(scale, scale);
+                ctx.fillStyle = '#fff';
+                ctx.fillRect(0, 0, width, height);
+                ctx.drawImage(img, 0, 0, width, height);
+                canvas.toBlob(function(blob) {
+                    if (!blob) { alert('Could not generate image. Try Print instead.'); return; }
+                    const link = document.createElement('a');
+                    link.download = filename;
+                    link.href = URL.createObjectURL(blob);
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                });
+            };
+            img.onerror = function() {
+                alert('Could not generate image. Try Print instead.');
+            };
+            img.src = svgUrl;
+        });
+    }
+    document.querySelectorAll('.mdbk-download-group-image').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            const group = btn.closest('.mdbk-doctor-group');
+            if (!group) return;
+            const name = group.querySelector('.mdbk-doctor-group-name');
+            const table = group.querySelector('.mdbk-doctor-group-print-table');
+            if (!table) return;
+            const titleText = name ? name.textContent : 'Patients';
+            mdbkDownloadHtmlAsImage(titleText, table.innerHTML, titleText.replace(/[^a-z0-9]+/gi, '-').toLowerCase() + '-patients.png');
         });
     });
 
@@ -717,6 +825,43 @@ document.addEventListener('DOMContentLoaded', function() {
         specialtyIconRemove.addEventListener('click', function() {
             document.getElementById('mdbk-spec-icon-id').value = 0;
             setSpecialtyIconPreview('');
+        });
+    }
+
+    function setClinicLogoPreview(url) {
+        const preview = document.getElementById('mdbk-clinic-logo-preview');
+        const removeBtn = document.getElementById('mdbk-clinic-logo-remove');
+        if (!preview) return;
+        preview.innerHTML = url ? '<img src="' + url + '" alt="">' : '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41L13.42 20.58a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path><line x1="7" y1="7" x2="7.01" y2="7"></line></svg>';
+        if (removeBtn) removeBtn.style.display = url ? '' : 'none';
+    }
+    let clinicLogoFrame;
+    const clinicLogoUpload = document.getElementById('mdbk-clinic-logo-upload');
+    if (clinicLogoUpload) {
+        clinicLogoUpload.addEventListener('click', function(e) {
+            e.preventDefault();
+            if (typeof wp === 'undefined' || !wp.media) return;
+            if (clinicLogoFrame) { clinicLogoFrame.open(); return; }
+            clinicLogoFrame = wp.media({
+                title: 'Select Clinic Logo',
+                button: { text: 'Use this image' },
+                multiple: false,
+                library: { type: 'image' }
+            });
+            clinicLogoFrame.on('select', function() {
+                const attachment = clinicLogoFrame.state().get('selection').first().toJSON();
+                const url = (attachment.sizes && attachment.sizes.thumbnail) ? attachment.sizes.thumbnail.url : attachment.url;
+                document.getElementById('mdbk-clinic-logo-id').value = attachment.id;
+                setClinicLogoPreview(url);
+            });
+            clinicLogoFrame.open();
+        });
+    }
+    const clinicLogoRemove = document.getElementById('mdbk-clinic-logo-remove');
+    if (clinicLogoRemove) {
+        clinicLogoRemove.addEventListener('click', function() {
+            document.getElementById('mdbk-clinic-logo-id').value = 0;
+            setClinicLogoPreview('');
         });
     }
 

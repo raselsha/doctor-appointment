@@ -395,7 +395,21 @@ class MDBK_Shortcode {
             }
 
             var printBtn = document.getElementById('mdbk-status-print');
-            if (printBtn) printBtn.addEventListener('click', function() { window.print(); });
+            if (printBtn) printBtn.addEventListener('click', function() {
+                var qrImg = qrEl ? qrEl.querySelector('img') : null;
+                if (typeof mdbkPrintBookingCard === 'function' && downloadBtn) {
+                    mdbkPrintBookingCard({
+                        title: downloadBtn.getAttribute('data-title'),
+                        ticket: downloadBtn.getAttribute('data-ticket'),
+                        patient_name: downloadBtn.getAttribute('data-patient-name'),
+                        doctor_name: downloadBtn.getAttribute('data-doctor-name'),
+                        date: downloadBtn.getAttribute('data-date'),
+                        slot_time: downloadBtn.getAttribute('data-slot-time')
+                    }, qrImg ? qrImg.src : '');
+                } else {
+                    window.print();
+                }
+            });
         })();
         </script>
         <?php

@@ -954,24 +954,3 @@ button.mdbk-slot-btn.mdbk-slot-taken {
     border-color: #94a3b8;
 }
 
-/* Printing the confirmation card ("Print / Save as PDF") — hide
-   everything else on the page and let the card fill the printable area. */
-@media print {
-    body * {
-        visibility: hidden;
-    }
-    .mdbk-booking-confirmation,
-    .mdbk-booking-confirmation * {
-        visibility: visible;
-    }
-    .mdbk-booking-confirmation {
-        position: absolute;
-        left: 0;
-        top: 0;
-        width: 100%;
-    }
-    .mdbk-confirmation-actions,
-    .mdbk-confirmation-close-btn {
-        display: none !important;
-    }
-}

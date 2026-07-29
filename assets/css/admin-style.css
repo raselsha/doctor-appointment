@@ -983,9 +983,14 @@ button.mdbk-mini-cal-nav-btn:hover { background: #f1f5f9; }
 .mdbk-doctor-group-header::-webkit-details-marker { display: none; }
 .mdbk-doctor-group-name { font-size: 13px; font-weight: 700; color: #1e293b; }
 .mdbk-doctor-group-count { font-size: 12px; color: #64748b; }
-.mdbk-doctor-group-header .mdbk-availability-chevron { margin-left: auto; }
 .mdbk-doctor-group[open] .mdbk-availability-chevron { transform: rotate(-135deg); }
 .mdbk-doctor-group-list .mdbk-patient-row:last-child { border-bottom: none; }
+/* Per-doctor Print/Export CSV/Download Image cluster, pushed to the
+   header's right edge (replaces the chevron's own margin-left:auto —
+   the chevron now sits at the end of this cluster instead). */
+.mdbk-doctor-group-actions { display: flex; align-items: center; gap: 6px; margin-left: auto; }
+.mdbk-doctor-group-actions .mdbk-icon-btn { width: 26px; height: 26px; }
+.mdbk-doctor-group-actions .mdbk-availability-chevron { margin-left: 4px; }
 /* "Expand All" / "Collapse All" — sits in the card-header next to
    "Today's Queue" / "Patient List" via that header's own
    justify-content:space-between, only rendered when this page is
@@ -1200,6 +1205,7 @@ button.mdbk-mini-cal-nav-btn:hover { background: #f1f5f9; }
     #wpadminbar, #adminmenumain, #wpfooter,
     .mdbk-sidebar, .mdbk-header-right, .mdbk-filters-bar,
     .mdbk-actions, .mdbk-card-view-all, .mdbk-schedule-doctor-chevron,
+    .mdbk-doctor-group-actions,
     .mdbk-date-nav-all { display: none !important; }
     .mdbk-admin-wrapper { display: block; box-shadow: none; border-radius: 0; height: auto; overflow: visible; }
     .mdbk-main-content, .mdbk-main-content-fixed-header { width: 100%; padding: 0; overflow: visible; display: block; }

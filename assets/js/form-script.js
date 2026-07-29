@@ -27,7 +27,7 @@ function mdbkBuildBookingCardImage(details, qrImgSrc, callback) {
     if (details.slot_time) rows.push(['Time', details.slot_time]);
 
     var rowH = 34;
-    var boxTop = 140;
+    var boxTop = 66;
     var boxPad = 16;
     var boxH = rows.length * rowH + boxPad * 2;
     var qrSize = 200;
@@ -45,30 +45,33 @@ function mdbkBuildBookingCardImage(details, qrImgSrc, callback) {
     ctx.lineWidth = 2;
     ctx.strokeRect(1, 1, W - 2, H - 2);
 
-    ctx.beginPath();
-    ctx.fillStyle = '#e6f7ed';
-    ctx.arc(W / 2, 60, 28, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = '#1a7f45';
-    ctx.font = 'bold 26px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('✓', W / 2, 61);
-
     ctx.fillStyle = '#1e293b';
     ctx.font = 'bold 20px sans-serif';
+    ctx.textAlign = 'center';
     ctx.textBaseline = 'alphabetic';
-    ctx.fillText(details.title || 'Booking Confirmed', W / 2, 112);
+    ctx.fillText(details.title || 'Booking Confirmed', W / 2, 40);
 
     roundRect(ctx, 24, boxTop, W - 48, boxH, 12);
     ctx.fillStyle = '#f8fafc';
     ctx.fill();
-    ctx.strokeStyle = '#e2e8f0';
+    ctx.strokeStyle = '#cbd5e1';
     ctx.lineWidth = 1;
     ctx.stroke();
 
+    // A divider between each row (not just the box's own outer border) —
+    // matches the live on-screen card's .mdbk-confirmation-row + .mdbk-
+    // confirmation-row border, and the print window's own version of it.
     rows.forEach(function(row, i) {
-        var y = boxTop + boxPad + i * rowH + 20;
+        var rowTop = boxTop + boxPad + i * rowH;
+        var y = rowTop + 20;
+        if (i > 0) {
+            ctx.strokeStyle = '#94a3b8';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(24 + 16, rowTop);
+            ctx.lineTo(W - 24 - 16, rowTop);
+            ctx.stroke();
+        }
         ctx.font = '14px sans-serif';
         ctx.textAlign = 'left';
         ctx.fillStyle = '#64748b';
@@ -110,6 +113,90 @@ function mdbkDownloadBookingCard(details, qrImgSrc) {
         link.click();
         link.remove();
     });
+}
+
+function mdbkEscHtml(str) {
+    var div = document.createElement('div');
+    div.textContent = String(str || '');
+    return div.innerHTML;
+}
+
+/**
+ * Logo + name + contact + address block, shown above the confirmation
+ * card in the print window — empty Global Settings fields just don't
+ * render their line, so a clinic that's only filled in the name still
+ * gets a clean header instead of empty rows.
+ */
+function mdbkBuildClinicHeaderHtml() {
+    var obj = typeof mdbk_form_obj !== 'undefined' ? mdbk_form_obj : {};
+    var html = '';
+    if (obj.clinic_logo) html += '<img class="mdbk-print-logo" src="' + obj.clinic_logo + '" alt="">';
+    if (obj.clinic_name) html += '<p class="mdbk-print-clinic-name">' + mdbkEscHtml(obj.clinic_name) + '</p>';
+    if (obj.clinic_contact) html += '<p class="mdbk-print-clinic-meta">' + mdbkEscHtml(obj.clinic_contact) + '</p>';
+    if (obj.clinic_address) html += '<p class="mdbk-print-clinic-meta">' + mdbkEscHtml(obj.clinic_address) + '</p>';
+    return html;
+}
+
+/**
+ * Opens a small standalone print window styled to match the live
+ * on-screen confirmation card (.mdbk-booking-confirmation in
+ * form-style.css) — bordered details box, same row layout (no checkmark
+ * icon, dropped per feedback: not needed on a printed/downloaded card)
+ * — instead of window.print() on the live page. The confirmation panel
+ * sits deep inside a centered modal overlay
+ * (position:fixed, flex-centered) — @media print rules trying to pull
+ * just that one nested element up to the top of the page turned out
+ * unreliable (the print output kept the overlay's centered vertical
+ * offset baked in, pushing the card down the page and often onto a
+ * second one). A fresh, empty document has no such ancestor to fight,
+ * and it's also the natural place to put the clinic branding (Global
+ * Settings) above the card, which the live on-screen version never
+ * shows. Row dividers use a darker border (#94a3b8) than the screen
+ * version's #e2e8f0 — the very pale screen color reliably printed as
+ * invisible on a real physical printout.
+ */
+function mdbkPrintBookingCard(details, qrImgSrc) {
+    var titleText = details.title || 'Booking Confirmed';
+    var rows = [
+        ['Ticket', details.ticket],
+        ['Patient', details.patient_name],
+        ['Doctor', details.doctor_name],
+        ['Date', details.date]
+    ];
+    if (details.slot_time) rows.push(['Time', details.slot_time]);
+
+    var rowsHtml = rows.map(function(r) {
+        return '<div class="mdbk-confirmation-row"><span>' + mdbkEscHtml(r[0]) + '</span><strong>' + mdbkEscHtml(r[1]) + '</strong></div>';
+    }).join('');
+
+    var win = window.open('', '_blank', 'width=480,height=700');
+    if (!win) return;
+    win.document.write(
+        '<html><head><title>' + mdbkEscHtml(titleText) + '</title><style>' +
+        '@page{margin:20px;}' +
+        'body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;margin:0;padding:24px;color:#1e293b;text-align:center;}' +
+        '.mdbk-print-logo{max-width:64px;max-height:64px;margin:0 auto 8px;display:block;}' +
+        '.mdbk-print-clinic-name{margin:0 0 3px;font-size:15px;font-weight:700;}' +
+        '.mdbk-print-clinic-meta{margin:0 0 3px;font-size:11px;color:#64748b;}' +
+        'h2{margin:16px 0 18px;font-size:19px;font-weight:700;}' +
+        '.mdbk-confirmation-details{text-align:left;background:#f8fafc;border:1px solid #cbd5e1;border-radius:12px;padding:14px 16px;margin:0 auto 18px;max-width:340px;}' +
+        '.mdbk-confirmation-row{display:flex;justify-content:space-between;padding:6px 0;font-size:14px;}' +
+        '.mdbk-confirmation-row + .mdbk-confirmation-row{border-top:1px solid #94a3b8;}' +
+        '.mdbk-confirmation-row span{color:#64748b;}' +
+        '.mdbk-confirmation-row strong{color:#1e293b;font-weight:600;text-align:right;}' +
+        '.mdbk-print-qr{max-width:180px;border:1px solid #cbd5e1;border-radius:8px;padding:8px;background:#fff;}' +
+        '.mdbk-print-hint{font-size:12px;color:#94a3b8;margin-top:8px;}' +
+        '</style></head><body>' +
+        mdbkBuildClinicHeaderHtml() +
+        '<h2>' + mdbkEscHtml(titleText) + '</h2>' +
+        '<div class="mdbk-confirmation-details">' + rowsHtml + '</div>' +
+        (qrImgSrc ? '<img class="mdbk-print-qr" src="' + qrImgSrc + '" alt="">' : '') +
+        '<p class="mdbk-print-hint">Show this QR code at check-in.</p>' +
+        '</body></html>'
+    );
+    win.document.close();
+    win.focus();
+    win.print();
 }
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -399,7 +486,9 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     if (confPrintBtn) {
         confPrintBtn.addEventListener('click', function() {
-            window.print();
+            if (!currentBooking) return;
+            var qrImg = confQrEl ? confQrEl.querySelector('img') : null;
+            mdbkPrintBookingCard(currentBooking, qrImg ? qrImg.src : '');
         });
     }
 

@@ -109,12 +109,40 @@ class MDBK_Appointment_Manager {
      */
     public static function status_display_label($slug) {
         $labels = [
-            'waiting'   => __('Waiting', 'doctor-appointment'),
-            'serving'   => __('Visiting', 'doctor-appointment'),
-            'completed' => __('Visited', 'doctor-appointment'),
-            'no-show'   => __('No Show', 'doctor-appointment'),
+            'waiting'         => __('Waiting', 'doctor-appointment'),
+            'serving'         => __('Visiting', 'doctor-appointment'),
+            'completed'       => __('Visited', 'doctor-appointment'),
+            'no-show'         => __('No Show', 'doctor-appointment'),
+            'not-checked-in'  => __('Not Checked In', 'doctor-appointment'),
+            'upcoming'        => __('Upcoming', 'doctor-appointment'),
         ];
         return isset($labels[$slug]) ? $labels[$slug] : ucfirst(str_replace('-', ' ', $slug));
+    }
+
+    /**
+     * The status slug a human should actually see for one appointment —
+     * "waiting" (the raw post_status) means two different things
+     * depending on _mdbk_checked_in: not checked in yet at all, or
+     * checked in and genuinely waiting their turn. A same-day 'waiting'/
+     * 'serving' row that's actually a DIFFERENT day (rescheduled, or a
+     * past no-show that got left waiting) reads as "Upcoming" instead —
+     * it isn't part of today's live queue. Shared by the Booking page's
+     * own queue rows (render_my_queue_patient_row()), the per-doctor
+     * print/image report, and CSV export, so none of them disagree about
+     * what a given row's status actually is.
+     */
+    public static function get_display_status_slug($appointment_id) {
+        $status = self::post_status_to_slug(get_post_status($appointment_id));
+        $date = get_post_meta($appointment_id, '_mdbk_appointment_date', true);
+        $is_today = $date === current_time('Y-m-d');
+
+        if (!$is_today && in_array($status, ['waiting', 'serving'], true)) {
+            return 'upcoming';
+        }
+        if ($is_today && $status === 'waiting' && get_post_meta($appointment_id, '_mdbk_checked_in', true) !== 'yes') {
+            return 'not-checked-in';
+        }
+        return $status;
     }
 
     /**

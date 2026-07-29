@@ -89,6 +89,23 @@ if ( ! class_exists( 'MDBK_Doctor_Appointment' ) ) {
         /**
          * Enqueue Admin Styles
          */
+        /**
+         * Clinic branding (Global Settings) as a plain array — shared by
+         * both the admin and frontend localized script data, since the
+         * per-doctor print/image report (admin) and the patient-facing
+         * booking confirmation print/image (frontend) both need to show
+         * the same logo/name/contact/address header.
+         */
+        private function clinic_branding_data() {
+            $logo_id = get_option( 'mdbk_clinic_logo', 0 );
+            return [
+                'clinic_name'    => get_option( 'mdbk_clinic_name', '' ),
+                'clinic_logo'    => $logo_id ? wp_get_attachment_image_url( $logo_id, 'thumbnail' ) : '',
+                'clinic_contact' => get_option( 'mdbk_clinic_contact', '' ),
+                'clinic_address' => get_option( 'mdbk_clinic_address', '' ),
+            ];
+        }
+
         public function admin_enqueue_scripts($hook) {
             if (strpos($hook, 'mdbk') === false) {
                 return;
@@ -98,7 +115,7 @@ if ( ! class_exists( 'MDBK_Doctor_Appointment' ) ) {
             wp_enqueue_style('mdbk-admin-style', MDBK_URL . 'assets/css/admin-style.css', array(), filemtime( MDBK_PATH . 'assets/css/admin-style.css' ));
             wp_enqueue_style('front-end-style', MDBK_URL . 'assets/css/front-end.css', array(), filemtime( MDBK_PATH . 'assets/css/front-end.css' ));
             wp_enqueue_script('mdbk-admin-script', MDBK_URL . 'assets/js/admin-script.js', array(), $admin_js_ver, true);
-            wp_localize_script( 'mdbk-admin-script', 'mdbk_admin_obj', [
+            wp_localize_script( 'mdbk-admin-script', 'mdbk_admin_obj', array_merge( [
                 'ajax_url' => admin_url( 'admin-ajax.php' ),
                 'nonce'    => wp_create_nonce( 'mdbk_admin_nonce' ),
                 // The admin scheduling calendar's "today" must follow the
@@ -106,7 +123,7 @@ if ( ! class_exists( 'MDBK_Doctor_Appointment' ) ) {
                 // whatever timezone the admin's own browser happens to be
                 // in — current_time() is WP's timezone-aware clock.
                 'today'    => current_time( 'Y-m-d' ),
-            ]);
+            ], $this->clinic_branding_data() ) );
 
             // The "Chamber QR" page renders its QR client-side with the same
             // vendored encoder the frontend booking confirmation already
@@ -148,7 +165,7 @@ if ( ! class_exists( 'MDBK_Doctor_Appointment' ) ) {
             // aggressive button/select/input[type=number] resets entirely by
             // using <span> day cells instead of form controls.
             wp_enqueue_script( 'mdbk-form-script', MDBK_URL . 'assets/js/form-script.js', array( 'mdbk-qrcode' ), $form_js_ver, true );
-            wp_localize_script( 'mdbk-form-script', 'mdbk_form_obj', [
+            wp_localize_script( 'mdbk-form-script', 'mdbk_form_obj', array_merge( [
                 'ajax_url' => admin_url( 'admin-ajax.php' ),
                 'nonce'    => wp_create_nonce( 'mdbk_form_nonce' ),
                 // Booking calendar's "today" must follow the site's
@@ -160,7 +177,7 @@ if ( ! class_exists( 'MDBK_Doctor_Appointment' ) ) {
                 // timezone-aware clock (get_option('timezone_string')/
                 // gmt_offset), unlike JS's new Date().
                 'today'    => current_time( 'Y-m-d' ),
-            ]);
+            ], $this->clinic_branding_data() ) );
         }
 
 
