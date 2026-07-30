@@ -210,7 +210,6 @@ class MDBK_Appointment_Manager {
                 <select name="mdbk_patient_gender">
                     <option value="Male" <?php selected($patient_gender, 'Male'); ?>>Male</option>
                     <option value="Female" <?php selected($patient_gender, 'Female'); ?>>Female</option>
-                    <option value="Other" <?php selected($patient_gender, 'Other'); ?>>Other</option>
                 </select>
             </div>
 
@@ -229,7 +228,7 @@ class MDBK_Appointment_Manager {
                 <select name="mdbk_doctor_id">
                     <option value=""><?php _e('Select Doctor', 'doctor-appointment'); ?></option>
                     <?php
-                    $doctors = get_posts(['post_type' => 'mdbk_doctor', 'numberposts' => -1]);
+                    $doctors = get_posts(['post_type' => 'mdbk_doctor', 'numberposts' => -1, 'orderby' => 'menu_order', 'order' => 'ASC']);
                     foreach ($doctors as $doctor) {
                         printf('<option value="%d" %s>%s</option>', $doctor->ID, selected($doctor_id, $doctor->ID, false), $doctor->post_title);
                     }
@@ -347,24 +346,38 @@ class MDBK_Appointment_Manager {
     }
 
     /**
-     * Find an existing patient by phone, or create one. Central place for
-     * frontend booking, admin booking, and migration backfill to link a
-     * patient record so the CRM is actually complete (not just admin-created
-     * appointments).
+     * Find an existing patient by phone + name, or create one. Central
+     * place for frontend booking, admin booking, and migration backfill to
+     * link a patient record so the CRM is actually complete (not just
+     * admin-created appointments).
+     *
+     * Matching requires BOTH phone and name (case/whitespace-insensitive) —
+     * phone alone would silently collapse different family members who
+     * share one household phone number into a single patient record, mixing
+     * one person's visit history into another's. A phone match with a
+     * different name is treated as a different patient (who happens to
+     * share that phone), not the same one.
      */
     public static function find_or_create_patient($name, $phone, $extra = []) {
         $name  = sanitize_text_field($name);
         $phone = sanitize_text_field($phone);
 
-        $existing = $phone ? get_posts([
-            'post_type'   => 'mdbk_patient',
-            'meta_query'  => [['key' => '_mdbk_patient_phone', 'value' => $phone]],
-            'numberposts' => 1,
-        ]) : [];
+        $patient_id = 0;
+        if ($phone) {
+            $candidates = get_posts([
+                'post_type'   => 'mdbk_patient',
+                'meta_query'  => [['key' => '_mdbk_patient_phone', 'value' => $phone]],
+                'numberposts' => -1,
+            ]);
+            foreach ($candidates as $candidate) {
+                if (mb_strtolower(trim($candidate->post_title)) === mb_strtolower(trim($name))) {
+                    $patient_id = $candidate->ID;
+                    break;
+                }
+            }
+        }
 
-        if ($existing) {
-            $patient_id = $existing[0]->ID;
-        } else {
+        if (!$patient_id) {
             $patient_id = wp_insert_post([
                 'post_title'  => $name,
                 'post_type'   => 'mdbk_patient',
@@ -1076,6 +1089,10 @@ class MDBK_Appointment_Manager {
         $args = [
             'post_type' => 'mdbk_doctor',
             'numberposts' => -1,
+            // Matches the admin's own drag-and-drop Doctors order — this is
+            // the booking form's Step 2 "Choose a Doctor" list.
+            'orderby' => 'menu_order',
+            'order' => 'ASC',
             // Doctors default to active — the meta only ever gets written (to 'no')
             // once someone flips a card's toggle off in wp-admin.
             'meta_query' => [

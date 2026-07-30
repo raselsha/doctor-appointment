@@ -50,7 +50,10 @@ class MDBK_Shortcode {
             'department'  => '',
             'doctor'      => '',
             'limit'       => -1,
-            'orderby'     => 'title',
+            // Matches the admin's own drag-and-drop Doctors order (see
+            // ajax_save_doctor_order() in admin-dashboard.php) by default —
+            // still overridable per-embed, e.g. [mdbk_doctor_list orderby="title"].
+            'orderby'     => 'menu_order',
             'order'       => 'ASC',
             'booking_url' => '',
         ], $atts, 'mdbk_doctor_list');
@@ -667,6 +670,10 @@ class MDBK_Shortcode {
             // doctors available for this specialty." hide_empty (WP's own
             // published-post count per term) filters those out.
             'hide_empty' => true,
+            // Matches the admin's own drag-and-drop Specialties order.
+            'orderby'    => 'meta_value_num',
+            'meta_key'   => '_mdbk_specialty_order',
+            'order'      => 'ASC',
             // Specialties default to active — the meta only ever gets
             // written (to 'no') once someone flips a card's toggle off in
             // wp-admin. Same pattern as doctors' own active/inactive meta.
@@ -819,7 +826,7 @@ class MDBK_Shortcode {
             $doctor_id = intval($_GET['mdbk_doctor_id']);
         }
         if (!$doctor_id) {
-            $first_doctor = get_posts(['post_type' => 'mdbk_doctor', 'numberposts' => 1, 'orderby' => 'ID', 'order' => 'ASC', 'fields' => 'ids']);
+            $first_doctor = get_posts(['post_type' => 'mdbk_doctor', 'numberposts' => 1, 'orderby' => 'menu_order', 'order' => 'ASC', 'fields' => 'ids']);
             $doctor_id = $first_doctor ? intval($first_doctor[0]) : 0;
         }
 
@@ -911,7 +918,7 @@ class MDBK_Shortcode {
             'post_type'   => 'mdbk_doctor',
             'post_status' => 'publish',
             'numberposts' => -1,
-            'orderby'     => 'title',
+            'orderby'     => 'menu_order',
             'order'       => 'ASC',
             'meta_query'  => [
                 'relation' => 'OR',

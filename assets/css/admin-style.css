@@ -621,6 +621,56 @@ button.mdbk-mini-cal-nav-btn:hover { background: #f1f5f9; }
 #mdbk-today-patients-modal .mdbk-table th,
 #mdbk-today-patients-modal .mdbk-table td { padding: 10px 16px; font-size: 13px; white-space: nowrap; }
 
+/* Doctors/Specialties drag-and-drop reorder modal (admin-script.js's
+   initReorderList()) — a plain vertical list, no pagination, so every
+   item is always on screen to drag against. */
+.mdbk-reorder-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 14px; }
+.mdbk-reorder-sort-btns { display: flex; gap: 6px; flex-shrink: 0; }
+.mdbk-reorder-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.mdbk-reorder-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    background: #fff;
+    user-select: none;
+    /* Every item (not just the one being dragged) transitions its own
+       transform — this is what makes the OTHER rows slide smoothly out of
+       the way to open a gap, instead of snapping straight to their new
+       spot. The actively-dragged item overrides this to `none` below so
+       IT tracks the pointer with zero lag while everything else animates
+       around it. */
+    transition: transform 150ms ease, box-shadow 150ms ease, border-color 150ms ease;
+}
+.mdbk-reorder-item.is-dragging {
+    position: relative;
+    z-index: 5;
+    transition: none;
+    border-color: #0061d5;
+    background: #fff;
+    box-shadow: 0 10px 25px rgba(15, 23, 42, 0.18);
+}
+.mdbk-reorder-handle {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    border-radius: 6px;
+    color: #94a3b8;
+    cursor: grab;
+    /* Without this, a touch-drag on the handle scrolls the modal body
+       instead of moving the item — this tells the browser this element
+       handles its own touch gestures instead of the default scroll/pan. */
+    touch-action: none;
+}
+.mdbk-reorder-handle:hover { background: #f1f5f9; color: #475569; }
+.mdbk-reorder-item.is-dragging .mdbk-reorder-handle { cursor: grabbing; }
+.mdbk-reorder-name { font-size: 13px; font-weight: 600; color: #1e293b; }
+
 .mdbk-form-row { margin-bottom: 16px; }
 .mdbk-form-row:last-child { margin-bottom: 0; }
 .mdbk-form-row-duo { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
@@ -804,6 +854,18 @@ button.mdbk-mini-cal-nav-btn:hover { background: #f1f5f9; }
 .mdbk-modal-compact .mdbk-custom-select-option { padding: 8px 12px; border-radius: 6px; font-size: 13px; color: #1e293b; cursor: pointer; }
 .mdbk-modal-compact .mdbk-custom-select-option:hover { background: rgba(0, 97, 213, 0.08); }
 .mdbk-modal-compact .mdbk-custom-select-option.selected { background: rgba(0, 97, 213, 0.1); color: #0061d5; font-weight: 600; }
+
+/* New Booking modal's phone-number live search — an existing patient
+   matching the typed number, so staff can pick it instead of re-typing
+   (and instead of accidentally creating a duplicate patient record).
+   Same dropdown-panel look as .mdbk-custom-select-panel above, reused
+   rather than duplicated since both live in the same modal. */
+.mdbk-patient-suggest-wrap { position: relative; }
+.mdbk-modal-compact .mdbk-patient-suggest { position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 20; max-height: 220px; overflow-y: auto; background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; box-shadow: 0 10px 30px rgba(15, 23, 42, 0.12); padding: 6px; }
+.mdbk-modal-compact .mdbk-patient-suggest-item { padding: 8px 12px; border-radius: 6px; cursor: pointer; }
+.mdbk-modal-compact .mdbk-patient-suggest-item:hover { background: rgba(0, 97, 213, 0.08); }
+.mdbk-modal-compact .mdbk-patient-suggest-name { display: block; font-size: 13px; color: #1e293b; font-weight: 600; }
+.mdbk-modal-compact .mdbk-patient-suggest-meta { display: block; font-size: 12px; color: #64748b; }
 
 /* ===== Add/Edit Booking modal — this one specifically matches the public
    booking form's look (blue-tinted card + blue-tinted dropdown trigger)

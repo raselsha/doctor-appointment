@@ -8,7 +8,7 @@ defined('ABSPATH') || exit;
 
 class MDBK_Migrations {
 
-    const DB_VERSION = 8;
+    const DB_VERSION = 9;
 
     /**
      * Run pending migrations, gated on mdbk_db_version. This is the only
@@ -76,7 +76,61 @@ class MDBK_Migrations {
             MDBK_Roles::activate();
         }
 
+        if ($current < 9) {
+            // Doctors/Specialties switch from a fixed alphabetical display
+            // order to an admin-configurable drag-and-drop one (see
+            // ajax_save_doctor_order()/ajax_save_specialty_order() in
+            // admin-dashboard.php) — doctors use WP's own native
+            // menu_order column, specialties (a taxonomy has no built-in
+            // equivalent) get a new _mdbk_specialty_order term meta. This
+            // establishes alphabetical as the STARTING point for existing
+            // installs, matching what they already looked like before this
+            // feature existed — every query that lists doctors/specialties
+            // was switched to order by these fields, so without this
+            // one-time backfill they'd all suddenly collapse to
+            // menu_order 0 / no meta (i.e. whatever arbitrary order the DB
+            // happens to return rows in).
+            self::migrate_to_v9();
+        }
+
         update_option('mdbk_db_version', self::DB_VERSION);
+    }
+
+    /**
+     * v9: backfill an initial menu_order for every doctor and an initial
+     * _mdbk_specialty_order term meta for every specialty, both sorted
+     * alphabetically — the exact order these already displayed in before
+     * drag-and-drop reordering existed, so upgrading doesn't visibly
+     * reshuffle anything until an admin actually drags something.
+     */
+    private static function migrate_to_v9() {
+        $doctors = get_posts([
+            'post_type'      => 'mdbk_doctor',
+            'post_status'    => 'any',
+            'numberposts'    => -1,
+            'orderby'        => 'title',
+            'order'          => 'ASC',
+            'fields'         => 'ids',
+            'suppress_filters' => true,
+        ]);
+        global $wpdb;
+        foreach ($doctors as $index => $doctor_id) {
+            $wpdb->update($wpdb->posts, ['menu_order' => $index], ['ID' => $doctor_id], ['%d'], ['%d']);
+            clean_post_cache($doctor_id);
+        }
+
+        $specialties = get_terms([
+            'taxonomy'   => 'mdbk_department',
+            'hide_empty' => false,
+            'orderby'    => 'name',
+            'order'      => 'ASC',
+            'fields'     => 'ids',
+        ]);
+        if (!is_wp_error($specialties)) {
+            foreach ($specialties as $index => $term_id) {
+                update_term_meta($term_id, '_mdbk_specialty_order', $index);
+            }
+        }
     }
 
     /**

@@ -36,40 +36,316 @@ document.addEventListener('DOMContentLoaded', function() {
     function initModal(modalId, openSelector, formId, editClass, populateFn) {
         const modal = document.getElementById(modalId);
         if (!modal) return;
-        const openBtns = document.querySelectorAll(openSelector);
         const closeBtn = modal.querySelector('.mdbk-modal-close');
         const form = document.getElementById(formId) || modal.querySelector('form');
 
-        openBtns.forEach(btn => {
-            btn.addEventListener('click', function(e) {
-                e.preventDefault();
-                modal.style.display = 'flex';
-                if (this.classList.contains(editClass)) {
-                    populateFn(this.dataset.id, this);
-                } else if (form) {
-                    // form.reset() alone already correctly restores every
-                    // field to its original page-load value — including
-                    // the ID hidden field (back to empty, since it has no
-                    // `value` attribute) AND the nonce field (back to its
-                    // valid freshly-rendered value). A prior version of
-                    // this also did `form.querySelector('input[type="hidden"]').value = ''`
-                    // to explicitly blank the ID field, but wp_nonce_field()
-                    // always renders its OWN hidden inputs (_wpnonce,
-                    // _wp_http_referer) before the ID field in every one of
-                    // this plugin's modals — so that querySelector matched
-                    // the NONCE field instead (the first hidden input in
-                    // DOM order) and blanked it, silently breaking every
-                    // "Add New X" submission with a "link expired" nonce
-                    // failure. Removed rather than fixed-to-target-the-
-                    // right-field, since form.reset() already made it
-                    // redundant regardless.
-                    form.reset();
-                }
-            });
+        // Delegated on document (not bound once per matched button at load)
+        // since several of these open-triggers/edit-rows live inside
+        // fragments the Patients/Booking pages' own live search replaces
+        // via AJAX after load — a per-element binding here would go dead
+        // on every row those searches re-render.
+        document.addEventListener('click', function(e) {
+            const btn = e.target.closest(openSelector);
+            if (!btn) return;
+            e.preventDefault();
+            modal.style.display = 'flex';
+            if (btn.classList.contains(editClass)) {
+                populateFn(btn.dataset.id, btn);
+            } else if (form) {
+                // form.reset() alone already correctly restores every
+                // field to its original page-load value — including
+                // the ID hidden field (back to empty, since it has no
+                // `value` attribute) AND the nonce field (back to its
+                // valid freshly-rendered value). A prior version of
+                // this also did `form.querySelector('input[type="hidden"]').value = ''`
+                // to explicitly blank the ID field, but wp_nonce_field()
+                // always renders its OWN hidden inputs (_wpnonce,
+                // _wp_http_referer) before the ID field in every one of
+                // this plugin's modals — so that querySelector matched
+                // the NONCE field instead (the first hidden input in
+                // DOM order) and blanked it, silently breaking every
+                // "Add New X" submission with a "link expired" nonce
+                // failure. Removed rather than fixed-to-target-the-
+                // right-field, since form.reset() already made it
+                // redundant regardless.
+                form.reset();
+            }
         });
         closeBtn.addEventListener('click', () => modal.style.display = 'none');
         window.addEventListener('click', (e) => { if (e.target == modal) modal.style.display = 'none'; });
     }
+
+    /**
+     * Doctors/Specialties "Reorder" modal — a plain open/close wrapper (no
+     * form, no add-vs-edit distinction like initModal() above handles) plus
+     * drag-and-drop reordering and the AJAX save. triggerBtn/modal/ajaxAction
+     * are per-type (doctor vs specialty); the drag mechanics themselves are
+     * identical either way.
+     */
+    function initReorderModal(triggerId, modalId, ajaxAction) {
+        const trigger = document.getElementById(triggerId);
+        const modal = document.getElementById(modalId);
+        if (!trigger || !modal || typeof mdbk_admin_obj === 'undefined') return;
+
+        const list = modal.querySelector('.mdbk-reorder-list');
+        const closeBtn = modal.querySelector('.mdbk-modal-close');
+        const cancelBtn = modal.querySelector('.mdbk-modal-cancel');
+        const saveBtn = modal.querySelector('.mdbk-save-reorder');
+        const sortAzBtn = modal.querySelector('.mdbk-sort-az');
+        const sortZaBtn = modal.querySelector('.mdbk-sort-za');
+
+        trigger.addEventListener('click', () => { modal.style.display = 'flex'; });
+        function close() { modal.style.display = 'none'; }
+        if (closeBtn) closeBtn.addEventListener('click', close);
+        if (cancelBtn) cancelBtn.addEventListener('click', close);
+        window.addEventListener('click', (e) => { if (e.target === modal) close(); });
+
+        // A→Z / Z→A — an instant full re-sort by name, on top of (not
+        // instead of) manual dragging: sort once to get close, then
+        // fine-tune a specific item's position by hand if needed. Reuses
+        // the exact same list.appendChild() re-parenting the drag's own
+        // onUp() commits with, so both paths leave the list in an
+        // identical, equally "real" DOM order — the Save button doesn't
+        // need to know or care which one produced it.
+        function sortByName(direction) {
+            if (!list) return;
+            const items = Array.from(list.querySelectorAll('.mdbk-reorder-item'));
+            items.sort((a, b) => {
+                const nameA = a.querySelector('.mdbk-reorder-name').textContent.trim();
+                const nameB = b.querySelector('.mdbk-reorder-name').textContent.trim();
+                return direction === 'desc' ? nameB.localeCompare(nameA) : nameA.localeCompare(nameB);
+            });
+            items.forEach((el) => list.appendChild(el));
+        }
+        if (sortAzBtn) sortAzBtn.addEventListener('click', () => sortByName('asc'));
+        if (sortZaBtn) sortZaBtn.addEventListener('click', () => sortByName('desc'));
+
+        // Pointer Events (not the HTML5 Drag and Drop API, which has no
+        // touch support at all) — one code path handles mouse AND touch,
+        // "hold and move" either way.
+        //
+        // The dragged item tracks the pointer directly via a CSS
+        // transform (no transition — see .is-dragging in admin-style.css
+        // — so it follows with zero lag), while every OTHER item slides
+        // smoothly into a "make room" gap via its own transform + the
+        // transition every .mdbk-reorder-item already has. The DOM itself
+        // is only actually reordered ONCE, on drop — during the drag it's
+        // all just visual transforms, which is what makes this smooth
+        // instead of the earlier version's instant insertBefore() on
+        // every single pointermove (the "abnormal", flickering jump the
+        // reorder modal used to show mid-drag).
+        if (list) {
+            list.querySelectorAll('.mdbk-reorder-handle').forEach((handle) => {
+                handle.addEventListener('pointerdown', (e) => {
+                    const item = handle.closest('.mdbk-reorder-item');
+                    if (!item) return;
+                    e.preventDefault();
+                    handle.setPointerCapture(e.pointerId);
+
+                    const allItems = Array.from(list.querySelectorAll('.mdbk-reorder-item'));
+                    const startIndex = allItems.indexOf(item);
+                    const others = allItems.filter((el) => el !== item);
+                    // Snapshot each OTHER item's resting position ONCE —
+                    // used as the stable reference for every "has the
+                    // pointer crossed this row's midpoint" check for the
+                    // rest of this drag, so a sibling's own temporary
+                    // "make room" shift never feeds back into where we
+                    // think the pointer currently is (which is what would
+                    // cause the item to oscillate back and forth).
+                    const otherRects = others.map((el) => el.getBoundingClientRect());
+                    const step = item.getBoundingClientRect().height + 6; // 6px matches .mdbk-reorder-list's own gap
+
+                    const startY = e.clientY;
+                    let currentIndex = startIndex; // target slot among `others`
+
+                    item.classList.add('is-dragging');
+
+                    function onMove(ev) {
+                        item.style.transform = 'translateY(' + (ev.clientY - startY) + 'px)';
+
+                        let newIndex = 0;
+                        otherRects.forEach((rect) => {
+                            if (ev.clientY > rect.top + rect.height / 2) newIndex++;
+                        });
+
+                        if (newIndex !== currentIndex) {
+                            const lo = Math.min(currentIndex, newIndex);
+                            const hi = Math.max(currentIndex, newIndex);
+                            others.forEach((el, idx) => {
+                                if (idx < lo || idx >= hi) {
+                                    el.style.transform = '';
+                                } else {
+                                    el.style.transform = 'translateY(' + (currentIndex < newIndex ? -step : step) + 'px)';
+                                }
+                            });
+                            currentIndex = newIndex;
+                        }
+                    }
+
+                    function onUp(ev) {
+                        handle.removeEventListener('pointermove', onMove);
+                        handle.removeEventListener('pointerup', onUp);
+                        handle.releasePointerCapture(ev.pointerId);
+
+                        item.classList.remove('is-dragging');
+                        item.style.transform = '';
+                        others.forEach((el) => { el.style.transform = ''; });
+
+                        if (currentIndex !== startIndex) {
+                            const finalOrder = others.slice();
+                            finalOrder.splice(currentIndex, 0, item);
+                            finalOrder.forEach((el) => list.appendChild(el));
+                        }
+                    }
+
+                    handle.addEventListener('pointermove', onMove);
+                    handle.addEventListener('pointerup', onUp);
+                });
+            });
+        }
+
+        if (saveBtn) {
+            saveBtn.addEventListener('click', () => {
+                const ids = list ? Array.from(list.querySelectorAll('.mdbk-reorder-item')).map((el) => el.dataset.id) : [];
+                const body = new URLSearchParams();
+                body.set('action', ajaxAction);
+                body.set('nonce', mdbk_admin_obj.nonce);
+                ids.forEach((id) => body.append('order[]', id));
+                saveBtn.disabled = true;
+                fetch(mdbk_admin_obj.ajax_url, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body.toString() })
+                    .then((r) => r.json())
+                    .then((res) => {
+                        saveBtn.disabled = false;
+                        if (res && res.success) {
+                            window.location.reload();
+                        } else {
+                            alert((res && res.data && res.data.message) || 'Something went wrong, please try again.');
+                        }
+                    })
+                    .catch(() => {
+                        saveBtn.disabled = false;
+                        alert('Something went wrong, please try again.');
+                    });
+            });
+        }
+    }
+    initReorderModal('mdbk-open-doctor-reorder', 'mdbk-reorder-modal-doctor', 'mdbk_save_doctor_order');
+    initReorderModal('mdbk-open-specialty-reorder', 'mdbk-reorder-modal-specialty', 'mdbk_save_specialty_order');
+
+    // Patient Directory's live search — debounced 300ms on every
+    // keystroke (same feel as the tailor-manager project's own live
+    // customer search), immediate on the gender <select> since a dropdown
+    // change doesn't need debouncing. ajax_search_patients() (admin-
+    // dashboard.php) returns the exact same count sentence + results
+    // markup render_patients_page() itself uses, so the two can never
+    // drift apart. The <form>'s own GET submit/page-reload path stays as
+    // a plain fallback (e.g. no-JS), untouched by any of this.
+    (function() {
+        const searchInput = document.getElementById('mdbk-patients-search');
+        const genderSelect = document.getElementById('mdbk-patients-filter-gender');
+        if (!searchInput || typeof mdbk_admin_obj === 'undefined') return;
+        const countEl = document.getElementById('mdbk-patients-count');
+        const resultsEl = document.getElementById('mdbk-patients-results');
+        const clearBtn = document.getElementById('mdbk-patients-clear-filters');
+        let debounceTimer;
+
+        function runSearch() {
+            const body = new URLSearchParams();
+            body.set('action', 'mdbk_search_patients');
+            body.set('nonce', mdbk_admin_obj.nonce);
+            body.set('s', searchInput.value);
+            body.set('filter_gender', genderSelect ? genderSelect.value : '');
+            fetch(mdbk_admin_obj.ajax_url, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body.toString() })
+                .then((r) => r.json())
+                .then((res) => {
+                    if (!res || !res.success) return;
+                    if (countEl) countEl.textContent = res.data.count_html;
+                    if (resultsEl) resultsEl.innerHTML = res.data.results_html;
+                    if (clearBtn) clearBtn.style.display = (searchInput.value || (genderSelect && genderSelect.value)) ? '' : 'none';
+                })
+                .catch(() => {});
+        }
+
+        searchInput.addEventListener('input', function() {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(runSearch, 300);
+        });
+        if (genderSelect) genderSelect.addEventListener('change', function() {
+            clearTimeout(debounceTimer);
+            runSearch();
+        });
+        if (clearBtn) clearBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            searchInput.value = '';
+            if (genderSelect) genderSelect.value = '';
+            clearTimeout(debounceTimer);
+            runSearch();
+        });
+    })();
+
+    // Booking page's live search — same debounced-AJAX shape as the
+    // Patient Directory search above, so staff can check whether someone
+    // already has an appointment without a full page reload.
+    // ajax_search_schedule() reuses render_schedule_results_html(), the
+    // exact same private method render_schedule_page() itself calls, so
+    // the AJAX fragment and a hard page reload can never show different
+    // markup for the same filters. Date navigation (prev/today/next/date
+    // picker) deliberately stays a full <form> submit — the resulting
+    // view differs enough (today's rich queue vs. a flat other-date list)
+    // that keeping it a real page load is simpler and avoids a query-string
+    // getting out of sync with what's on screen.
+    (function() {
+        const searchInput = document.getElementById('mdbk-schedule-search');
+        if (!searchInput || typeof mdbk_admin_obj === 'undefined') return;
+        const doctorSelect = document.getElementById('mdbk-schedule-filter-doctor');
+        const statusSelect = document.getElementById('mdbk-schedule-filter-status');
+        const countEl = document.getElementById('mdbk-schedule-count');
+        const resultsEl = document.getElementById('mdbk-schedule-results');
+        const clearBtn = document.getElementById('mdbk-schedule-clear-filters');
+        const dateInput = document.querySelector('.mdbk-date-nav-input');
+        let debounceTimer;
+
+        function runSearch() {
+            const body = new URLSearchParams();
+            body.set('action', 'mdbk_search_schedule');
+            body.set('nonce', mdbk_admin_obj.nonce);
+            body.set('s', searchInput.value);
+            body.set('filter_doctor', doctorSelect ? doctorSelect.value : '');
+            body.set('filter_status', statusSelect ? statusSelect.value : '');
+            body.set('filter_date', dateInput ? dateInput.value : '');
+            fetch(mdbk_admin_obj.ajax_url, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body.toString() })
+                .then((r) => r.json())
+                .then((res) => {
+                    if (!res || !res.success) return;
+                    if (countEl) countEl.innerHTML = res.data.count_html;
+                    if (resultsEl) resultsEl.innerHTML = res.data.results_html;
+                    const hasFilters = searchInput.value || (doctorSelect && doctorSelect.value) || (statusSelect && statusSelect.value);
+                    if (clearBtn) clearBtn.style.display = hasFilters ? '' : 'none';
+                })
+                .catch(() => {});
+        }
+
+        searchInput.addEventListener('input', function() {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(runSearch, 300);
+        });
+        if (doctorSelect) doctorSelect.addEventListener('change', function() {
+            clearTimeout(debounceTimer);
+            runSearch();
+        });
+        if (statusSelect) statusSelect.addEventListener('change', function() {
+            clearTimeout(debounceTimer);
+            runSearch();
+        });
+        if (clearBtn) clearBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            searchInput.value = '';
+            if (doctorSelect) doctorSelect.value = '';
+            if (statusSelect) statusSelect.value = '';
+            clearTimeout(debounceTimer);
+            runSearch();
+        });
+    })();
 
     // Matches the PHP-rendered Weekly Availability form's own day order
     // (Settings > General > "Week Starts On" — see get_week_day_order() in
@@ -570,6 +846,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const appDoctorSelect = initCustomSelect('mdbk-app-doctor-select', updateAppSlotTimeAvailability);
     const appStatusSelect = initCustomSelect('mdbk-app-status-select');
     const appSpecSelect = initCustomSelect('mdbk-app-spec-select');
+    const appGenderSelect = initCustomSelect('mdbk-app-gender-select');
 
     function filterDoctorsBySpecialty(specId) {
         if (!appDoctorSelect) return;
@@ -604,7 +881,10 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('mdbk-app-phone').value = row.dataset.phone;
             document.getElementById('mdbk-app-email').value = row.dataset.email || '';
             document.getElementById('mdbk-app-age').value = row.dataset.age || '';
-            if (row.dataset.gender) document.getElementById('mdbk-app-gender').value = row.dataset.gender;
+            if (appGenderSelect && row.dataset.gender) {
+                const genderOpt = appGenderSelect.panel.querySelector('.mdbk-custom-select-option[data-value="' + row.dataset.gender + '"]');
+                if (genderOpt) appGenderSelect.setValue(genderOpt.dataset.value, genderOpt.textContent);
+            }
             // Set specialty first, then doctor
             if (appSpecSelect && row.dataset.specialty) {
                 const specOpt = appSpecSelect.panel.querySelector('.mdbk-custom-select-option[data-value="' + row.dataset.specialty + '"]');
@@ -647,6 +927,15 @@ document.addEventListener('DOMContentLoaded', function() {
                 const firstOpt = appDoctorSelect.panel.querySelector('.mdbk-custom-select-option:not([style*="display: none"])');
                 if (firstOpt) appDoctorSelect.setValue(firstOpt.dataset.value, firstOpt.textContent);
             }
+            // Reset gender back to its default (Male) — form.reset() alone
+            // only restores the hidden <select>'s value, not the visible
+            // custom-select trigger label, so without this an earlier edit
+            // (e.g. a booking whose gender was "Female") would leave a stale
+            // label showing on the next "+ New Booking".
+            if (appGenderSelect) {
+                const defaultOpt = appGenderSelect.panel.querySelector('.mdbk-custom-select-option[data-value="Male"]');
+                if (defaultOpt) appGenderSelect.setValue(defaultOpt.dataset.value, defaultOpt.textContent);
+            }
         });
     });
 
@@ -657,24 +946,105 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    // New Booking modal's phone-number live search — debounced lookup of
+    // existing mdbk_patient records by (partial) phone match, so staff
+    // don't have to re-type a patient's details or accidentally create a
+    // duplicate record find_or_create_patient() would have matched anyway
+    // on submit. ajax_search_patient_phone() returns pre-escaped HTML
+    // (data-* attributes carry the field values), so this never builds
+    // HTML from raw strings itself. Only runs for a NEW booking (#mdbk-app-id
+    // empty) — editing an existing appointment already has its own linked
+    // patient, so searching there would just be noise.
+    (function() {
+        const phoneInput = document.getElementById('mdbk-app-phone');
+        const suggestBox = document.getElementById('mdbk-app-phone-suggest');
+        if (!phoneInput || !suggestBox || typeof mdbk_admin_obj === 'undefined') return;
+        const appIdInput = document.getElementById('mdbk-app-id');
+        const nameInput = document.getElementById('mdbk-app-patient');
+        const emailInput = document.getElementById('mdbk-app-email');
+        const ageInput = document.getElementById('mdbk-app-age');
+        let debounceTimer;
+        let requestToken = 0;
+
+        function hideSuggestions() {
+            suggestBox.style.display = 'none';
+            suggestBox.innerHTML = '';
+        }
+
+        function runSearch() {
+            const phone = phoneInput.value.trim();
+            if ((appIdInput && appIdInput.value) || phone.length < 3) { hideSuggestions(); return; }
+            const token = ++requestToken;
+            const body = new URLSearchParams();
+            body.set('action', 'mdbk_search_patient_phone');
+            body.set('nonce', mdbk_admin_obj.nonce);
+            body.set('phone', phone);
+            fetch(mdbk_admin_obj.ajax_url, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body.toString() })
+                .then((r) => r.json())
+                .then((res) => {
+                    if (token !== requestToken) return; // a newer keystroke's response already landed
+                    if (!res || !res.success || !res.data.results_html) { hideSuggestions(); return; }
+                    suggestBox.innerHTML = res.data.results_html;
+                    suggestBox.style.display = 'block';
+                })
+                .catch(() => {});
+        }
+
+        phoneInput.addEventListener('input', function() {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(runSearch, 300);
+        });
+
+        suggestBox.addEventListener('click', function(e) {
+            const item = e.target.closest('.mdbk-patient-suggest-item');
+            if (!item) return;
+            if (nameInput) nameInput.value = item.dataset.name || '';
+            phoneInput.value = item.dataset.phone || '';
+            if (emailInput) emailInput.value = item.dataset.email || '';
+            if (ageInput) ageInput.value = item.dataset.age || '';
+            if (appGenderSelect && item.dataset.gender) {
+                const genderOpt = appGenderSelect.panel.querySelector('.mdbk-custom-select-option[data-value="' + item.dataset.gender + '"]');
+                if (genderOpt) appGenderSelect.setValue(genderOpt.dataset.value, genderOpt.textContent);
+            }
+            hideSuggestions();
+        });
+
+        document.addEventListener('click', function(e) {
+            if (e.target !== phoneInput && !suggestBox.contains(e.target)) hideSuggestions();
+        });
+        // Clears any dropdown left open from a previous visit to this modal
+        // before it opens again (form.reset() itself doesn't touch this,
+        // since it isn't a form field).
+        document.addEventListener('click', function(e) {
+            if (e.target.closest('.mdbk-add-appointment, .mdbk-edit-appointment')) hideSuggestions();
+        });
+    })();
+
     // Per-doctor card "View All" — scoped to one doctor's popup
     // (one modal per doctor card is pre-rendered server-side; this just
     // opens/closes whichever one a given link points at). On the Bookings
     // page this link sits inside a <summary> (the collapsible card
     // header), so stopPropagation keeps a click here from also toggling
-    // that card open/closed.
-    document.querySelectorAll('[data-doctor-modal]').forEach(function(link) {
-        link.addEventListener('click', function(e) {
+    // that card open/closed. Delegated on document (not queried once at
+    // load) because the Booking page's live search (#mdbk-schedule-results)
+    // can replace this whole markup, including these modals, after load.
+    document.addEventListener('click', function(e) {
+        const link = e.target.closest('[data-doctor-modal]');
+        if (link) {
             e.preventDefault();
             e.stopPropagation();
-            const modal = document.getElementById(this.dataset.doctorModal);
+            const modal = document.getElementById(link.dataset.doctorModal);
             if (modal) modal.style.display = 'flex';
-        });
-    });
-    document.querySelectorAll('.mdbk-doctor-popup').forEach(function(modal) {
-        const closeBtn = modal.querySelector('.mdbk-modal-close');
-        if (closeBtn) closeBtn.addEventListener('click', () => modal.style.display = 'none');
-        window.addEventListener('click', (e) => { if (e.target === modal) modal.style.display = 'none'; });
+            return;
+        }
+        if (e.target.closest('.mdbk-doctor-popup .mdbk-modal-close')) {
+            const modal = e.target.closest('.mdbk-doctor-popup');
+            if (modal) modal.style.display = 'none';
+            return;
+        }
+        if (e.target.classList.contains('mdbk-doctor-popup')) {
+            e.target.style.display = 'none';
+        }
     });
 
     // Shared by the modal print button below and the doctor-group Print/
@@ -710,25 +1080,26 @@ document.addEventListener('DOMContentLoaded', function() {
     // Print just this modal's table — window.print() on the main page would
     // try to print the whole admin screen behind the overlay, so this opens
     // a small standalone print window with only the modal's own title +
-    // table markup instead.
-    document.querySelectorAll('.mdbk-print-modal').forEach(function(btn) {
-        btn.addEventListener('click', function() {
-            const modal = btn.closest('.mdbk-modal');
-            if (!modal) return;
-            const title = modal.querySelector('.mdbk-modal-head h2');
-            const body = modal.querySelector('.mdbk-modal-body');
-            if (!body) return;
-            const win = window.open('', '_blank', 'width=900,height=700');
-            if (!win) return;
-            win.document.write(
-                '<html><head><title>' + (title ? title.textContent : 'Print') + '</title><style>' + MDBK_PRINT_STYLES + '</style></head><body>' +
-                mdbkBuildPrintBody(title ? title.textContent : '', body.innerHTML) +
-                '</body></html>'
-            );
-            win.document.close();
-            win.focus();
-            win.print();
-        });
+    // table markup instead. Delegated (see the doctor-popup handler above)
+    // since these modals can be re-rendered by the Booking page's live search.
+    document.addEventListener('click', function(e) {
+        const btn = e.target.closest('.mdbk-print-modal');
+        if (!btn) return;
+        const modal = btn.closest('.mdbk-modal');
+        if (!modal) return;
+        const title = modal.querySelector('.mdbk-modal-head h2');
+        const body = modal.querySelector('.mdbk-modal-body');
+        if (!body) return;
+        const win = window.open('', '_blank', 'width=900,height=700');
+        if (!win) return;
+        win.document.write(
+            '<html><head><title>' + (title ? title.textContent : 'Print') + '</title><style>' + MDBK_PRINT_STYLES + '</style></head><body>' +
+            mdbkBuildPrintBody(title ? title.textContent : '', body.innerHTML) +
+            '</body></html>'
+        );
+        win.document.close();
+        win.focus();
+        win.print();
     });
 
     // Per-doctor Print/Download Image on the Booking page's collapsible
