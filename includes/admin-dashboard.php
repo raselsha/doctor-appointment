@@ -1739,46 +1739,146 @@ class MDBK_Admin_Dashboard {
                 </div>
                 </div>
 
-                <div class="mdbk-filters-bar">
-                    <form method="get" class="mdbk-filters-form">
-                        <input type="hidden" name="page" value="mdbk-schedule">
-                        <?php if ($filter_date): ?>
-                        <div class="mdbk-date-nav-group">
-                            <a href="<?php echo esc_url($day_url(date('Y-m-d', strtotime($filter_date . ' -1 day')))); ?>" class="mdbk-date-nav-btn" aria-label="<?php esc_attr_e('Previous day', 'doctor-appointment'); ?>">&lsaquo;</a>
-                            <a href="<?php echo esc_url($day_url(current_time('Y-m-d'))); ?>" class="mdbk-date-nav-btn mdbk-date-nav-today"><?php _e('Today', 'doctor-appointment'); ?></a>
-                            <a href="<?php echo esc_url($day_url(date('Y-m-d', strtotime($filter_date . ' +1 day')))); ?>" class="mdbk-date-nav-btn" aria-label="<?php esc_attr_e('Next day', 'doctor-appointment'); ?>">&rsaquo;</a>
-                            <input type="date" name="filter_date" value="<?php echo esc_attr($filter_date); ?>" class="mdbk-input mdbk-date-nav-input" onchange="this.form.submit()">
-                        </div>
-                        <span class="mdbk-filters-divider"></span>
-                        <?php endif; ?>
-                        <input type="text" id="mdbk-schedule-search" name="s" value="<?php echo esc_attr($search); ?>" placeholder="<?php esc_attr_e('Search name, phone, or email...', 'doctor-appointment'); ?>" class="mdbk-filters-search">
-                        <?php if (!$is_doctor_only): ?>
-                        <select id="mdbk-schedule-filter-doctor" name="filter_doctor">
-                            <option value=""><?php _e('All Doctors', 'doctor-appointment'); ?></option>
-                            <?php foreach ($all_doctors as $d) : ?>
-                                <option value="<?php echo esc_attr($d->ID); ?>" <?php selected($filter_doctor, $d->ID); ?>><?php echo esc_html($d->post_title); ?></option>
-                            <?php endforeach; ?>
-                        </select>
-                        <?php endif; ?>
-                        <select id="mdbk-schedule-filter-status" name="filter_status">
-                            <option value=""><?php _e('All Statuses', 'doctor-appointment'); ?></option>
-                            <option value="waiting" <?php selected($filter_status, 'waiting'); ?>><?php _e('Waiting', 'doctor-appointment'); ?></option>
-                            <option value="serving" <?php selected($filter_status, 'serving'); ?>><?php _e('Visiting', 'doctor-appointment'); ?></option>
-                            <option value="completed" <?php selected($filter_status, 'completed'); ?>><?php _e('Completed', 'doctor-appointment'); ?></option>
-                            <option value="no-show" <?php selected($filter_status, 'no-show'); ?>><?php _e('No Show', 'doctor-appointment'); ?></option>
-                        </select>
-                        <button type="submit" class="mdbk-btn-add mdbk-btn-sm"><?php _e('Filter', 'doctor-appointment'); ?></button>
-                        <div class="mdbk-filters-spacer"></div>
-                        <a id="mdbk-schedule-clear-filters" href="<?php echo esc_url(add_query_arg(['page' => 'mdbk-schedule', 'filter_date' => $filter_date], admin_url('admin.php'))); ?>" class="mdbk-date-nav-all" style="<?php echo ($filter_doctor || $filter_status || $search !== '') ? '' : 'display:none;'; ?>"><?php _e('Clear', 'doctor-appointment'); ?></a>
-                        <?php if ($filter_date) : ?>
-                            <a href="<?php echo esc_url($all_dates_url); ?>" class="mdbk-date-nav-all"><?php _e('All Dates', 'doctor-appointment'); ?></a>
-                        <?php endif; ?>
-                    </form>
+                <?php if ($is_today_view): ?>
+                <div class="mdbk-schedule-queue-scroll-wrap">
+                    <div id="mdbk-schedule-analytics" style="margin-bottom:20px;"><?php echo $this->render_schedule_analytics_html($filter_doctor); ?></div>
+                    <div class="mdbk-filters-bar mdbk-filters-bar-sticky">
+                        <?php $this->render_schedule_filters_bar($filter_date, $filter_doctor, $filter_status, $search, $is_doctor_only, $all_doctors, $day_url, $all_dates_url); ?>
+                    </div>
+                    <div id="mdbk-schedule-results"><?php echo $this->render_schedule_results_html($filter_date, $filter_doctor, $filter_status, $search, $apps, $is_today_view); ?></div>
                 </div>
-
+                <?php else: ?>
+                <div class="mdbk-filters-bar">
+                    <?php $this->render_schedule_filters_bar($filter_date, $filter_doctor, $filter_status, $search, $is_doctor_only, $all_doctors, $day_url, $all_dates_url); ?>
+                </div>
                 <div id="mdbk-schedule-results"><?php echo $this->render_schedule_results_html($filter_date, $filter_doctor, $filter_status, $search, $apps, $is_today_view); ?></div>
+                <?php endif; ?>
             </div></div><?php $this->render_appointment_modal_html(); ?></div>
         <?php
+    }
+
+    /**
+     * Booking page's filter <form> (date nav, search, doctor/status filters)
+     * — shared between render_schedule_page() (rendered once, never touched
+     * by the live-search AJAX swap so the search input never loses focus
+     * mid-keystroke) and, for the Today view specifically, positioned
+     * BELOW the analytics cards and pinned via .mdbk-filters-bar-sticky so
+     * it stays visible while the analytics/queue content scrolls under it.
+     */
+    private function render_schedule_filters_bar($filter_date, $filter_doctor, $filter_status, $search, $is_doctor_only, $all_doctors, $day_url, $all_dates_url) {
+        ?>
+        <form method="get" class="mdbk-filters-form">
+            <input type="hidden" name="page" value="mdbk-schedule">
+            <?php if ($filter_date): ?>
+            <div class="mdbk-date-nav-group">
+                <a href="<?php echo esc_url($day_url(date('Y-m-d', strtotime($filter_date . ' -1 day')))); ?>" class="mdbk-date-nav-btn" aria-label="<?php esc_attr_e('Previous day', 'doctor-appointment'); ?>">&lsaquo;</a>
+                <a href="<?php echo esc_url($day_url(current_time('Y-m-d'))); ?>" class="mdbk-date-nav-btn mdbk-date-nav-today"><?php _e('Today', 'doctor-appointment'); ?></a>
+                <a href="<?php echo esc_url($day_url(date('Y-m-d', strtotime($filter_date . ' +1 day')))); ?>" class="mdbk-date-nav-btn" aria-label="<?php esc_attr_e('Next day', 'doctor-appointment'); ?>">&rsaquo;</a>
+                <div class="mdbk-schedule-date-select" id="mdbk-schedule-date-select">
+                    <button type="button" class="mdbk-schedule-date-trigger" id="mdbk-schedule-date-trigger">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="3"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+                        <span id="mdbk-schedule-date-trigger-value"><?php echo esc_html(date_i18n('m/d/Y', strtotime($filter_date))); ?></span>
+                    </button>
+                    <div class="mdbk-app-date-panel" id="mdbk-schedule-date-panel" style="display:none;"></div>
+                </div>
+                <input type="hidden" name="filter_date" value="<?php echo esc_attr($filter_date); ?>" class="mdbk-date-nav-input" id="mdbk-schedule-date-hidden">
+            </div>
+            <span class="mdbk-filters-divider"></span>
+            <?php endif; ?>
+            <input type="text" id="mdbk-schedule-search" name="s" value="<?php echo esc_attr($search); ?>" placeholder="<?php esc_attr_e('Search name, phone, or email...', 'doctor-appointment'); ?>" class="mdbk-filters-search">
+            <?php if (!$is_doctor_only): ?>
+            <select id="mdbk-schedule-filter-doctor" name="filter_doctor">
+                <option value=""><?php _e('All Doctors', 'doctor-appointment'); ?></option>
+                <?php foreach ($all_doctors as $d) : ?>
+                    <option value="<?php echo esc_attr($d->ID); ?>" <?php selected($filter_doctor, $d->ID); ?>><?php echo esc_html($d->post_title); ?></option>
+                <?php endforeach; ?>
+            </select>
+            <?php endif; ?>
+            <select id="mdbk-schedule-filter-status" name="filter_status">
+                <option value=""><?php _e('All Statuses', 'doctor-appointment'); ?></option>
+                <option value="waiting" <?php selected($filter_status, 'waiting'); ?>><?php _e('Waiting', 'doctor-appointment'); ?></option>
+                <option value="serving" <?php selected($filter_status, 'serving'); ?>><?php _e('Visiting', 'doctor-appointment'); ?></option>
+                <option value="completed" <?php selected($filter_status, 'completed'); ?>><?php _e('Completed', 'doctor-appointment'); ?></option>
+                <option value="no-show" <?php selected($filter_status, 'no-show'); ?>><?php _e('No Show', 'doctor-appointment'); ?></option>
+            </select>
+            <button type="submit" class="mdbk-btn-add mdbk-btn-sm"><?php _e('Filter', 'doctor-appointment'); ?></button>
+            <div class="mdbk-filters-spacer"></div>
+            <a id="mdbk-schedule-clear-filters" href="<?php echo esc_url(add_query_arg(['page' => 'mdbk-schedule', 'filter_date' => $filter_date], admin_url('admin.php'))); ?>" class="mdbk-date-nav-all" style="<?php echo ($filter_doctor || $filter_status || $search !== '') ? '' : 'display:none;'; ?>"><?php _e('Clear', 'doctor-appointment'); ?></a>
+            <?php if ($filter_date) : ?>
+                <a href="<?php echo esc_url($all_dates_url); ?>" class="mdbk-date-nav-all"><?php _e('All Dates', 'doctor-appointment'); ?></a>
+            <?php endif; ?>
+        </form>
+        <?php
+    }
+
+    /**
+     * Today view's analytics cards — split out of render_schedule_today_view()
+     * so it can be its own AJAX-swap target (#mdbk-schedule-analytics),
+     * independent of #mdbk-schedule-results, now that the analytics cards
+     * sit ABOVE the (page-level, never-swapped) filters bar rather than
+     * inside the same scrolling fragment as the Queue/Upcoming lists.
+     * Scoped by doctor only — search/status text never changes these
+     * numbers (see the "doesn't touch computed totals" note in
+     * render_schedule_page()), so that's the only input this needs.
+     */
+    private function render_schedule_analytics_html($doctor_id) {
+        $today_apps = $this->get_today_queue_apps($doctor_id);
+        $all_apps = $this->get_filtered_appointments(null, $doctor_id, '');
+        $today = current_time('Y-m-d');
+        $total_patients = count(array_unique(array_filter(array_map(function($a) {
+            return get_post_meta($a->ID, '_mdbk_patient_id', true);
+        }, $all_apps))));
+        $today_visited = count(array_filter($today_apps, function($a) {
+            return get_post_status($a) === 'mdbk_completed';
+        }));
+        $today_no_show = count(array_filter($today_apps, function($a) {
+            return get_post_status($a) === 'mdbk_no_show';
+        }));
+        $upcoming_count = count(array_filter($all_apps, function($a) use ($today) {
+            $date = get_post_meta($a->ID, '_mdbk_appointment_date', true);
+            return $date > $today && in_array(get_post_status($a), ['mdbk_waiting', 'mdbk_serving'], true);
+        }));
+        ob_start();
+        ?>
+        <div class="mdbk-stats-grid mdbk-stats-grid-5 mdbk-stats-grid-compact">
+            <div class="mdbk-stat-card mdbk-stat-card-violet">
+                <div class="mdbk-stat-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg></div>
+                <div class="mdbk-stat-text">
+                    <h4><?php _e('Total Patients', 'doctor-appointment'); ?></h4>
+                    <div class="value"><?php echo esc_html($total_patients); ?></div>
+                </div>
+            </div>
+            <div class="mdbk-stat-card mdbk-stat-card-blue">
+                <div class="mdbk-stat-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="3"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg></div>
+                <div class="mdbk-stat-text">
+                    <h4><?php _e("Today's Bookings", 'doctor-appointment'); ?></h4>
+                    <div class="value"><?php echo esc_html(count($today_apps)); ?></div>
+                </div>
+            </div>
+            <div class="mdbk-stat-card mdbk-stat-card-green">
+                <div class="mdbk-stat-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg></div>
+                <div class="mdbk-stat-text">
+                    <h4><?php _e('Visited Today', 'doctor-appointment'); ?></h4>
+                    <div class="value"><?php echo esc_html($today_visited); ?></div>
+                </div>
+            </div>
+            <div class="mdbk-stat-card mdbk-stat-card-red">
+                <div class="mdbk-stat-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg></div>
+                <div class="mdbk-stat-text">
+                    <h4><?php _e('No Show Today', 'doctor-appointment'); ?></h4>
+                    <div class="value"><?php echo esc_html($today_no_show); ?></div>
+                </div>
+            </div>
+            <div class="mdbk-stat-card mdbk-stat-card-amber">
+                <div class="mdbk-stat-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg></div>
+                <div class="mdbk-stat-text">
+                    <h4><?php _e('Upcoming', 'doctor-appointment'); ?></h4>
+                    <div class="value"><?php echo esc_html($upcoming_count); ?></div>
+                </div>
+            </div>
+        </div>
+        <?php
+        return ob_get_clean();
     }
 
     /**
@@ -1880,10 +1980,20 @@ class MDBK_Admin_Dashboard {
         $today = current_time('Y-m-d');
         $is_today_view = ($filter_date === $today);
 
-        wp_send_json_success([
+        $response = [
             'count_html'   => '&middot; ' . esc_html(sprintf(_n('%d patient', '%d patients', count($apps), 'doctor-appointment'), count($apps))),
             'results_html' => $this->render_schedule_results_html($filter_date, $filter_doctor, $filter_status, $search, $apps, $is_today_view),
-        ]);
+        ];
+        // Analytics live outside #mdbk-schedule-results now (rendered once
+        // in render_schedule_page(), above the never-swapped filters bar),
+        // so a doctor-filter change made via this same live search has to
+        // refresh them through their own #mdbk-schedule-analytics target
+        // instead — otherwise they'd silently go stale showing whichever
+        // doctor was selected on the last full page load.
+        if ($is_today_view) {
+            $response['analytics_html'] = $this->render_schedule_analytics_html($filter_doctor);
+        }
+        wp_send_json_success($response);
     }
 
     /**
@@ -1905,8 +2015,13 @@ class MDBK_Admin_Dashboard {
         $today_apps = $this->get_today_queue_apps($doctor_id);
         $today = current_time('Y-m-d');
         $all_apps = $this->get_filtered_appointments(null, $doctor_id, '');
-        $other_apps = array_values(array_filter($all_apps, function($a) use ($today) {
-            return get_post_meta($a->ID, '_mdbk_appointment_date', true) !== $today;
+        // Strictly future dates only — this section used to also pull in
+        // every PAST booking (anything "!== $today"), which didn't match
+        // what "Upcoming Dates" actually promises. Past bookings are still
+        // reachable via a specific date or the All Dates list, just not
+        // listed here anymore.
+        $upcoming_apps = array_values(array_filter($all_apps, function($a) use ($today) {
+            return get_post_meta($a->ID, '_mdbk_appointment_date', true) > $today;
         }));
 
         $apply_filters = function($apps) use ($search, $filter_status) {
@@ -1921,116 +2036,57 @@ class MDBK_Admin_Dashboard {
             }));
         };
         $today_apps_display = $apply_filters($today_apps);
-        $other_apps_display = $apply_filters($other_apps);
+        $upcoming_apps_display = $apply_filters($upcoming_apps);
         $has_active_filters = ($search !== '' || $filter_status !== '');
         // Computed from the unfiltered $today_apps on purpose — see
         // get_serving_doctor_ids()'s comment.
         $serving_doctor_ids = $this->get_serving_doctor_ids($today_apps);
 
-        // Analytics — same stat-card style as the admin Dashboard
-        // (render_dashboard()), scoped to whatever doctor filter is
-        // currently active (0 = every doctor).
-        $total_patients = count(array_unique(array_filter(array_map(function($a) {
-            return get_post_meta($a->ID, '_mdbk_patient_id', true);
-        }, $all_apps))));
-        $today_visited = count(array_filter($today_apps, function($a) {
-            return get_post_status($a) === 'mdbk_completed';
-        }));
-        $today_no_show = count(array_filter($today_apps, function($a) {
-            return get_post_status($a) === 'mdbk_no_show';
-        }));
-        $upcoming_count = count(array_filter($all_apps, function($a) use ($today) {
-            $date = get_post_meta($a->ID, '_mdbk_appointment_date', true);
-            return $date > $today && in_array(get_post_status($a), ['mdbk_waiting', 'mdbk_serving'], true);
-        }));
         // "Expand All" / "Collapse All" only makes sense once there's
         // actually per-doctor grouping to toggle.
         $group_toggle_buttons = '<div class="mdbk-group-toggle-btns"><button type="button" class="mdbk-btn-outline mdbk-btn-sm mdbk-expand-all">' . esc_html__('Expand All', 'doctor-appointment') . '</button><button type="button" class="mdbk-btn-outline mdbk-btn-sm mdbk-collapse-all">' . esc_html__('Collapse All', 'doctor-appointment') . '</button></div>';
         ?>
-        <?php // Only the header/filters bar in render_schedule_page() stays
-        // fixed in place — analytics cards now scroll away together with
-        // the Queue section below them, via .mdbk-main-content-fixed-header's
-        // flex layout (admin-style.css). ?>
-        <div class="mdbk-schedule-queue-scroll-wrap">
-            <div class="mdbk-stats-grid mdbk-stats-grid-5 mdbk-stats-grid-compact" style="margin-bottom:20px;">
-                <div class="mdbk-stat-card mdbk-stat-card-violet">
-                    <div class="mdbk-stat-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg></div>
-                    <div class="mdbk-stat-text">
-                        <h4><?php _e('Total Patients', 'doctor-appointment'); ?></h4>
-                        <div class="value"><?php echo esc_html($total_patients); ?></div>
-                    </div>
-                </div>
-                <div class="mdbk-stat-card mdbk-stat-card-blue">
-                    <div class="mdbk-stat-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="3"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg></div>
-                    <div class="mdbk-stat-text">
-                        <h4><?php _e("Today's Bookings", 'doctor-appointment'); ?></h4>
-                        <div class="value"><?php echo esc_html(count($today_apps)); ?></div>
-                    </div>
-                </div>
-                <div class="mdbk-stat-card mdbk-stat-card-green">
-                    <div class="mdbk-stat-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg></div>
-                    <div class="mdbk-stat-text">
-                        <h4><?php _e('Visited Today', 'doctor-appointment'); ?></h4>
-                        <div class="value"><?php echo esc_html($today_visited); ?></div>
-                    </div>
-                </div>
-                <div class="mdbk-stat-card mdbk-stat-card-red">
-                    <div class="mdbk-stat-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg></div>
-                    <div class="mdbk-stat-text">
-                        <h4><?php _e('No Show Today', 'doctor-appointment'); ?></h4>
-                        <div class="value"><?php echo esc_html($today_no_show); ?></div>
-                    </div>
-                </div>
-                <div class="mdbk-stat-card mdbk-stat-card-amber">
-                    <div class="mdbk-stat-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg></div>
-                    <div class="mdbk-stat-text">
-                        <h4><?php _e('Upcoming', 'doctor-appointment'); ?></h4>
-                        <div class="value"><?php echo esc_html($upcoming_count); ?></div>
-                    </div>
-                </div>
-            </div>
-            <div class="mdbk-card" style="margin-bottom:20px;">
-                <div class="mdbk-card-header">
-                    <h3><?php _e("Today's Queue", 'doctor-appointment'); ?></h3>
-                    <?php if ($group_by_doctor) : ?>
-                        <?php echo $group_toggle_buttons; ?>
-                    <?php elseif ($doctor_id) :
-                        // Single-doctor view — either a pure doctor account's
-                        // own forced scope (no per-doctor group header exists
-                        // here to carry this toggle, see the comment above
-                        // this function) or staff/admin filtered to one
-                        // doctor via the dropdown. Same toggle/classes as the
-                        // grouped view's own per-doctor header (see
-                        // render_patient_list_html()), reusing its existing
-                        // JS handler as-is — just rendered standalone here
-                        // instead of inside a <details> summary.
-                        $live_queue_enabled = \MDBK\MDBK_Appointment_Manager::is_doctor_live_queue_enabled($doctor_id);
-                        ?>
-                        <label class="mdbk-toggle mdbk-mini-toggle mdbk-doctor-live-queue-toggle" title="<?php esc_attr_e('Live Queue display for this doctor', 'doctor-appointment'); ?>">
-                            <input type="checkbox" class="mdbk-doctor-live-queue-checkbox" data-doctor-id="<?php echo esc_attr($doctor_id); ?>" <?php checked($live_queue_enabled); ?>>
-                            <span class="mdbk-toggle-slider"></span><span class="mdbk-mini-toggle-text"><?php _e('Live Queue', 'doctor-appointment'); ?></span>
-                        </label>
-                    <?php endif; ?>
-                </div>
-                <?php if ($today_apps_display): ?>
-                <div class="mdbk-patient-list" id="mdbk-today-queue-list" data-view-doctor-id="<?php echo esc_attr($doctor_id); ?>">
-                    <?php echo $this->render_patient_list_html($today_apps_display, $group_by_doctor, $serving_doctor_ids, true); ?>
-                </div>
-                <?php else: ?>
-                <table class="mdbk-table"><tbody><tr><td style="text-align:center; padding:40px; opacity:0.6;"><?php echo $has_active_filters ? esc_html__('No patients match your search.', 'doctor-appointment') : esc_html__('No patients in queue today.', 'doctor-appointment'); ?></td></tr></tbody></table>
+        <div class="mdbk-card" style="margin-bottom:20px;">
+            <div class="mdbk-card-header">
+                <h3><?php _e("Today's Queue", 'doctor-appointment'); ?></h3>
+                <?php if ($group_by_doctor) : ?>
+                    <?php echo $group_toggle_buttons; ?>
+                <?php elseif ($doctor_id) :
+                    // Single-doctor view — either a pure doctor account's
+                    // own forced scope (no per-doctor group header exists
+                    // here to carry this toggle, see the comment above
+                    // this function) or staff/admin filtered to one
+                    // doctor via the dropdown. Same toggle/classes as the
+                    // grouped view's own per-doctor header (see
+                    // render_patient_list_html()), reusing its existing
+                    // JS handler as-is — just rendered standalone here
+                    // instead of inside a <details> summary.
+                    $live_queue_enabled = \MDBK\MDBK_Appointment_Manager::is_doctor_live_queue_enabled($doctor_id);
+                    ?>
+                    <label class="mdbk-toggle mdbk-mini-toggle mdbk-doctor-live-queue-toggle" title="<?php esc_attr_e('Live Queue display for this doctor', 'doctor-appointment'); ?>">
+                        <input type="checkbox" class="mdbk-doctor-live-queue-checkbox" data-doctor-id="<?php echo esc_attr($doctor_id); ?>" <?php checked($live_queue_enabled); ?>>
+                        <span class="mdbk-toggle-slider"></span><span class="mdbk-mini-toggle-text"><?php _e('Live Queue', 'doctor-appointment'); ?></span>
+                    </label>
                 <?php endif; ?>
             </div>
+            <?php if ($today_apps_display): ?>
+            <div class="mdbk-patient-list" id="mdbk-today-queue-list" data-view-doctor-id="<?php echo esc_attr($doctor_id); ?>">
+                <?php echo $this->render_patient_list_html($today_apps_display, $group_by_doctor, $serving_doctor_ids, true); ?>
+            </div>
+            <?php else: ?>
+            <table class="mdbk-table"><tbody><tr><td style="text-align:center; padding:40px; opacity:0.6;"><?php echo $has_active_filters ? esc_html__('No patients match your search.', 'doctor-appointment') : esc_html__('No patients in queue today.', 'doctor-appointment'); ?></td></tr></tbody></table>
+            <?php endif; ?>
+        </div>
 
-            <div class="mdbk-card">
-                <div class="mdbk-card-header"><h3><?php _e('Other Dates', 'doctor-appointment'); ?></h3><?php if ($group_by_doctor) echo $group_toggle_buttons; ?></div>
-                <?php if ($other_apps_display): ?>
-                <div class="mdbk-patient-list">
-                    <?php echo $this->render_patient_list_html($other_apps_display, $group_by_doctor, $serving_doctor_ids, false); ?>
-                </div>
-                <?php else: ?>
-                <table class="mdbk-table"><tbody><tr><td style="text-align:center; padding:40px; opacity:0.6;"><?php echo $has_active_filters ? esc_html__('No patients match your search.', 'doctor-appointment') : esc_html__('No other bookings yet.', 'doctor-appointment'); ?></td></tr></tbody></table>
-                <?php endif; ?>
+        <div class="mdbk-card">
+            <div class="mdbk-card-header"><h3><?php _e('Upcoming Dates', 'doctor-appointment'); ?></h3><?php if ($group_by_doctor) echo $group_toggle_buttons; ?></div>
+            <?php if ($upcoming_apps_display): ?>
+            <div class="mdbk-patient-list">
+                <?php echo $this->render_patient_list_html($upcoming_apps_display, $group_by_doctor, $serving_doctor_ids, false); ?>
             </div>
+            <?php else: ?>
+            <table class="mdbk-table"><tbody><tr><td style="text-align:center; padding:40px; opacity:0.6;"><?php echo $has_active_filters ? esc_html__('No patients match your search.', 'doctor-appointment') : esc_html__('No upcoming bookings.', 'doctor-appointment'); ?></td></tr></tbody></table>
+            <?php endif; ?>
         </div>
         <?php
     }

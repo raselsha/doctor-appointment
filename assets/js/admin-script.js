@@ -301,6 +301,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const statusSelect = document.getElementById('mdbk-schedule-filter-status');
         const countEl = document.getElementById('mdbk-schedule-count');
         const resultsEl = document.getElementById('mdbk-schedule-results');
+        const analyticsEl = document.getElementById('mdbk-schedule-analytics');
         const clearBtn = document.getElementById('mdbk-schedule-clear-filters');
         const dateInput = document.querySelector('.mdbk-date-nav-input');
         let debounceTimer;
@@ -319,6 +320,11 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (!res || !res.success) return;
                     if (countEl) countEl.innerHTML = res.data.count_html;
                     if (resultsEl) resultsEl.innerHTML = res.data.results_html;
+                    // Only present for the Today view (analytics don't exist
+                    // on the other 3 branches) — leaving a stale grid up on
+                    // those isn't a concern since #mdbk-schedule-analytics
+                    // itself only ever renders inside the Today view's markup.
+                    if (analyticsEl && res.data.analytics_html !== undefined) analyticsEl.innerHTML = res.data.analytics_html;
                     const hasFilters = searchInput.value || (doctorSelect && doctorSelect.value) || (statusSelect && statusSelect.value);
                     if (clearBtn) clearBtn.style.display = hasFilters ? '' : 'none';
                 })
@@ -345,6 +351,114 @@ document.addEventListener('DOMContentLoaded', function() {
             clearTimeout(debounceTimer);
             runSearch();
         });
+    })();
+
+    // Booking page's own date-filter nav — same modern popover calendar as
+    // the Add/Edit Booking modal's Date field, replacing the browser's
+    // native date input. No doctor-availability graying here (unlike the
+    // booking modal) since this is for browsing to ANY date's bookings,
+    // past ones included — not picking a slot to book. Selecting a day
+    // just submits the existing GET filters form, carrying forward
+    // whatever search/doctor/status filters are already set, same as the
+    // native input's own onchange="this.form.submit()" it replaces.
+    (function() {
+        const selectEl = document.getElementById('mdbk-schedule-date-select');
+        const trigger = document.getElementById('mdbk-schedule-date-trigger');
+        const panel = document.getElementById('mdbk-schedule-date-panel');
+        const hiddenInput = document.getElementById('mdbk-schedule-date-hidden');
+        if (!selectEl || !trigger || !panel || !hiddenInput || typeof mdbk_admin_obj === 'undefined') return;
+
+        const today = parseServerDate(mdbk_admin_obj.today);
+        let selectedDateStr = hiddenInput.value || '';
+        let viewYear = today.getFullYear();
+        let viewMonth = today.getMonth();
+        if (selectedDateStr) {
+            const parts = selectedDateStr.split('-').map(Number);
+            viewYear = parts[0];
+            viewMonth = parts[1] - 1;
+        }
+
+        function pad2(n) { return String(n).padStart(2, '0'); }
+        function todayStr() { return today.getFullYear() + '-' + pad2(today.getMonth() + 1) + '-' + pad2(today.getDate()); }
+
+        function render() {
+            const firstDay = new Date(viewYear, viewMonth, 1).getDay();
+            const days = new Date(viewYear, viewMonth + 1, 0).getDate();
+            const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+            const tStr = todayStr();
+            let html = '<div class="mdbk-mini-cal-nav">' +
+                '<button type="button" class="mdbk-mini-cal-nav-btn" data-action="prev">&lsaquo;</button>' +
+                '<span class="mdbk-mini-cal-title">' + monthNames[viewMonth] + ' ' + viewYear + '</span>' +
+                '<button type="button" class="mdbk-mini-cal-nav-btn" data-action="next">&rsaquo;</button>' +
+                '</div><div class="mdbk-mini-cal-grid">';
+            ['S', 'M', 'T', 'W', 'T', 'F', 'S'].forEach(function(l) { html += '<span class="mdbk-mini-cal-day-header">' + l + '</span>'; });
+            for (let i = 0; i < firstDay; i++) html += '<span class="mdbk-mini-cal-day empty"></span>';
+            for (let d = 1; d <= days; d++) {
+                const dateStr = viewYear + '-' + pad2(viewMonth + 1) + '-' + pad2(d);
+                let classes = 'mdbk-mini-cal-day';
+                if (dateStr === tStr) classes += ' today';
+                if (dateStr === selectedDateStr) classes += ' selected';
+                html += '<span class="' + classes + '" data-date="' + dateStr + '">' + d + '</span>';
+            }
+            html += '</div>';
+            panel.innerHTML = html;
+        }
+
+        // Same fixed-position + flip-up-if-no-room approach as the booking
+        // modal's calendar (initAppDateCalendar()) — see its comment for why
+        // plain absolute positioning isn't reliable inside a scrolling
+        // ancestor (here, .mdbk-schedule-queue-scroll-wrap on the Today view).
+        function reposition() {
+            const rect = trigger.getBoundingClientRect();
+            const panelHeight = panel.offsetHeight;
+            const spaceBelow = window.innerHeight - rect.bottom;
+            if (spaceBelow < panelHeight + 10 && rect.top > panelHeight + 10) {
+                panel.style.top = (rect.top - panelHeight - 6) + 'px';
+            } else {
+                panel.style.top = (rect.bottom + 6) + 'px';
+            }
+            panel.style.left = rect.left + 'px';
+        }
+        function open() {
+            panel.style.position = 'fixed';
+            panel.style.display = 'block';
+            reposition();
+            selectEl.classList.add('open');
+        }
+        function close() { selectEl.classList.remove('open'); panel.style.display = 'none'; }
+
+        trigger.addEventListener('click', function(e) {
+            e.preventDefault();
+            selectEl.classList.contains('open') ? close() : open();
+        });
+
+        panel.addEventListener('click', function(e) {
+            // See initAppDateCalendar()'s identical stopPropagation() note —
+            // render() below replaces panel.innerHTML, which would otherwise
+            // detach the clicked Prev/Next button before this click finishes
+            // bubbling to the document-level "close on outside click" below.
+            e.stopPropagation();
+            const navBtn = e.target.closest('.mdbk-mini-cal-nav-btn');
+            if (navBtn) {
+                if (navBtn.dataset.action === 'prev') { viewMonth--; if (viewMonth < 0) { viewMonth = 11; viewYear--; } }
+                else { viewMonth++; if (viewMonth > 11) { viewMonth = 0; viewYear++; } }
+                render();
+                return;
+            }
+            const dayEl = e.target.closest('.mdbk-mini-cal-day');
+            if (!dayEl || dayEl.classList.contains('empty')) return;
+            hiddenInput.value = dayEl.getAttribute('data-date');
+            hiddenInput.form.submit();
+        });
+
+        document.addEventListener('click', function(e) { if (!selectEl.contains(e.target)) close(); });
+        document.addEventListener('keydown', function(e) { if (e.key === 'Escape') close(); });
+        const scrollParent = selectEl.closest('.mdbk-schedule-queue-scroll-wrap');
+        if (scrollParent) scrollParent.addEventListener('scroll', function() {
+            if (selectEl.classList.contains('open')) reposition();
+        });
+
+        render();
     })();
 
     // Matches the PHP-rendered Weekly Availability form's own day order
