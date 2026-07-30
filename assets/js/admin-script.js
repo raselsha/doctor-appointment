@@ -843,7 +843,252 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!slotEnabled) slotInput.value = '';
         if (hint) hint.style.display = slotEnabled ? 'none' : '';
     }
-    const appDoctorSelect = initCustomSelect('mdbk-app-doctor-select', updateAppSlotTimeAvailability);
+
+    /**
+     * Add/Edit Booking modal's Date field — a hand-built popover calendar
+     * (same approach as the public booking form's own #mdbk-calendar and
+     * this modal's other custom-selects) instead of the browser's native
+     * date input, so a day the selected doctor doesn't work actually shows
+     * as unavailable instead of only being caught after clicking Save.
+     */
+    function initAppDateCalendar() {
+        const wrap = document.getElementById('mdbk-app-date-wrap');
+        const selectEl = document.getElementById('mdbk-app-date-select');
+        const trigger = document.getElementById('mdbk-app-date-trigger');
+        const triggerValue = document.getElementById('mdbk-app-date-trigger-value');
+        const panel = document.getElementById('mdbk-app-calendar');
+        const hiddenInput = document.getElementById('mdbk-app-date');
+        if (!wrap || !selectEl || !trigger || !panel || !hiddenInput) return null;
+        const defaultLabel = triggerValue.textContent;
+
+        const today = parseServerDate(typeof mdbk_admin_obj !== 'undefined' ? mdbk_admin_obj.today : null);
+        let viewYear = today.getFullYear();
+        let viewMonth = today.getMonth();
+        let selectedDateStr = '';
+        let disabledWeekdays = [];
+        let extraDates = [];
+        let offDates = [];
+
+        function pad2(n) { return String(n).padStart(2, '0'); }
+        function todayStr() { return today.getFullYear() + '-' + pad2(today.getMonth() + 1) + '-' + pad2(today.getDate()); }
+        function isUnavailable(dateStr, dayOfWeek) {
+            if (offDates.indexOf(dateStr) !== -1) return true;
+            const weekdayOff = disabledWeekdays.indexOf(dayOfWeek) !== -1;
+            return weekdayOff && extraDates.indexOf(dateStr) === -1;
+        }
+        function formatLabel(dateStr) {
+            const parts = dateStr.split('-').map(Number);
+            const d = new Date(parts[0], parts[1] - 1, parts[2]);
+            const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+            return monthNames[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear();
+        }
+
+        function render() {
+            const firstDay = new Date(viewYear, viewMonth, 1).getDay();
+            const days = new Date(viewYear, viewMonth + 1, 0).getDate();
+            const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+            const tStr = todayStr();
+            let html = '<div class="mdbk-mini-cal-nav">' +
+                '<button type="button" class="mdbk-mini-cal-nav-btn" data-action="prev">&lsaquo;</button>' +
+                '<span class="mdbk-mini-cal-title">' + monthNames[viewMonth] + ' ' + viewYear + '</span>' +
+                '<button type="button" class="mdbk-mini-cal-nav-btn" data-action="next">&rsaquo;</button>' +
+                '</div><div class="mdbk-mini-cal-grid">';
+            ['S', 'M', 'T', 'W', 'T', 'F', 'S'].forEach(function(l) { html += '<span class="mdbk-mini-cal-day-header">' + l + '</span>'; });
+            for (let i = 0; i < firstDay; i++) html += '<span class="mdbk-mini-cal-day empty"></span>';
+            for (let d = 1; d <= days; d++) {
+                const dateStr = viewYear + '-' + pad2(viewMonth + 1) + '-' + pad2(d);
+                const dayOfWeek = new Date(viewYear, viewMonth, d).getDay();
+                let classes = 'mdbk-mini-cal-day';
+                if (dateStr === tStr) classes += ' today';
+                if (dateStr < tStr) classes += ' past';
+                if (dateStr === selectedDateStr) classes += ' selected';
+                else if (isUnavailable(dateStr, dayOfWeek)) classes += ' unavailable';
+                html += '<span class="' + classes + '" data-date="' + dateStr + '">' + d + '</span>';
+            }
+            html += '</div>';
+            panel.innerHTML = html;
+        }
+
+        // Fixed (not absolute) positioning, computed from the trigger's own
+        // viewport rect — the Date field sits near the bottom of the
+        // modal's scrollable body (.mdbk-modal-body has overflow-y:auto),
+        // and an absolutely-positioned panel there does NOT get included in
+        // that ancestor's scrollable area, so it would render fully clipped/
+        // inaccessible instead of just needing a scroll to reach.
+        // Repositioning (not closing) on scroll keeps it glued to the
+        // trigger if the body scrolls while it's open — closing on scroll
+        // was tried first, but even a browser/automation-driven scroll
+        // adjustment during a click (e.g. scrollIntoView as part of a click
+        // action) would slam it shut before the click could land.
+        // Flips above the trigger when there isn't room below (the Date
+        // field sits near the bottom of the form, so on a shorter viewport
+        // the panel would otherwise render partly below the visible
+        // window). offsetHeight only measures correctly once the panel is
+        // actually displayed, so open() below must set display BEFORE
+        // calling this.
+        function reposition() {
+            const rect = trigger.getBoundingClientRect();
+            const panelHeight = panel.offsetHeight;
+            const spaceBelow = window.innerHeight - rect.bottom;
+            if (spaceBelow < panelHeight + 10 && rect.top > panelHeight + 10) {
+                panel.style.top = (rect.top - panelHeight - 6) + 'px';
+            } else {
+                panel.style.top = (rect.bottom + 6) + 'px';
+            }
+            panel.style.left = rect.left + 'px';
+        }
+        function open() {
+            panel.style.position = 'fixed';
+            panel.style.display = 'block';
+            reposition();
+            selectEl.classList.add('open');
+        }
+        function close() { selectEl.classList.remove('open'); panel.style.display = 'none'; }
+        const scrollParent = wrap.closest('.mdbk-modal-body');
+        if (scrollParent) scrollParent.addEventListener('scroll', function() {
+            if (selectEl.classList.contains('open')) reposition();
+        });
+
+        function selectDate(dateStr) {
+            selectedDateStr = dateStr;
+            hiddenInput.value = dateStr;
+            triggerValue.textContent = formatLabel(dateStr);
+            wrap.classList.remove('mdbk-field-error');
+            render();
+            close();
+        }
+
+        trigger.addEventListener('click', function(e) {
+            e.preventDefault();
+            selectEl.classList.contains('open') ? close() : open();
+        });
+
+        panel.addEventListener('click', function(e) {
+            // render() below rebuilds panel.innerHTML, which detaches the
+            // clicked nav button from the DOM before this click finishes
+            // bubbling up to the document-level "close on outside click"
+            // listener further down — without stopPropagation() that
+            // listener then sees a now-detached e.target, wrap.contains()
+            // returns false, and it incorrectly closes the panel Prev/Next
+            // was just trying to keep open.
+            e.stopPropagation();
+            const navBtn = e.target.closest('.mdbk-mini-cal-nav-btn');
+            if (navBtn) {
+                if (navBtn.dataset.action === 'prev') { viewMonth--; if (viewMonth < 0) { viewMonth = 11; viewYear--; } }
+                else { viewMonth++; if (viewMonth > 11) { viewMonth = 0; viewYear++; } }
+                render();
+                return;
+            }
+            const dayEl = e.target.closest('.mdbk-mini-cal-day');
+            if (!dayEl || dayEl.classList.contains('empty') || dayEl.classList.contains('past') || dayEl.classList.contains('unavailable')) return;
+            selectDate(dayEl.getAttribute('data-date'));
+        });
+
+        document.addEventListener('click', function(e) { if (!wrap.contains(e.target)) close(); });
+        document.addEventListener('keydown', function(e) { if (e.key === 'Escape') close(); });
+
+        render();
+
+        return {
+            // allowClear=false lets the Edit-populate flow apply an
+            // appointment's OWN already-booked date and fetch its doctor's
+            // schedule for month-grid rendering, without that fetch's
+            // resolution wiping the date right back out just because the
+            // doctor's schedule may have since changed since that date was
+            // originally booked.
+            setAvailability: function(offDaysArr, extraDatesArr, offDatesArr, allowClear) {
+                disabledWeekdays = offDaysArr || [];
+                extraDates = extraDatesArr || [];
+                offDates = offDatesArr || [];
+                if (allowClear !== false && selectedDateStr) {
+                    const parts = selectedDateStr.split('-').map(Number);
+                    const dow = new Date(parts[0], parts[1] - 1, parts[2]).getDay();
+                    if (isUnavailable(selectedDateStr, dow)) {
+                        selectedDateStr = '';
+                        hiddenInput.value = '';
+                        triggerValue.textContent = defaultLabel;
+                    }
+                }
+                render();
+            },
+            setSelected: function(dateStr) {
+                if (!dateStr) {
+                    selectedDateStr = '';
+                    hiddenInput.value = '';
+                    triggerValue.textContent = defaultLabel;
+                    viewYear = today.getFullYear();
+                    viewMonth = today.getMonth();
+                    render();
+                    return;
+                }
+                selectedDateStr = dateStr;
+                hiddenInput.value = dateStr;
+                triggerValue.textContent = formatLabel(dateStr);
+                const parts = dateStr.split('-').map(Number);
+                viewYear = parts[0];
+                viewMonth = parts[1] - 1;
+                wrap.classList.remove('mdbk-field-error');
+                render();
+            },
+            reset: function() {
+                selectedDateStr = '';
+                hiddenInput.value = '';
+                triggerValue.textContent = defaultLabel;
+                disabledWeekdays = [];
+                extraDates = [];
+                offDates = [];
+                viewYear = today.getFullYear();
+                viewMonth = today.getMonth();
+                wrap.classList.remove('mdbk-field-error');
+                render();
+            },
+            openPanel: open
+        };
+    }
+    const appDateCalendar = initAppDateCalendar();
+    // Set true only while the Edit-populate callback below is synchronously
+    // setting specialty/doctor/date together — captured (not re-read) at the
+    // moment each doctor-schedule fetch fires, so it can't be affected by
+    // that flag having already been reset back to false by the time the
+    // fetch's response actually arrives.
+    let suppressDateAutoClear = false;
+    // Edit-populate below sets the doctor TWICE in a row (filterDoctorsBySpecialty()'s
+    // own default-to-first-visible-doctor, immediately followed by the
+    // appointment's actual doctor) — each firing its own async schedule
+    // fetch. Since network responses aren't guaranteed to resolve in the
+    // order they were sent, without this token guard the (wrong,
+    // throwaway) first fetch could resolve AFTER the second, silently
+    // leaving the calendar showing some OTHER doctor's availability.
+    let dateAvailabilityToken = 0;
+    function updateAppDateAvailability(doctorId) {
+        if (!appDateCalendar) return;
+        const allowClear = !suppressDateAutoClear;
+        const token = ++dateAvailabilityToken;
+        if (!doctorId || typeof mdbk_admin_obj === 'undefined') {
+            appDateCalendar.setAvailability([], [], [], allowClear);
+            return;
+        }
+        const body = new URLSearchParams();
+        body.set('action', 'mdbk_get_doctor_schedule');
+        body.set('doctor_id', doctorId);
+        body.set('nonce', mdbk_admin_obj.form_nonce);
+        fetch(mdbk_admin_obj.ajax_url, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body.toString() })
+            .then(function(r) { return r.json(); })
+            .then(function(res) {
+                if (token !== dateAvailabilityToken) return;
+                const payload = (res && res.success && res.data) ? res.data : {};
+                appDateCalendar.setAvailability(payload.off_days || [], payload.extra_dates || [], payload.off_dates || [], allowClear);
+            })
+            .catch(function() {
+                if (token !== dateAvailabilityToken) return;
+                appDateCalendar.setAvailability([], [], [], allowClear);
+            });
+    }
+
+    const appDoctorSelect = initCustomSelect('mdbk-app-doctor-select', function(selectedOpt, value) {
+        updateAppSlotTimeAvailability(selectedOpt);
+        updateAppDateAvailability(value);
+    });
     const appStatusSelect = initCustomSelect('mdbk-app-status-select');
     const appSpecSelect = initCustomSelect('mdbk-app-spec-select');
     const appGenderSelect = initCustomSelect('mdbk-app-gender-select');
@@ -885,6 +1130,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 const genderOpt = appGenderSelect.panel.querySelector('.mdbk-custom-select-option[data-value="' + row.dataset.gender + '"]');
                 if (genderOpt) appGenderSelect.setValue(genderOpt.dataset.value, genderOpt.textContent);
             }
+            // Suppressed for this whole block: setting specialty/doctor
+            // below each kicks off an async doctor-schedule fetch (for the
+            // calendar's unavailable-day styling), and without this its
+            // resolution could wipe the date being restored just below,
+            // purely because the doctor's schedule may have changed since
+            // this appointment was originally booked on it.
+            suppressDateAutoClear = true;
             // Set specialty first, then doctor
             if (appSpecSelect && row.dataset.specialty) {
                 const specOpt = appSpecSelect.panel.querySelector('.mdbk-custom-select-option[data-value="' + row.dataset.specialty + '"]');
@@ -897,7 +1149,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 const opt = appDoctorSelect.panel.querySelector('.mdbk-custom-select-option[data-value="' + row.dataset.doctor + '"]');
                 if (opt) appDoctorSelect.setValue(opt.dataset.value, opt.textContent);
             }
-            document.getElementById('mdbk-app-date').value = row.dataset.date;
+            if (appDateCalendar) appDateCalendar.setSelected(row.dataset.date);
+            suppressDateAutoClear = false;
             // updateAppSlotTimeAvailability() already ran (via the doctor
             // setValue() above) and disabled this field if the doctor is
             // slot-disabled — don't restore a value into a field that's
@@ -936,8 +1189,29 @@ document.addEventListener('DOMContentLoaded', function() {
                 const defaultOpt = appGenderSelect.panel.querySelector('.mdbk-custom-select-option[data-value="Male"]');
                 if (defaultOpt) appGenderSelect.setValue(defaultOpt.dataset.value, defaultOpt.textContent);
             }
+            // Wipe any date left selected from a previous Add/Edit — the
+            // appDoctorSelect.setValue() above already kicks off a fresh
+            // availability fetch for whichever doctor this reset lands on.
+            if (appDateCalendar) appDateCalendar.reset();
         });
     });
+
+    // The Date field is now a hidden <input>, not a native
+    // <input type="date" required"> — hidden inputs are barred from HTML5
+    // constraint validation, so an empty date has to be caught explicitly
+    // here instead of relying on the browser's own required-field popup.
+    const appointmentForm = document.getElementById('mdbk-appointment-form');
+    if (appointmentForm) {
+        appointmentForm.addEventListener('submit', function(e) {
+            const dateInput = document.getElementById('mdbk-app-date');
+            const dateWrap = document.getElementById('mdbk-app-date-wrap');
+            if (dateInput && !dateInput.value) {
+                e.preventDefault();
+                if (dateWrap) dateWrap.classList.add('mdbk-field-error');
+                if (appDateCalendar) appDateCalendar.openPanel();
+            }
+        });
+    }
 
     const appointmentModalCancel = document.querySelector('#mdbk-appointment-modal .mdbk-modal-cancel');
     if (appointmentModalCancel) {

@@ -574,8 +574,8 @@ button.mdbk-mini-cal-nav-btn:hover { background: #f1f5f9; }
 .mdbk-mini-cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 1px; }
 .mdbk-mini-cal-day-header { text-align: center; font-size: 9px; font-weight: 600; color: #94a3b8; padding: 0 0 4px; text-transform: uppercase; }
 .mdbk-mini-cal-day { display: block; text-align: center; padding: 5px 0; font-size: 11px; font-weight: 500; color: #1e293b; border-radius: 6px; cursor: pointer; }
-.mdbk-mini-cal-day:hover:not(.empty):not(.past):not(.selected) { background: #eef2f6; }
-.mdbk-mini-cal-day.past, .mdbk-mini-cal-day.empty { color: #d1d9e3; cursor: not-allowed; }
+.mdbk-mini-cal-day:hover:not(.empty):not(.past):not(.unavailable):not(.selected) { background: #eef2f6; }
+.mdbk-mini-cal-day.past, .mdbk-mini-cal-day.empty, .mdbk-mini-cal-day.unavailable { color: #d1d9e3; cursor: not-allowed; }
 /* Dates that fall on a currently-checked Weekly Availability day — a
    glance at "which weekdays are already regular" before picking an extra
    date (should be one of the OTHER days) or an off date (should be one of
@@ -585,6 +585,16 @@ button.mdbk-mini-cal-nav-btn:hover { background: #f1f5f9; }
 #mdbk-doc-extra-cal .mdbk-mini-cal-day.selected { background: #16a34a; color: #fff; font-weight: 700; }
 #mdbk-doc-off-cal .mdbk-mini-cal-day.selected { background: #dc2626; color: #fff; font-weight: 700; }
 @media (max-width: 640px) { .mdbk-monthly-availability { grid-template-columns: 1fr; } }
+
+/* Add/Edit Booking modal's Date field — the same hand-built calendar
+   component (mirrors the public booking form's own #mdbk-calendar and this
+   modal's own Specialty/Doctor/Status/Gender custom-selects) instead of the
+   browser's native date input, so days the selected doctor doesn't work are
+   actually shown as unavailable rather than just silently rejected on save. */
+.mdbk-modal-compact .mdbk-app-date-panel { position: absolute; top: calc(100% + 6px); left: 0; z-index: 20; width: 260px; background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; box-shadow: 0 10px 30px rgba(15, 23, 42, 0.12); padding: 10px 12px; box-sizing: border-box; }
+#mdbk-app-calendar .mdbk-mini-cal-day.selected { background: #0061d5; color: #fff; font-weight: 700; }
+#mdbk-app-calendar .mdbk-mini-cal-day.today:not(.selected) { color: #0061d5; font-weight: 700; }
+.mdbk-date-picker-wrap.mdbk-field-error .mdbk-custom-select-trigger { border-color: #dc2626; box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.12); }
 .mdbk-view-schedule-list { padding: 4px 14px 10px; }
 
 .mdbk-view-day-row { display: grid; grid-template-columns: 85px 1fr; align-items: center; gap: 10px; padding: 5px 8px; }
@@ -946,6 +956,22 @@ button.mdbk-mini-cal-nav-btn:hover { background: #f1f5f9; }
     display: flex;
     flex-direction: column;
     overflow-y: hidden;
+}
+/* #mdbk-schedule-results (render_schedule_page()'s live-search AJAX target)
+   sits between .mdbk-main-content-fixed-header and .mdbk-schedule-queue-scroll-wrap
+   in the DOM — flex:1/min-height:0 only works on a DIRECT flex child, so
+   without this the scroll-wrap silently stopped shrinking/scrolling and
+   just grew to its full content height instead, leaving everything past
+   the first screenful unreachable (page-level scroll was hidden too, by
+   design, since the wrap was supposed to be the thing that scrolls).
+   Scoped to the fixed-header ancestor so the other 3 branches this same
+   div wraps (grouped-by-doctor / no-bookings / flat list), which don't use
+   this flex layout at all, are unaffected. */
+.mdbk-main-content-fixed-header #mdbk-schedule-results {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
 }
 .mdbk-schedule-queue-scroll-wrap {
     flex: 1;

@@ -3268,7 +3268,12 @@ class MDBK_Admin_Dashboard {
     private function render_appointment_modal_html() {
         $all_doctors = get_posts(['post_type' => 'mdbk_doctor', 'numberposts' => -1, 'orderby' => 'menu_order', 'order' => 'ASC']);
 
-        $spec_terms = get_terms(['taxonomy' => 'mdbk_department', 'hide_empty' => false, 'orderby' => 'meta_value_num', 'meta_key' => '_mdbk_specialty_order', 'order' => 'ASC']);
+        // hide_empty (WP's own published-post count per term) — a specialty
+        // with zero doctors assigned isn't a real choice here either; it
+        // would just filter the Doctor dropdown down to nothing. Matches
+        // the public booking form's own specialty list (render_booking_widget_fields()
+        // in shortcode.php) for the same reason.
+        $spec_terms = get_terms(['taxonomy' => 'mdbk_department', 'hide_empty' => true, 'orderby' => 'meta_value_num', 'meta_key' => '_mdbk_specialty_order', 'order' => 'ASC']);
         $doctor_specs = [];
         foreach ($all_doctors as $d) {
             $terms = get_the_terms($d->ID, 'mdbk_department');
@@ -3378,7 +3383,17 @@ class MDBK_Admin_Dashboard {
                 </div>
 
                 <div class="mdbk-form-row mdbk-form-row-duo">
-                    <div><label class="mdbk-form-label" for="mdbk-app-date"><?php _e('Date', 'doctor-appointment'); ?> *</label><input type="date" name="app_date" id="mdbk-app-date" required></div>
+                    <div class="mdbk-date-picker-wrap" id="mdbk-app-date-wrap">
+                        <label class="mdbk-form-label" for="mdbk-app-date-trigger"><?php _e('Date', 'doctor-appointment'); ?> *</label>
+                        <div class="mdbk-custom-select" id="mdbk-app-date-select">
+                            <button type="button" class="mdbk-custom-select-trigger" id="mdbk-app-date-trigger">
+                                <span class="mdbk-custom-select-value" id="mdbk-app-date-trigger-value"><?php _e('Select a date', 'doctor-appointment'); ?></span>
+                                <span class="mdbk-custom-select-chevron"></span>
+                            </button>
+                            <div class="mdbk-app-date-panel" id="mdbk-app-calendar" style="display:none;"></div>
+                        </div>
+                        <input type="hidden" name="app_date" id="mdbk-app-date">
+                    </div>
                     <div>
                         <label class="mdbk-form-label" for="mdbk-app-slot-time"><?php _e('Slot Time', 'doctor-appointment'); ?></label>
                         <input type="time" name="slot_time" id="mdbk-app-slot-time" <?php echo ($all_doctors && !\MDBK\MDBK_Appointment_Manager::is_slot_enabled($all_doctors[0]->ID)) ? 'disabled' : ''; ?>>

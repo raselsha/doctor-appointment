@@ -153,6 +153,13 @@ if ( ! class_exists( 'MDBK_Doctor_Appointment' ) ) {
             wp_localize_script( 'mdbk-admin-script', 'mdbk_admin_obj', array_merge( [
                 'ajax_url' => admin_url( 'admin-ajax.php' ),
                 'nonce'    => wp_create_nonce( 'mdbk_admin_nonce' ),
+                // Lets the Add/Edit Booking modal's date calendar call the
+                // SAME get_doctor_schedule() AJAX handler the public booking
+                // form already uses (appointment-manager.php) — one nonce
+                // action name, valid for either the current admin user or a
+                // logged-out visitor, so there's no reason to duplicate that
+                // handler just to gate it under mdbk_admin_nonce instead.
+                'form_nonce' => wp_create_nonce( 'mdbk_form_nonce' ),
                 // The admin scheduling calendar's "today" must follow the
                 // site's configured timezone (Settings > General), not
                 // whatever timezone the admin's own browser happens to be
