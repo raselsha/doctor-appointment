@@ -902,15 +902,19 @@ class MDBK_Admin_Dashboard {
         $enable_live_queue = get_option('mdbk_enable_live_queue', 'yes') !== 'no';
         ?>
         <div id="mdbk-admin-dashboard"><div class="mdbk-admin-wrapper"><?php $this->render_sidebar('global-settings'); ?>
-            <div class="mdbk-main-content">
+            <div class="mdbk-main-content mdbk-main-content-fixed-header">
                 <div class="mdbk-header"><h1><?php _e('Global Settings', 'doctor-appointment'); ?></h1></div>
-                <div class="mdbk-card" style="max-width:520px; padding:24px;">
-                    <?php if (isset($_GET['success'])) : ?>
-                        <p style="color:#16A34A; font-weight:600; margin-top:0;"><?php _e('Settings saved.', 'doctor-appointment'); ?></p>
-                    <?php endif; ?>
-                    <form method="POST">
-                        <?php wp_nonce_field('mdbk_save_global_settings'); ?>
-                        <input type="hidden" name="clinic_logo_id" id="mdbk-clinic-logo-id" value="<?php echo esc_attr($clinic_logo_id ?: 0); ?>">
+                <div class="mdbk-global-settings-scroll-wrap">
+                <?php if (isset($_GET['success'])) : ?>
+                    <p style="color:#16A34A; font-weight:600; margin-top:0;"><?php _e('Settings saved.', 'doctor-appointment'); ?></p>
+                <?php endif; ?>
+                <form method="POST">
+                    <?php wp_nonce_field('mdbk_save_global_settings'); ?>
+                    <input type="hidden" name="clinic_logo_id" id="mdbk-clinic-logo-id" value="<?php echo esc_attr($clinic_logo_id ?: 0); ?>">
+
+                    <div class="mdbk-settings-grid">
+                    <div class="mdbk-card" style="padding:24px;">
+                        <h3 style="margin:0 0 16px; font-size:15px;"><?php _e('Clinic Information', 'doctor-appointment'); ?></h3>
                         <div class="mdbk-form-row">
                             <label class="mdbk-form-label"><?php _e('Logo', 'doctor-appointment'); ?></label>
                             <div class="mdbk-photo-picker">
@@ -930,16 +934,21 @@ class MDBK_Admin_Dashboard {
                         <div style="margin-top:16px;"><label class="mdbk-form-label" for="mdbk-clinic-name"><?php _e('Clinic Name', 'doctor-appointment'); ?></label><input type="text" name="clinic_name" id="mdbk-clinic-name" class="mdbk-input" value="<?php echo esc_attr($clinic_name); ?>" placeholder="<?php esc_attr_e('e.g. Shafiul Amraz Medical Center', 'doctor-appointment'); ?>"></div>
                         <div style="margin-top:16px;"><label class="mdbk-form-label" for="mdbk-clinic-contact"><?php _e('Contact Info', 'doctor-appointment'); ?></label><input type="text" name="clinic_contact" id="mdbk-clinic-contact" class="mdbk-input" value="<?php echo esc_attr($clinic_contact); ?>" placeholder="<?php esc_attr_e('e.g. 01700-000000, info@clinic.com', 'doctor-appointment'); ?>"></div>
                         <div style="margin-top:16px;"><label class="mdbk-form-label" for="mdbk-clinic-address"><?php _e('Address', 'doctor-appointment'); ?></label><textarea name="clinic_address" id="mdbk-clinic-address" class="mdbk-input" rows="3" placeholder="<?php esc_attr_e('e.g. House 12, Road 5, Dhaka', 'doctor-appointment'); ?>"><?php echo esc_textarea($clinic_address); ?></textarea></div>
-                        <div class="mdbk-form-row mdbk-form-row-duo" style="margin-top:16px;">
+                    </div>
+
+                    <div class="mdbk-card" style="padding:24px;">
+                        <h3 style="margin:0 0 16px; font-size:15px;"><?php _e('Booking Page Appearance', 'doctor-appointment'); ?></h3>
+                        <div class="mdbk-form-row mdbk-form-row-duo">
                             <div>
                                 <label class="mdbk-form-label" for="mdbk-color-primary"><?php _e('Primary Color', 'doctor-appointment'); ?></label>
-                                <input type="color" name="color_primary" id="mdbk-color-primary" value="<?php echo esc_attr($color_primary); ?>" style="width:100%; height:42px; padding:4px; border:1px solid #e2e8f0; border-radius:10px; cursor:pointer;">
+                                <input type="color" name="color_primary" id="mdbk-color-primary" value="<?php echo esc_attr($color_primary); ?>" data-default="<?php echo esc_attr(self::DEFAULT_COLOR_PRIMARY); ?>" style="width:100%; height:42px; padding:4px; border:1px solid #e2e8f0; border-radius:10px; cursor:pointer;">
                             </div>
                             <div>
                                 <label class="mdbk-form-label" for="mdbk-color-secondary"><?php _e('Secondary Color', 'doctor-appointment'); ?></label>
-                                <input type="color" name="color_secondary" id="mdbk-color-secondary" value="<?php echo esc_attr($color_secondary); ?>" style="width:100%; height:42px; padding:4px; border:1px solid #e2e8f0; border-radius:10px; cursor:pointer;">
+                                <input type="color" name="color_secondary" id="mdbk-color-secondary" value="<?php echo esc_attr($color_secondary); ?>" data-default="<?php echo esc_attr(self::DEFAULT_COLOR_SECONDARY); ?>" style="width:100%; height:42px; padding:4px; border:1px solid #e2e8f0; border-radius:10px; cursor:pointer;">
                             </div>
                         </div>
+                        <button type="button" class="mdbk-btn-outline mdbk-btn-sm" id="mdbk-colors-reset" style="margin-top:10px;"><?php _e('Reset to Default Colors', 'doctor-appointment'); ?></button>
                         <p class="mdbk-form-hint"><?php _e('Used on the patient-facing booking pages (buttons, highlights, links) — match these to your site theme, or leave as the defaults.', 'doctor-appointment'); ?></p>
                         <div style="margin-top:16px; display:flex; align-items:center; gap:10px;">
                             <label class="mdbk-toggle">
@@ -949,8 +958,13 @@ class MDBK_Admin_Dashboard {
                             <label class="mdbk-form-label" for="mdbk-enable-live-queue" style="margin:0;"><?php _e('Enable Live Queue (the public [mdbk_queue_list] display)', 'doctor-appointment'); ?></label>
                         </div>
                         <p class="mdbk-form-hint"><?php _e('When off, the Live Queue page(s) show a simple "not available" message instead of the queue — useful if you don\'t want walk-in patients\' names visible on a public screen.', 'doctor-appointment'); ?></p>
-                        <button type="submit" name="mdbk_save_global_settings" class="mdbk-btn-save" style="margin-top:16px;"><?php _e('Save Settings', 'doctor-appointment'); ?></button>
-                    </form>
+                    </div>
+                    </div>
+
+                    <div class="mdbk-global-settings-save-row">
+                        <button type="submit" name="mdbk_save_global_settings" class="mdbk-btn-save"><?php _e('Save Settings', 'doctor-appointment'); ?></button>
+                    </div>
+                </form>
                 </div>
             </div></div></div>
         <?php
@@ -3036,8 +3050,10 @@ class MDBK_Admin_Dashboard {
     }
 
     private function render_sidebar($active_page) {
+        $clinic_name = get_option('mdbk_clinic_name', '') ?: 'MedBook';
+        $clinic_contact = get_option('mdbk_clinic_contact', '');
         ?>
-        <div class="mdbk-sidebar"><div class="mdbk-sidebar-logo">MedBook</div><ul class="mdbk-sidebar-menu">
+        <div class="mdbk-sidebar"><div class="mdbk-sidebar-logo"><?php echo esc_html($clinic_name); ?><?php if ($clinic_contact) : ?><div class="mdbk-sidebar-clinic-contact"><?php echo esc_html($clinic_contact); ?></div><?php endif; ?></div><ul class="mdbk-sidebar-menu">
             <?php if (current_user_can(MDBK_CAP_ADMIN)) : ?>
             <li class="mdbk-menu-item <?php echo $active_page == 'dashboard' ? 'active' : ''; ?>" onclick="window.location.href='<?php echo esc_url(admin_url('admin.php?page=mdbk-dashboard')); ?>'"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg><?php _e('Dashboard', 'doctor-appointment'); ?></li>
             <li class="mdbk-menu-item <?php echo $active_page == 'doctors' ? 'active' : ''; ?>" onclick="window.location.href='<?php echo esc_url(admin_url('admin.php?page=mdbk-doctors')); ?>'"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.5 21a8.5 8.5 0 0 0-17 0"></path><circle cx="12" cy="7.5" r="4.5"></circle></svg><?php _e('Doctors', 'doctor-appointment'); ?></li>
@@ -3070,7 +3086,23 @@ class MDBK_Admin_Dashboard {
             <li class="mdbk-menu-item <?php echo $active_page == 'specialties' ? 'active' : ''; ?>" onclick="window.location.href='<?php echo esc_url(admin_url('admin.php?page=mdbk-specialties')); ?>'"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41L13.42 20.58a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path><line x1="7" y1="7" x2="7.01" y2="7"></line></svg><?php _e('Specialties', 'doctor-appointment'); ?></li>
             <li class="mdbk-menu-item <?php echo $active_page == 'global-settings' ? 'active' : ''; ?>" onclick="window.location.href='<?php echo esc_url(admin_url('admin.php?page=mdbk-global-settings')); ?>'"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg><?php _e('Global Settings', 'doctor-appointment'); ?></li>
             <?php endif; ?>
-        </ul><div class="mdbk-sidebar-footer"><div class="mdbk-user-avatar"></div><div class="mdbk-user-info"><div style="font-weight: 700; font-size: 13px;"><?php echo esc_html(wp_get_current_user()->display_name); ?></div><div style="font-size: 11px; opacity: 0.6;"><?php _e('Medical Center', 'doctor-appointment'); ?></div></div></div></div>
+        </ul><div class="mdbk-sidebar-footer"><div class="mdbk-user-avatar"></div><div class="mdbk-user-info"><div style="font-weight: 700; font-size: 13px;"><?php echo esc_html(wp_get_current_user()->display_name); ?></div><div style="font-size: 11px; opacity: 0.6;"><?php _e('Medical Center', 'doctor-appointment'); ?></div></div></div>
+        <?php
+        // Sends a logged-out visitor to the MedBook theme's own themed Login
+        // page (page-templates/login.php) instead of wp-login.php's default
+        // screen — same idea as the tailor-manager plugin's sidebar logout
+        // link, just pointed at a dedicated Login page here rather than the
+        // site's front page, since this site's front page is Book Appointment,
+        // not Login. Falls back to the front page if that page doesn't exist
+        // (e.g. the theme's setup hasn't created it) rather than a broken link.
+        $login_page = get_page_by_path('login');
+        $logout_redirect = $login_page ? get_permalink($login_page) : home_url('/');
+        ?>
+        <a class="mdbk-sidebar-logout" href="<?php echo esc_url(wp_logout_url($logout_redirect)); ?>">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+            <?php _e('Logout', 'doctor-appointment'); ?>
+        </a>
+        </div>
         <?php
     }
 

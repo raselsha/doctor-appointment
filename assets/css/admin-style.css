@@ -45,6 +45,12 @@
     font-weight: 800;
     color: #4ade80;
 }
+.mdbk-sidebar-clinic-contact {
+    margin-top: 4px;
+    font-size: 12px;
+    font-weight: 500;
+    color: #94a3b8;
+}
 
 .mdbk-sidebar-menu {
     list-style: none;
@@ -89,6 +95,23 @@
     height: 32px;
     border-radius: 50%;
     background: #4ade80;
+}
+
+.mdbk-sidebar-logout {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 30px;
+    color: #94a3b8;
+    font-weight: 600;
+    font-size: 13px;
+    text-decoration: none;
+    transition: background .15s ease, color .15s ease;
+}
+.mdbk-sidebar-logout svg { flex-shrink: 0; }
+.mdbk-sidebar-logout:hover {
+    background: rgba(239, 68, 68, .12);
+    color: #ef4444;
 }
 
 /* Main Content */
@@ -397,6 +420,37 @@
     font-size: 16px;
     font-weight: 700;
     cursor: pointer;
+}
+
+/* Global Settings: "Clinic Information" + "Booking Page Appearance" side by
+   side instead of stacked (each .mdbk-card here has no max-width of its own
+   any more — the grid controls both columns' width instead). The save
+   button's own .mdbk-btn-save is width:100% (shared with several single-card
+   forms elsewhere, where that's correct) — mdbk-global-settings-save-row
+   caps how wide "100%" actually resolves to on this page, rather than
+   stretching edge-to-edge across the whole main content area. */
+.mdbk-settings-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 520px));
+    gap: 20px;
+    align-items: start;
+}
+.mdbk-global-settings-save-row {
+    max-width: 520px;
+    margin-top: 24px;
+}
+@media (max-width: 900px) {
+    .mdbk-settings-grid { grid-template-columns: 1fr; }
+}
+
+/* Same "pin the header, scroll everything below it" mechanism already used
+   by the Booking page's Today view (.mdbk-main-content-fixed-header +
+   .mdbk-schedule-queue-scroll-wrap above) — see that rule's own comment for
+   the full flexbox explanation. */
+.mdbk-global-settings-scroll-wrap {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
 }
 
 /* ===== Staff (Doctors) filters bar — search, specialty, grid/list switch ===== */
@@ -1439,5 +1493,26 @@ body.mdbk-doctor-chrome #adminmenuwrap {
 body.mdbk-doctor-chrome #wpcontent,
 body.mdbk-doctor-chrome #wpfooter {
     margin-left: 0 !important;
+}
+
+/* The top #wpadminbar (WP logo, site name, comments, "+New", "Howdy"/avatar)
+   and the bottom #wpfooter ("Thank you for creating with WordPress...") —
+   core WP chrome that has no place in this plugin's own full-screen panel,
+   same treatment as the native left sidebar above. The 32px/46px top padding
+   WP reserves for the admin bar is on <html class="wp-toolbar">, not <body>,
+   so reclaiming it needs :has() to reach html from the body class — this
+   plugin already requires PHP 7.2+/a modern browser via the panel's own
+   flexbox layout, so :has() support is not an extra requirement.
+   .mdbk-admin-wrapper's own height calc is adjusted to match below (40px,
+   the non-admin-bar remainder of the 72px/86px above, once the bar is gone). */
+body.mdbk-doctor-chrome #wpadminbar,
+body.mdbk-doctor-chrome #wpfooter {
+    display: none !important;
+}
+html:has(body.mdbk-doctor-chrome) {
+    padding-top: 0 !important;
+}
+body.mdbk-doctor-chrome .mdbk-admin-wrapper {
+    height: calc(100vh - 40px);
 }
 

@@ -348,15 +348,22 @@ class MDBK_Shortcode {
     public function render_form($atts = []) {
         $atts = shortcode_atts([
             'doctor' => '',
+            // For a caller that already provides its own outer spacing/
+            // centering (e.g. a theme template wrapping this shortcode in
+            // its own positioned container) — set flush="1" to drop this
+            // widget's own default margin, instead of the caller having to
+            // override .mdbk-booking-inline's CSS from outside this plugin.
+            'flush'  => '',
         ], $atts, 'mdbk_appointment_form');
 
         $doctor_id = $atts['doctor'] !== '' ? absint($atts['doctor']) : (isset($_GET['doctor']) ? absint(wp_unslash($_GET['doctor'])) : 0);
+        $flush = in_array($atts['flush'], ['1', 'true', 'yes'], true);
 
         self::$widget_rendered = true;
 
         ob_start();
         ?>
-        <div id="mdbk-booking-inline" class="mdbk-booking-inline"<?php echo $doctor_id ? ' data-mdbk-doctor-id="' . esc_attr($doctor_id) . '"' : ''; ?>>
+        <div id="mdbk-booking-inline" class="mdbk-booking-inline<?php echo $flush ? ' mdbk-booking-inline--flush' : ''; ?>"<?php echo $doctor_id ? ' data-mdbk-doctor-id="' . esc_attr($doctor_id) . '"' : ''; ?>>
             <div class="mdbk-modal-message"></div>
             <?php $this->render_booking_widget_fields(); ?>
         </div>

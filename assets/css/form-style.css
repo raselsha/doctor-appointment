@@ -373,9 +373,15 @@ button.mdbk-submit-btn:hover {
     box-sizing: border-box;
 }
 
+/* [mdbk_appointment_form flush="1"] — for a caller that already provides its
+   own outer spacing/centering (see render_form() in includes/shortcode.php)
+   and doesn't want this widget's own default margin on top of that. */
+.mdbk-booking-inline--flush {
+    margin: 0;
+}
+
 @media (max-width: 600px) {
     .mdbk-booking-inline {
-        margin: 12px;
         padding: 16px;
     }
     /* Mobile/Email and Age/Gender were a hard 2-column flex row with no

@@ -1670,6 +1670,23 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    // Global Settings' "Reset to Default Colors" — puts each color input
+    // back to its own data-default (rendered from
+    // MDBK_Admin_Dashboard::DEFAULT_COLOR_PRIMARY/SECONDARY) so a clinic
+    // that's tried a few colors always has a way back, without needing to
+    // remember or retype the original hex values. Only resets the two
+    // fields on the page — still requires "Save Settings" to actually
+    // persist it, same as changing them by hand would.
+    const colorsReset = document.getElementById('mdbk-colors-reset');
+    if (colorsReset) {
+        colorsReset.addEventListener('click', function() {
+            const primary = document.getElementById('mdbk-color-primary');
+            const secondary = document.getElementById('mdbk-color-secondary');
+            if (primary && primary.dataset.default) primary.value = primary.dataset.default;
+            if (secondary && secondary.dataset.default) secondary.value = secondary.dataset.default;
+        });
+    }
+
     // Active/Inactive toggle on each specialty card footer — same
     // optimistic-update-then-revert-on-failure pattern as the doctor
     // grid's own active toggle.
