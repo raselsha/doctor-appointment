@@ -1687,6 +1687,78 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    // License card (Global Settings) — Activate/Deactivate/Refresh, each a
+    // direct admin-ajax call with its own button-disable-while-in-flight
+    // guard. No page reload needed; the two panels (inactive/activated) are
+    // just toggled in place from the AJAX response.
+    (function() {
+        const activateBtn = document.getElementById('mdbk-license-activate');
+        const deactivateBtn = document.getElementById('mdbk-license-deactivate');
+        const refreshBtn = document.getElementById('mdbk-license-refresh');
+        const messageEl = document.getElementById('mdbk-license-message');
+        if ((!activateBtn && !deactivateBtn && !refreshBtn) || typeof mdbk_admin_obj === 'undefined') return;
+
+        function setMessage(text, isError) {
+            if (!messageEl) return;
+            messageEl.textContent = text || '';
+            messageEl.style.color = isError ? '#dc2626' : '#16a34a';
+        }
+
+        function callLicenseAction(action, extraParams) {
+            const body = new URLSearchParams();
+            body.set('action', action);
+            body.set('nonce', mdbk_admin_obj.nonce);
+            Object.keys(extraParams || {}).forEach((key) => body.set(key, extraParams[key]));
+            return fetch(mdbk_admin_obj.ajax_url, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body.toString() })
+                .then((r) => r.json());
+        }
+
+        if (activateBtn) {
+            activateBtn.addEventListener('click', function() {
+                const input = document.getElementById('mdbk-license-key-input');
+                const key = input ? input.value.trim() : '';
+                if (!key) { setMessage('Please enter a license key.', true); return; }
+                activateBtn.disabled = true;
+                callLicenseAction('mdbk_license_activate', { license_key: key })
+                    .then((res) => {
+                        activateBtn.disabled = false;
+                        if (res && res.success) {
+                            window.location.reload();
+                        } else {
+                            setMessage((res && res.data && res.data.message) || 'Could not activate this license key.', true);
+                        }
+                    })
+                    .catch(() => { activateBtn.disabled = false; setMessage('Something went wrong, please try again.', true); });
+            });
+        }
+
+        if (deactivateBtn) {
+            deactivateBtn.addEventListener('click', function() {
+                if (!confirm('Deactivate this license on this site?')) return;
+                deactivateBtn.disabled = true;
+                callLicenseAction('mdbk_license_deactivate')
+                    .then(() => { window.location.reload(); })
+                    .catch(() => { deactivateBtn.disabled = false; setMessage('Something went wrong, please try again.', true); });
+            });
+        }
+
+        if (refreshBtn) {
+            refreshBtn.addEventListener('click', function() {
+                refreshBtn.disabled = true;
+                callLicenseAction('mdbk_license_refresh')
+                    .then((res) => {
+                        refreshBtn.disabled = false;
+                        if (res && res.success) {
+                            window.location.reload();
+                        } else {
+                            setMessage((res && res.data && res.data.message) || 'Could not refresh license status.', true);
+                        }
+                    })
+                    .catch(() => { refreshBtn.disabled = false; setMessage('Something went wrong, please try again.', true); });
+            });
+        }
+    })();
+
     // Active/Inactive toggle on each specialty card footer — same
     // optimistic-update-then-revert-on-failure pattern as the doctor
     // grid's own active toggle.

@@ -332,6 +332,8 @@
 }
 
 .mdbk-badge-blue { background: #e0e7ff; color: #4338ca; }
+.mdbk-badge-red { background: #fee2e2; color: #b91c1c; }
+.mdbk-badge-gray { background: #f1f5f9; color: #64748b; }
 
 .mdbk-actions {
     display: flex;
@@ -756,6 +758,8 @@ button.mdbk-mini-cal-nav-btn:hover { background: #f1f5f9; }
 .mdbk-form-label-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
 .mdbk-form-label-row .mdbk-form-label { margin-bottom: 0; }
 .mdbk-form-hint { margin: 6px 0 0; font-size: 11px; color: #94a3b8; line-height: 1.4; }
+
+.mdbk-key-chip { display: inline-block; padding: 8px 12px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; font-family: ui-monospace, "SF Mono", Consolas, monospace; font-size: 13px; color: #334155; letter-spacing: 0.5px; }
 #mdbk-doc-slot-duration-group.mdbk-field-disabled { opacity: .45; pointer-events: none; }
 
 .mdbk-modal-compact form input[type="text"],

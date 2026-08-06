@@ -95,6 +95,7 @@ if ( ! class_exists( 'MDBK_Doctor_Appointment' ) ) {
             require_once MDBK_PATH . 'includes/admin-dashboard.php';
             require_once MDBK_PATH . 'includes/notifications.php';
             require_once MDBK_PATH . 'includes/seeder.php';
+            require_once MDBK_PATH . 'includes/licensing.php';
         }
 
         /**
@@ -287,6 +288,7 @@ if ( ! class_exists( 'MDBK_Doctor_Appointment' ) ) {
          */
         public static function deactivate() {
 
+            \MDBK\MDBK_Licensing::clear_scheduled_check();
             flush_rewrite_rules();
         }
 

@@ -970,6 +970,59 @@ class MDBK_Admin_Dashboard {
         <?php
     }
 
+    public function render_license_page() {
+        if (!current_user_can(MDBK_CAP_ADMIN)) {
+            wp_die(__('You do not have permission to access this page.', 'doctor-appointment'));
+        }
+
+        $license_key = MDBK_Licensing::get_key();
+        $license_status = MDBK_Licensing::get_status();
+        $license_expires = MDBK_Licensing::get_expires();
+        ?>
+        <div id="mdbk-admin-dashboard"><div class="mdbk-admin-wrapper"><?php $this->render_sidebar('license'); ?>
+            <div class="mdbk-main-content">
+                <div class="mdbk-header"><h1><?php _e('License', 'doctor-appointment'); ?></h1></div>
+
+                <div class="mdbk-card" style="padding:24px; max-width:520px;">
+                    <div id="mdbk-license-activated" style="<?php echo $license_key ? '' : 'display:none;'; ?>">
+                        <div class="mdbk-form-row">
+                            <label class="mdbk-form-label"><?php _e('License Key', 'doctor-appointment'); ?></label>
+                            <span class="mdbk-key-chip"><?php echo $license_key ? esc_html(substr($license_key, 0, 9) . '-••••-••••-' . substr($license_key, -8, 4)) : ''; ?></span>
+                        </div>
+                        <div class="mdbk-form-row" style="display:flex; align-items:center; gap:10px;">
+                            <?php
+                            $badge_class = 'mdbk-badge-gray';
+                            if ('active' === $license_status) {
+                                $badge_class = 'mdbk-badge-green';
+                            } elseif (in_array($license_status, ['expired', 'revoked', 'invalid', 'limit_reached'], true)) {
+                                $badge_class = 'mdbk-badge-red';
+                            }
+                            ?>
+                            <span class="mdbk-badge <?php echo esc_attr($badge_class); ?>"><?php echo esc_html(ucfirst($license_status)); ?></span>
+                            <?php if ($license_expires) : ?>
+                                <span class="mdbk-form-hint" style="margin:0;"><?php echo esc_html(sprintf(__('Expires %s', 'doctor-appointment'), $license_expires)); ?></span>
+                            <?php endif; ?>
+                        </div>
+                        <div style="display:flex; gap:10px; margin-top:16px;">
+                            <button type="button" class="mdbk-btn-outline mdbk-btn-sm" id="mdbk-license-refresh"><?php _e('Refresh Status', 'doctor-appointment'); ?></button>
+                            <button type="button" class="mdbk-btn-outline mdbk-btn-sm" id="mdbk-license-deactivate"><?php _e('Deactivate', 'doctor-appointment'); ?></button>
+                        </div>
+                    </div>
+
+                    <div id="mdbk-license-inactive" style="<?php echo $license_key ? 'display:none;' : ''; ?>">
+                        <div class="mdbk-form-row">
+                            <label class="mdbk-form-label" for="mdbk-license-key-input"><?php _e('License Key', 'doctor-appointment'); ?></label>
+                            <input type="text" id="mdbk-license-key-input" class="mdbk-input" placeholder="<?php esc_attr_e('e.g. A1B2C3D4-E5F6A7B8-C9D0E1F2-A3B4C5D6', 'doctor-appointment'); ?>">
+                        </div>
+                        <button type="button" class="mdbk-btn-save" id="mdbk-license-activate"><?php _e('Activate', 'doctor-appointment'); ?></button>
+                    </div>
+
+                    <p id="mdbk-license-message" style="margin-top:12px; font-size:13px;"></p>
+                </div>
+            </div></div></div>
+        <?php
+    }
+
     /**
      * A doctor-with-stethoscope glyph for the native "MedBook" menu item,
      * in place of the generic dashicons-plus-alt it used before. Filled at
@@ -1043,7 +1096,7 @@ class MDBK_Admin_Dashboard {
         // staff manages the patient registry too, not just admin.
         add_submenu_page('mdbk-home', 'Patients', 'Patients', MDBK_CAP_QUEUE, 'mdbk-patients', [$this, 'render_patients_page']);
 
-        $hidden_pages = ['mdbk-doctors' => 'render_doctors_page', 'mdbk-staff' => 'render_staff_page', 'mdbk-specialties' => 'render_specialties_page', 'mdbk-global-settings' => 'render_global_settings_page'];
+        $hidden_pages = ['mdbk-doctors' => 'render_doctors_page', 'mdbk-staff' => 'render_staff_page', 'mdbk-specialties' => 'render_specialties_page', 'mdbk-global-settings' => 'render_global_settings_page', 'mdbk-license' => 'render_license_page'];
         foreach($hidden_pages as $slug => $cb) add_submenu_page('mdbk-home', $slug, $slug, MDBK_CAP_ADMIN, $slug, [$this, $cb]);
 
         // "Chamber QR" — a one-time "print this and hang it in the
@@ -3085,6 +3138,7 @@ class MDBK_Admin_Dashboard {
             <?php if (current_user_can(MDBK_CAP_ADMIN)) : ?>
             <li class="mdbk-menu-item <?php echo $active_page == 'specialties' ? 'active' : ''; ?>" onclick="window.location.href='<?php echo esc_url(admin_url('admin.php?page=mdbk-specialties')); ?>'"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41L13.42 20.58a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path><line x1="7" y1="7" x2="7.01" y2="7"></line></svg><?php _e('Specialties', 'doctor-appointment'); ?></li>
             <li class="mdbk-menu-item <?php echo $active_page == 'global-settings' ? 'active' : ''; ?>" onclick="window.location.href='<?php echo esc_url(admin_url('admin.php?page=mdbk-global-settings')); ?>'"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg><?php _e('Global Settings', 'doctor-appointment'); ?></li>
+            <li class="mdbk-menu-item <?php echo $active_page == 'license' ? 'active' : ''; ?>" onclick="window.location.href='<?php echo esc_url(admin_url('admin.php?page=mdbk-license')); ?>'"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="7.5" cy="15.5" r="5.5"></circle><path d="M21 2l-9.6 9.6"></path><path d="M15.5 7.5L18 10"></path><path d="M18.5 4.5L21 7"></path></svg><?php _e('License', 'doctor-appointment'); ?></li>
             <?php endif; ?>
         </ul><div class="mdbk-sidebar-footer"><div class="mdbk-user-avatar"></div><div class="mdbk-user-info"><div style="font-weight: 700; font-size: 13px;"><?php echo esc_html(wp_get_current_user()->display_name); ?></div><div style="font-size: 11px; opacity: 0.6;"><?php _e('Medical Center', 'doctor-appointment'); ?></div></div></div>
         <?php
