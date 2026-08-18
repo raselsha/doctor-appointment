@@ -690,6 +690,12 @@ class MDBK_Shortcode {
                 ['key' => '_mdbk_specialty_active', 'value' => 'no', 'compare' => '!='],
             ],
         ]);
+        // get_terms() with hide_empty (and more so combined with the meta
+        // orderby above) doesn't guarantee a 0-indexed return array — the
+        // surviving terms can keep non-sequential keys, so $specialties[0]
+        // below silently returns null whenever index 0 got filtered out.
+        // Reindex so index 0 is reliable.
+        $specialties = array_values($specialties);
         $first_spec_name = !empty($specialties) ? $specialties[0]->name : '';
         ?>
         <div class="mdbk-booking-confirmation" id="mdbk-booking-confirmation" style="display:none">

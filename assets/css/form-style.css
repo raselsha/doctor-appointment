@@ -663,6 +663,15 @@ button.mdbk-cal-nav-btn:hover {
     background: #eef2f6;
 }
 
+/* Same light-blue pill the admin's Monthly Availability calendar uses to
+   flag relevant dates at a glance — here it marks every actually bookable
+   date, so patients see open days immediately instead of every date
+   looking identical until clicked. .today/.selected still layer their own
+   text color/dot or solid fill on top of this background. */
+.mdbk-cal-day:not(.past):not(.unavailable):not(.empty):not(.selected) {
+    background: #dbeafe;
+}
+
 .mdbk-cal-day.today {
     font-weight: 700;
     color: var(--mdbk-primary);

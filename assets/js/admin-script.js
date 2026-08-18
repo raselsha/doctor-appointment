@@ -571,16 +571,18 @@ document.addEventListener('DOMContentLoaded', function() {
         render();
 
         return {
+            // Always opens on today's month, whether or not this doctor
+            // already has extra/off dates saved — jumping to the first
+            // existing date's month instead (the old behavior) meant a
+            // doctor whose only saved date was months back opened the
+            // editor on an all-past month with nothing left to click,
+            // hiding the actual current month the admin almost always
+            // wants (to add a new date). Existing dates still show up via
+            // the .selected class the moment their own month is viewed.
             setSelected: function(dates) {
                 selected = Array.isArray(dates) ? dates.slice() : [];
-                if (selected.length) {
-                    const parts = selected[0].split('-').map(Number);
-                    viewYear = parts[0];
-                    viewMonth = parts[1] - 1;
-                } else {
-                    viewYear = today.getFullYear();
-                    viewMonth = today.getMonth();
-                }
+                viewYear = today.getFullYear();
+                viewMonth = today.getMonth();
                 sync();
                 render();
             },

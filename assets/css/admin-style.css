@@ -325,10 +325,12 @@
 }
 
 .mdbk-badge {
+    display: inline-block;
     padding: 6px 12px;
     border-radius: 20px;
     font-size: 12px;
     font-weight: 600;
+    white-space: nowrap;
 }
 
 .mdbk-badge-blue { background: #e0e7ff; color: #4338ca; }
@@ -638,6 +640,13 @@ button.mdbk-mini-cal-nav-btn:hover { background: #f1f5f9; }
    THESE days). Loses to .selected, which always means the actual override
    in effect for that date. */
 .mdbk-mini-cal-day.regular { background: #dbeafe; color: #1d4ed8; font-weight: 600; }
+/* .regular's own rule above has the same specificity as .past's (each is
+   exactly one class on .mdbk-mini-cal-day), so on a date that is both —
+   a past month's regular weekday — .regular's later color/background was
+   winning and made an unclickable date look identical to a live, pickable
+   one; only the cursor still (correctly) showed not-allowed. This wins
+   over both by matching two classes instead of one. */
+.mdbk-mini-cal-day.past.regular { background: transparent; color: #d1d9e3; font-weight: 500; }
 #mdbk-doc-extra-cal .mdbk-mini-cal-day.selected { background: #16a34a; color: #fff; font-weight: 700; }
 #mdbk-doc-off-cal .mdbk-mini-cal-day.selected { background: #dc2626; color: #fff; font-weight: 700; }
 @media (max-width: 640px) { .mdbk-monthly-availability { grid-template-columns: 1fr; } }
