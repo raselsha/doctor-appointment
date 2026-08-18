@@ -6,6 +6,7 @@ defined('ABSPATH') || exit;
 class MDBK_Admin_Dashboard {
 
     public function __construct() {
+        add_action('admin_init', [$this, 'enforce_panel_only_access']);
         add_action('admin_menu', [$this, 'register_admin_menu']);
         add_action('admin_init', [$this, 'handle_doctor_save']);
         add_action('admin_init', [$this, 'handle_appointment_save']);
@@ -1139,6 +1140,53 @@ class MDBK_Admin_Dashboard {
         // needing a role-name special-case: a real administrator is the
         // only account excluded here.
         return (current_user_can(MDBK_CAP_DOCTOR) || current_user_can(MDBK_CAP_QUEUE)) && !current_user_can('manage_options');
+    }
+
+    /**
+     * Bounces a restricted panel user off every wp-admin screen this plugin
+     * doesn't own — direct-URL (or default post-login) access to a native
+     * screen (Dashboard, Media, Users, Plugins, Themes, Settings, Tools,
+     * profile.php, another plugin's own admin.php page, etc.) redirects
+     * back into the panel instead of rendering WordPress's native UI.
+     *
+     * This is the missing half of admin_body_class()'s CSS-based chrome
+     * hiding: admin-style.css (where every mdbk-doctor-chrome rule lives)
+     * is only ever enqueued when the current admin page's hook contains
+     * "mdbk" (see admin_enqueue_scripts() in the main plugin file) — so on
+     * any screen that ISN'T one of this plugin's own, the mdbk-doctor-chrome
+     * body class still gets added, but there's no stylesheet loaded to act
+     * on it, and the full native sidebar/toolbar shows through untouched.
+     * Redirecting away from those screens entirely, rather than trying to
+     * load this plugin's CSS on every wp-admin screen, is the fix.
+     *
+     * admin-ajax.php/admin-post.php/async-upload.php stay open since this
+     * plugin's own AJAX handlers, doctor-save form, and password-change
+     * form all run through them and render no visible chrome anyway.
+     */
+    public function enforce_panel_only_access() {
+        if (!$this->is_restricted_panel_user()) {
+            return;
+        }
+
+        global $pagenow;
+
+        if (in_array($pagenow, ['admin-ajax.php', 'admin-post.php', 'async-upload.php'], true)) {
+            return;
+        }
+
+        $page = isset($_GET['page']) ? sanitize_key(wp_unslash($_GET['page'])) : '';
+        if ('admin.php' === $pagenow && strpos($page, 'mdbk-') === 0) {
+            return;
+        }
+
+        // 'mdbk-home' itself is registered on MDBK_CAP_DOCTOR (see
+        // register_admin_menu()), which a Manager doesn't have — sending
+        // everyone there regardless of role would 403 a Manager account
+        // right back out. Same per-role destination doctor_login_redirect()
+        // already uses.
+        $target = current_user_can(MDBK_CAP_ADMIN) ? 'mdbk-dashboard' : 'mdbk-schedule';
+        wp_safe_redirect(admin_url('admin.php?page=' . $target));
+        exit;
     }
 
     /**
