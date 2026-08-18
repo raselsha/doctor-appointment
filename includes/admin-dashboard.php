@@ -31,6 +31,7 @@ class MDBK_Admin_Dashboard {
         add_filter('login_redirect', [$this, 'doctor_login_redirect'], 10, 3);
         add_filter('edit_profile_url', [$this, 'redirect_profile_url'], 10, 3);
         add_filter('admin_body_class', [$this, 'admin_body_class']);
+        add_filter('show_admin_bar', [$this, 'hide_front_end_admin_bar']);
         add_action('admin_bar_menu', [$this, 'remove_wp_logo_from_admin_bar'], 999);
         add_filter('ajax_query_attachments_args', [$this, 'restrict_media_to_own_uploads']);
         add_action('pre_get_posts', [$this, 'restrict_media_library_query']);
@@ -1153,6 +1154,22 @@ class MDBK_Admin_Dashboard {
             $classes .= ' mdbk-doctor-chrome';
         }
         return $classes;
+    }
+
+    /**
+     * The wp-admin sidebar/toolbar hiding above (admin_body_class(), CSS)
+     * only ever touches wp-admin's own body tag — WordPress shows its
+     * front-end admin bar (the same black toolbar, on the public site) to
+     * any logged-in user independently of that, and nothing was disabling
+     * it here. A doctor/front-desk/manager account has no reason to see
+     * WP's own toolbar while browsing the public booking site; only a real
+     * administrator (manage_options) still gets it there.
+     */
+    public function hide_front_end_admin_bar($show) {
+        if ($this->is_restricted_panel_user()) {
+            return false;
+        }
+        return $show;
     }
 
     /**
