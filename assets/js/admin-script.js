@@ -919,6 +919,52 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    // Read-only "View Patient" popup (contact details + full visit
+    // history) — content is fetched fresh on every open via
+    // ajax_view_patient(), not a form, so this doesn't go through
+    // initModal()'s add/edit/reset handling above; same
+    // fetch-then-swap-innerHTML shape the public booking form's own
+    // "Today's Patients" popup already uses.
+    (function() {
+        var viewModal = document.getElementById('mdbk-patient-view-modal');
+        var viewTitle = document.getElementById('mdbk-patient-view-modal-title');
+        var viewBody = document.getElementById('mdbk-patient-view-modal-body');
+        if (!viewModal || !viewBody || typeof mdbk_admin_obj === 'undefined') return;
+
+        function closeViewModal() { viewModal.style.display = 'none'; }
+        var viewCloseBtn = viewModal.querySelector('.mdbk-modal-close');
+        if (viewCloseBtn) viewCloseBtn.addEventListener('click', closeViewModal);
+        window.addEventListener('click', function(e) { if (e.target === viewModal) closeViewModal(); });
+
+        document.addEventListener('click', function(e) {
+            var trigger = e.target.closest('.mdbk-view-patient');
+            if (!trigger) return;
+            e.preventDefault();
+
+            if (viewTitle) viewTitle.textContent = 'Visit History';
+            viewBody.innerHTML = '<p style="text-align:center; opacity:.6; padding:30px 0;">Loading...</p>';
+            viewModal.style.display = 'flex';
+
+            var body = new URLSearchParams();
+            body.set('action', 'mdbk_view_patient');
+            body.set('nonce', mdbk_admin_obj.nonce);
+            body.set('patient_id', trigger.dataset.id);
+            fetch(mdbk_admin_obj.ajax_url, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body.toString() })
+                .then(function(r) { return r.json(); })
+                .then(function(res) {
+                    if (!res || !res.success) {
+                        viewBody.innerHTML = '<p style="text-align:center; opacity:.6; padding:30px 0;">Could not load this patient.</p>';
+                        return;
+                    }
+                    if (viewTitle) viewTitle.textContent = res.data.title;
+                    viewBody.innerHTML = res.data.body_html;
+                })
+                .catch(function() {
+                    viewBody.innerHTML = '<p style="text-align:center; opacity:.6; padding:30px 0;">Something went wrong.</p>';
+                });
+        });
+    })();
+
     // Staff (front-desk) accounts — a WP user, not a post, but the same
     // Add/Edit modal pattern as Patient/Doctor above.
     initModal('mdbk-staff-modal', '.mdbk-add-staff, .mdbk-edit-staff', 'mdbk-staff-form', 'mdbk-edit-staff', (id, btn) => {

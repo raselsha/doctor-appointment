@@ -23,6 +23,7 @@ class MDBK_Admin_Dashboard {
         add_action('wp_ajax_mdbk_save_doctor_order', [$this, 'ajax_save_doctor_order']);
         add_action('wp_ajax_mdbk_save_specialty_order', [$this, 'ajax_save_specialty_order']);
         add_action('wp_ajax_mdbk_search_patients', [$this, 'ajax_search_patients']);
+        add_action('wp_ajax_mdbk_view_patient', [$this, 'ajax_view_patient']);
         add_action('wp_ajax_mdbk_search_schedule', [$this, 'ajax_search_schedule']);
         add_action('wp_ajax_mdbk_search_patient_phone', [$this, 'ajax_search_patient_phone']);
         add_action('wp_ajax_mdbk_mark_visited', [$this, 'ajax_mark_visited']);
@@ -2897,6 +2898,7 @@ class MDBK_Admin_Dashboard {
             <span class="mdbk-patient-row-chip-slot"><?php if ($age_gender): ?><span class="mdbk-patient-row-chip mdbk-meta-pill mdbk-gender-<?php echo esc_attr($gender_key); ?>"><?php echo esc_html($age_gender); ?></span><?php endif; ?></span>
             <span class="mdbk-badge mdbk-badge-green" title="<?php esc_attr_e('Total visits', 'doctor-appointment'); ?>"><?php echo esc_html($visit_count); ?></span>
             <div class="mdbk-actions">
+                <a href="#" class="mdbk-action-btn mdbk-view-patient" data-id="<?php echo esc_attr($p->ID); ?>" title="<?php esc_attr_e('View patient', 'doctor-appointment'); ?>"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg></a>
                 <a href="#" class="mdbk-action-btn mdbk-edit-patient" data-id="<?php echo esc_attr($p->ID); ?>"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"></path><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"></path></svg></a>
                 <a href="<?php echo esc_url(wp_nonce_url(admin_url('admin.php?page=mdbk-patients&action=mdbk_delete_patient&id='.$p->ID), 'mdbk_delete_action')); ?>" class="mdbk-action-btn mdbk-action-btn-red" onclick="return confirm('<?php esc_attr_e('Delete?', 'doctor-appointment'); ?>')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path></svg></a>
             </div>
@@ -3022,7 +3024,7 @@ class MDBK_Admin_Dashboard {
                 </div>
 
                 <div id="mdbk-patients-results"><?php echo $this->render_patients_results_html($patients, $has_active_filters); ?></div>
-            </div></div><?php $this->render_patient_modal_html(); ?></div>
+            </div></div><?php $this->render_patient_modal_html(); $this->render_patient_view_modal_html(); ?></div>
         <?php
     }
 
@@ -3384,6 +3386,111 @@ class MDBK_Admin_Dashboard {
     private function render_doctor_view_modal_html() { ?>
         <div id="mdbk-doctor-view-modal" class="mdbk-modal"><div class="mdbk-modal-content" style="max-width:560px;"><span class="mdbk-modal-close">&times;</span><h2><?php _e('Doctor Details', 'doctor-appointment'); ?></h2><div id="mdbk-doctor-view-body"></div></div></div>
     <?php }
+
+    /**
+     * Read-only "View Patient" popup — contact details plus every visit
+     * (any doctor, any date) this patient has on record. Content is loaded
+     * on demand via ajax_view_patient() (see the .mdbk-view-patient click
+     * handler in admin-script.js), same AJAX-into-a-static-modal shape the
+     * public booking form's own "Today's Patients" popup already uses —
+     * a patient can rack up dozens of visits over time, so rendering every
+     * patient's full history inline up front (the way the Doctors page's
+     * "All Patients Today" popups render one per doctor, a small fixed
+     * set) isn't a fair comparison here.
+     */
+    private function render_patient_view_modal_html() { ?>
+        <div id="mdbk-patient-view-modal" class="mdbk-modal mdbk-modal-compact mdbk-doctor-popup">
+            <div class="mdbk-modal-content">
+                <div class="mdbk-modal-head">
+                    <h2 id="mdbk-patient-view-modal-title"><?php _e('Visit History', 'doctor-appointment'); ?></h2>
+                    <span class="mdbk-modal-close">&times;</span>
+                </div>
+                <div class="mdbk-modal-body" id="mdbk-patient-view-modal-body"></div>
+            </div>
+        </div>
+    <?php }
+
+    /**
+     * AJAX body for the modal above: patient contact details, then every
+     * visit ordered most-recent-first. MDBK_CAP_QUEUE (not manage_options)
+     * matches every other patient-directory action, front-desk staff
+     * included.
+     */
+    public function ajax_view_patient() {
+        check_ajax_referer('mdbk_admin_nonce', 'nonce');
+        if (!current_user_can(MDBK_CAP_QUEUE)) wp_send_json_error(['message' => __('Unauthorized.', 'doctor-appointment')]);
+
+        $patient_id = isset($_POST['patient_id']) ? intval($_POST['patient_id']) : 0;
+        $patient = $patient_id ? get_post($patient_id) : null;
+        if (!$patient || $patient->post_type !== 'mdbk_patient') {
+            wp_send_json_error(['message' => __('Patient not found.', 'doctor-appointment')]);
+        }
+
+        $phone = get_post_meta($patient_id, '_mdbk_patient_phone', true);
+        $email = get_post_meta($patient_id, '_mdbk_patient_email', true);
+        $address = get_post_meta($patient_id, '_mdbk_patient_address', true);
+        $age = get_post_meta($patient_id, '_mdbk_patient_age', true);
+        $gender = get_post_meta($patient_id, '_mdbk_patient_gender', true);
+        $age_gender = trim($gender . ($age && $gender ? ' · ' : '') . $age);
+
+        $apps = get_posts([
+            'post_type'   => 'mdbk_appointment',
+            'numberposts' => -1,
+            'post_status' => \MDBK\MDBK_CPT::APPOINTMENT_STATUSES,
+            'meta_query'  => [['key' => '_mdbk_patient_id', 'value' => $patient_id]],
+            'meta_key'    => '_mdbk_appointment_date',
+            'orderby'     => 'meta_value',
+            'order'       => 'DESC',
+        ]);
+
+        ob_start();
+        ?>
+        <div class="mdbk-view-col" style="margin-bottom:20px;">
+            <div class="mdbk-view-field"><label><?php _e('Phone', 'doctor-appointment'); ?></label><span><?php echo esc_html($phone ?: '—'); ?></span></div>
+            <div class="mdbk-view-field"><label><?php _e('Email', 'doctor-appointment'); ?></label><span><?php echo esc_html($email ?: '—'); ?></span></div>
+            <div class="mdbk-view-field"><label><?php _e('Address', 'doctor-appointment'); ?></label><span><?php echo esc_html($address ?: '—'); ?></span></div>
+            <div class="mdbk-view-field"><label><?php _e('Age / Gender', 'doctor-appointment'); ?></label><span><?php echo esc_html($age_gender ?: '—'); ?></span></div>
+            <div class="mdbk-view-field"><label><?php _e('Total Visits', 'doctor-appointment'); ?></label><span><?php echo esc_html(count($apps)); ?></span></div>
+        </div>
+        <h4 style="margin:0 0 10px;"><?php _e('Visit History', 'doctor-appointment'); ?></h4>
+        <?php $this->render_patient_visit_history_table($apps); ?>
+        <?php
+        $body_html = ob_get_clean();
+
+        wp_send_json_success([
+            'title'     => sprintf(__('%s — Visit History', 'doctor-appointment'), $patient->post_title),
+            'body_html' => $body_html,
+        ]);
+    }
+
+    /**
+     * One patient's own visits across every doctor/date, most recent
+     * first — same column shape as render_today_queue_table() (Queue view,
+     * one date/many patients) just transposed for "one patient, many
+     * dates," so it stays a Date/Doctor/Time/Status log rather than a
+     * Queue-number list that wouldn't mean anything outside a single day.
+     */
+    private function render_patient_visit_history_table($apps) {
+        if (empty($apps)) {
+            echo '<p style="text-align:center; opacity:0.6; padding:30px 0;">' . esc_html__('No visits yet.', 'doctor-appointment') . '</p>';
+            return;
+        }
+        ?>
+        <table class="mdbk-table">
+            <thead><tr><th><?php _e('Date', 'doctor-appointment'); ?></th><th><?php _e('Doctor', 'doctor-appointment'); ?></th><th><?php _e('Time', 'doctor-appointment'); ?></th><th><?php _e('Status', 'doctor-appointment'); ?></th></tr></thead>
+            <tbody>
+            <?php foreach ($apps as $a): $v_doc_id = get_post_meta($a->ID, '_mdbk_doctor_id', true); $v_date = get_post_meta($a->ID, '_mdbk_appointment_date', true); $v_slot = get_post_meta($a->ID, '_mdbk_slot_time', true); $v_status = \MDBK\MDBK_Appointment_Manager::get_display_status_slug($a->ID); $v_badge_class = in_array($v_status, ['upcoming', 'not-checked-in'], true) ? $v_status : 'status-' . $v_status; ?>
+                <tr>
+                    <td><?php echo $v_date ? esc_html(date_i18n(get_option('date_format'), strtotime($v_date))) : '—'; ?></td>
+                    <td><?php echo $v_doc_id ? esc_html(get_the_title($v_doc_id)) : esc_html__('N/A', 'doctor-appointment'); ?></td>
+                    <td><?php echo esc_html($v_slot ?: '—'); ?></td>
+                    <td><span class="mdbk-badge mdbk-badge-<?php echo esc_attr($v_badge_class); ?>"><?php echo esc_html(\MDBK\MDBK_Appointment_Manager::status_display_label($v_status)); ?></span></td>
+                </tr>
+            <?php endforeach; ?>
+            </tbody>
+        </table>
+        <?php
+    }
 
     private function render_patient_modal_html() { ?>
         <div id="mdbk-patient-modal" class="mdbk-modal mdbk-modal-compact"><div class="mdbk-modal-content">
