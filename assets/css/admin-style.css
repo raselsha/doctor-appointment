@@ -1605,12 +1605,22 @@ body.mdbk-doctor-chrome {
    above then trapping it there since scrolling back to fix it was no
    longer possible. position:fixed removes the wrapper from html/body's
    flow entirely, pinning it to the actual viewport regardless of any
-   scroll offset either of them is carrying — nothing left to get stuck. */
+   scroll offset either of them is carrying — nothing left to get stuck.
+   top/left/right/bottom insets reproduce the SAME floating-card margins
+   #mdbk-admin-dashboard's own `margin: 20px 20px 0 0` gave it in normal
+   flow (measured before this rule existed: 20/20/~20/~20, the ~35px
+   right gap in that measurement was the page's own now-removed
+   scrollbar eating into it, not the actual intended margin) — this is
+   meant to look identical to the plain, non-chrome-hidden card, just
+   pinned instead of flowed. border-radius/box-shadow are intentionally
+   NOT reset here, unlike an earlier version of this rule — this was
+   never meant to read as an edge-to-edge full-screen app shell. */
 body.mdbk-doctor-chrome .mdbk-admin-wrapper {
     position: fixed;
-    inset: 0;
+    top: 20px;
+    left: 20px;
+    right: 20px;
+    bottom: 20px;
     height: auto;
-    border-radius: 0;
-    box-shadow: none;
 }
 
