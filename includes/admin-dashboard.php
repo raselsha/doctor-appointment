@@ -24,6 +24,8 @@ class MDBK_Admin_Dashboard {
         add_action('wp_ajax_mdbk_save_specialty_order', [$this, 'ajax_save_specialty_order']);
         add_action('wp_ajax_mdbk_search_patients', [$this, 'ajax_search_patients']);
         add_action('wp_ajax_mdbk_view_patient', [$this, 'ajax_view_patient']);
+        add_action('wp_ajax_mdbk_get_invoice', [$this, 'ajax_get_invoice']);
+        add_action('wp_ajax_mdbk_save_invoice', [$this, 'ajax_save_invoice']);
         add_action('wp_ajax_mdbk_search_schedule', [$this, 'ajax_search_schedule']);
         add_action('wp_ajax_mdbk_search_patient_phone', [$this, 'ajax_search_patient_phone']);
         add_action('wp_ajax_mdbk_mark_visited', [$this, 'ajax_mark_visited']);
@@ -510,6 +512,7 @@ class MDBK_Admin_Dashboard {
             update_post_meta($id, '_mdbk_show_email', isset($_POST['show_email']) ? 'yes' : 'no');
             if (!empty($_POST['slot_duration'])) update_post_meta($id, '_mdbk_slot_duration', intval($_POST['slot_duration']));
             update_post_meta($id, '_mdbk_slot_enabled', isset($_POST['slot_enabled']) ? 'yes' : 'no');
+            update_post_meta($id, '_mdbk_doc_fee', isset($_POST['doc_fee']) && is_numeric($_POST['doc_fee']) ? sanitize_text_field($_POST['doc_fee']) : '');
             if (isset($_POST['schedule'])) update_post_meta($id, '_mdbk_schedule', $_POST['schedule']);
             update_post_meta($id, '_mdbk_extra_dates', self::sanitize_date_list($_POST['extra_dates_json'] ?? ''));
             update_post_meta($id, '_mdbk_off_dates', self::sanitize_date_list($_POST['off_dates_json'] ?? ''));
@@ -1485,6 +1488,7 @@ class MDBK_Admin_Dashboard {
         $slot_enabled = get_post_meta($d->ID, '_mdbk_slot_enabled', true);
         $extra_dates = get_post_meta($d->ID, '_mdbk_extra_dates', true);
         $off_dates = get_post_meta($d->ID, '_mdbk_off_dates', true);
+        $fee = get_post_meta($d->ID, '_mdbk_doc_fee', true);
         // Doctors default to active — the meta only ever gets written (to 'no')
         // the first time someone flips the card's toggle off.
         $active = get_post_meta($d->ID, '_mdbk_doctor_active', true) !== 'no';
@@ -1493,7 +1497,7 @@ class MDBK_Admin_Dashboard {
         $colors = self::specialty_colors($spec_id);
         ob_start();
         ?>
-        <div class="mdbk-admin-doctor-card<?php echo $active ? '' : ' is-inactive'; ?>" data-id="<?php echo esc_attr($d->ID); ?>" data-name="<?php echo esc_attr($d->post_title); ?>" data-email="<?php echo esc_attr($email); ?>" data-phone="<?php echo esc_attr($phone); ?>" data-bio="<?php echo esc_attr($bio); ?>" data-show-phone="<?php echo esc_attr($show_phone ? $show_phone : 'yes'); ?>" data-show-email="<?php echo esc_attr($show_email ? $show_email : 'yes'); ?>" data-schedule='<?php echo esc_attr(json_encode($schedule)); ?>' data-slot-duration="<?php echo esc_attr($slot_duration ? $slot_duration : 20); ?>" data-slot-enabled="<?php echo esc_attr($slot_enabled === 'no' ? 'no' : 'yes'); ?>" data-extra-dates='<?php echo esc_attr(json_encode(is_array($extra_dates) ? $extra_dates : [])); ?>' data-off-dates='<?php echo esc_attr(json_encode(is_array($off_dates) ? $off_dates : [])); ?>' data-specialty="<?php echo esc_attr($spec_id); ?>" data-thumbnail="<?php echo esc_url($thumb ?: ''); ?>" data-thumbnail-id="<?php echo esc_attr($thumb_id ?: 0); ?>">
+        <div class="mdbk-admin-doctor-card<?php echo $active ? '' : ' is-inactive'; ?>" data-id="<?php echo esc_attr($d->ID); ?>" data-name="<?php echo esc_attr($d->post_title); ?>" data-email="<?php echo esc_attr($email); ?>" data-phone="<?php echo esc_attr($phone); ?>" data-bio="<?php echo esc_attr($bio); ?>" data-show-phone="<?php echo esc_attr($show_phone ? $show_phone : 'yes'); ?>" data-show-email="<?php echo esc_attr($show_email ? $show_email : 'yes'); ?>" data-schedule='<?php echo esc_attr(json_encode($schedule)); ?>' data-slot-duration="<?php echo esc_attr($slot_duration ? $slot_duration : 20); ?>" data-slot-enabled="<?php echo esc_attr($slot_enabled === 'no' ? 'no' : 'yes'); ?>" data-extra-dates='<?php echo esc_attr(json_encode(is_array($extra_dates) ? $extra_dates : [])); ?>' data-off-dates='<?php echo esc_attr(json_encode(is_array($off_dates) ? $off_dates : [])); ?>' data-specialty="<?php echo esc_attr($spec_id); ?>" data-thumbnail="<?php echo esc_url($thumb ?: ''); ?>" data-thumbnail-id="<?php echo esc_attr($thumb_id ?: 0); ?>" data-fee="<?php echo esc_attr($fee ?: ''); ?>">
             <div class="mdbk-admin-doctor-card-avatar">
                 <?php if ($thumb): ?>
                     <img src="<?php echo esc_url($thumb); ?>" alt="">
@@ -1675,6 +1679,9 @@ class MDBK_Admin_Dashboard {
                 <span class="mdbk-badge mdbk-badge-status-<?php echo esc_attr($status); ?>"><?php echo esc_html(\MDBK\MDBK_Appointment_Manager::status_display_label($status)); ?></span>
             <?php endif; ?>
             <div class="mdbk-actions">
+                <?php if (current_user_can(MDBK_CAP_QUEUE)) : ?>
+                <a href="#" class="mdbk-action-btn mdbk-open-invoice" data-id="<?php echo esc_attr($a->ID); ?>" title="<?php esc_attr_e('Invoice', 'doctor-appointment'); ?>"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="9" y1="13" x2="15" y2="13"></line><line x1="9" y1="17" x2="15" y2="17"></line></svg></a>
+                <?php endif; ?>
                 <a href="#" class="mdbk-action-btn mdbk-edit-appointment" data-id="<?php echo esc_attr($a->ID); ?>"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"></path><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"></path></svg></a>
                 <?php if (current_user_can(MDBK_CAP_ADMIN)) : ?>
                 <a href="<?php echo esc_url(wp_nonce_url(admin_url('admin.php?page=mdbk-schedule&action=mdbk_delete_appointment&id='.$a->ID), 'mdbk_delete_action')); ?>" class="mdbk-action-btn mdbk-action-btn-red" onclick="return confirm('<?php esc_attr_e('Delete?', 'doctor-appointment'); ?>')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path></svg></a>
@@ -1890,7 +1897,7 @@ class MDBK_Admin_Dashboard {
                 </div>
                 <div id="mdbk-schedule-results"><?php echo $this->render_schedule_results_html($filter_date, $filter_doctor, $filter_status, $search, $apps, $is_today_view); ?></div>
                 <?php endif; ?>
-            </div></div><?php $this->render_appointment_modal_html(); $this->render_patient_view_modal_html(); ?></div>
+            </div></div><?php $this->render_appointment_modal_html(); $this->render_patient_view_modal_html(); $this->render_invoice_modal_html(); ?></div>
         <?php
     }
 
@@ -2292,6 +2299,7 @@ class MDBK_Admin_Dashboard {
                     if (!is_array($extra_dates)) $extra_dates = [];
                     $off_dates = get_post_meta($doctor_id, '_mdbk_off_dates', true);
                     if (!is_array($off_dates)) $off_dates = [];
+                    $fee = get_post_meta($doctor_id, '_mdbk_doc_fee', true);
                     $thumb = get_the_post_thumbnail_url($doctor_id, 'thumbnail');
                     $thumb_id = get_post_thumbnail_id($doctor_id);
                     $spec = get_the_terms($doctor_id, 'mdbk_department');
@@ -2316,6 +2324,7 @@ class MDBK_Admin_Dashboard {
                         data-schedule='<?php echo esc_attr(json_encode($schedule)); ?>'
                         data-slot-duration="<?php echo esc_attr($slot_duration); ?>"
                         data-slot-enabled="<?php echo esc_attr($slot_enabled === 'no' ? 'no' : 'yes'); ?>"
+                        data-fee="<?php echo esc_attr($fee ?: ''); ?>"
                         data-extra-dates='<?php echo esc_attr(json_encode($extra_dates)); ?>'
                         data-off-dates='<?php echo esc_attr(json_encode($off_dates)); ?>'
                         data-specialty="<?php echo esc_attr($spec_id); ?>"
@@ -3336,6 +3345,12 @@ class MDBK_Admin_Dashboard {
                 </div>
 
                 <div class="mdbk-form-row">
+                    <label class="mdbk-form-label" for="mdbk-doc-fee"><?php _e('Consultation Fee (৳)', 'doctor-appointment'); ?></label>
+                    <input type="number" name="doc_fee" id="mdbk-doc-fee" min="0" step="0.01" placeholder="<?php esc_attr_e('e.g. 800', 'doctor-appointment'); ?>">
+                    <p class="mdbk-form-hint"><?php _e('Used as the default amount on this doctor\'s invoices — can still be changed on any individual invoice.', 'doctor-appointment'); ?></p>
+                </div>
+
+                <div class="mdbk-form-row">
                     <label class="mdbk-form-label" for="mdbk-doc-bio"><?php _e('Bio / Description', 'doctor-appointment'); ?></label>
                     <textarea name="doc_bio" id="mdbk-doc-bio" rows="3" placeholder="<?php esc_attr_e('Specialty, experience, qualifications...', 'doctor-appointment'); ?>"></textarea>
                 </div>
@@ -3494,6 +3509,113 @@ class MDBK_Admin_Dashboard {
             </tbody>
         </table>
         <?php
+    }
+
+    /**
+     * Invoice popup — opened from the Booking page's per-appointment
+     * "Invoice" action (MDBK_CAP_QUEUE only, same as the View Patient
+     * trigger). The invoice number is just the appointment's own post ID
+     * (INV-000123) rather than a separate running counter — guaranteed
+     * unique with no extra state to keep in sync, same "P{id}"/"Q{ticket}"
+     * badge convention already used elsewhere on this page. Amount/status
+     * are only ever persisted when Save is clicked; Print always uses
+     * whatever is currently in the form, so a receptionist can print
+     * without saving first if they just want a quick record.
+     */
+    private function render_invoice_modal_html() { ?>
+        <div id="mdbk-invoice-modal" class="mdbk-modal mdbk-modal-compact">
+            <div class="mdbk-modal-content">
+                <div class="mdbk-modal-head">
+                    <h2><?php _e('Invoice', 'doctor-appointment'); ?></h2>
+                    <span class="mdbk-modal-close">&times;</span>
+                </div>
+                <div class="mdbk-modal-body">
+                    <div class="mdbk-patient-view-info" style="margin-bottom:16px; padding-bottom:16px;">
+                        <div class="mdbk-view-field"><label><?php _e('Invoice No.', 'doctor-appointment'); ?></label><span id="mdbk-invoice-number">—</span></div>
+                        <div class="mdbk-view-field"><label><?php _e('Date', 'doctor-appointment'); ?></label><span id="mdbk-invoice-date">—</span></div>
+                        <div class="mdbk-view-field"><label><?php _e('Patient', 'doctor-appointment'); ?></label><span id="mdbk-invoice-patient">—</span></div>
+                        <div class="mdbk-view-field"><label><?php _e('Doctor', 'doctor-appointment'); ?></label><span id="mdbk-invoice-doctor">—</span></div>
+                    </div>
+                    <div class="mdbk-form-row mdbk-form-row-duo">
+                        <div>
+                            <label class="mdbk-form-label" for="mdbk-invoice-amount"><?php _e('Consultation Fee (৳)', 'doctor-appointment'); ?></label>
+                            <input type="number" min="0" step="0.01" id="mdbk-invoice-amount">
+                        </div>
+                        <div>
+                            <label class="mdbk-form-label"><?php _e('Status', 'doctor-appointment'); ?></label>
+                            <div class="mdbk-invoice-status-toggle">
+                                <button type="button" class="mdbk-invoice-status-btn" data-status="unpaid"><?php _e('Unpaid', 'doctor-appointment'); ?></button>
+                                <button type="button" class="mdbk-invoice-status-btn" data-status="paid"><?php _e('Paid', 'doctor-appointment'); ?></button>
+                            </div>
+                        </div>
+                    </div>
+                    <p class="mdbk-invoice-save-msg" id="mdbk-invoice-save-msg" style="display:none;"></p>
+                </div>
+                <div class="mdbk-modal-foot">
+                    <button type="button" class="mdbk-btn-outline" id="mdbk-invoice-print"><?php _e('Print Invoice', 'doctor-appointment'); ?></button>
+                    <button type="button" class="mdbk-btn-add" id="mdbk-invoice-save"><?php _e('Save', 'doctor-appointment'); ?></button>
+                </div>
+            </div>
+        </div>
+    <?php }
+
+    /**
+     * AJAX: current invoice state for one appointment — the saved
+     * amount/status if this invoice has been saved before, otherwise the
+     * doctor's own default Consultation Fee and 'unpaid'. Never writes
+     * anything itself; ajax_save_invoice() is the only place that does.
+     */
+    public function ajax_get_invoice() {
+        check_ajax_referer('mdbk_admin_nonce', 'nonce');
+        if (!current_user_can(MDBK_CAP_QUEUE)) wp_send_json_error(['message' => __('Unauthorized.', 'doctor-appointment')]);
+
+        $appointment_id = isset($_POST['appointment_id']) ? intval($_POST['appointment_id']) : 0;
+        $appointment = $appointment_id ? get_post($appointment_id) : null;
+        if (!$appointment || $appointment->post_type !== 'mdbk_appointment') {
+            wp_send_json_error(['message' => __('Appointment not found.', 'doctor-appointment')]);
+        }
+
+        $doctor_id = intval(get_post_meta($appointment_id, '_mdbk_doctor_id', true));
+        $amount = get_post_meta($appointment_id, '_mdbk_invoice_amount', true);
+        if ($amount === '') {
+            $amount = $doctor_id ? get_post_meta($doctor_id, '_mdbk_doc_fee', true) : '';
+        }
+        $status = get_post_meta($appointment_id, '_mdbk_invoice_status', true) ?: 'unpaid';
+        $date = get_post_meta($appointment_id, '_mdbk_appointment_date', true);
+
+        wp_send_json_success([
+            'invoice_number' => 'INV-' . str_pad($appointment_id, 6, '0', STR_PAD_LEFT),
+            'amount'         => $amount,
+            'status'         => $status === 'paid' ? 'paid' : 'unpaid',
+            'patient_name'   => get_post_meta($appointment_id, '_mdbk_patient_name', true),
+            'doctor_name'    => $doctor_id ? get_the_title($doctor_id) : __('N/A', 'doctor-appointment'),
+            'date_display'   => $date ? date_i18n(get_option('date_format'), strtotime($date)) : '—',
+        ]);
+    }
+
+    /**
+     * AJAX: persists the amount/status a staff member set in the modal
+     * above. Doesn't touch the invoice NUMBER (see render_invoice_modal_html()'s
+     * comment — it's derived from the post ID, never stored).
+     */
+    public function ajax_save_invoice() {
+        check_ajax_referer('mdbk_admin_nonce', 'nonce');
+        if (!current_user_can(MDBK_CAP_QUEUE)) wp_send_json_error(['message' => __('Unauthorized.', 'doctor-appointment')]);
+
+        $appointment_id = isset($_POST['appointment_id']) ? intval($_POST['appointment_id']) : 0;
+        $appointment = $appointment_id ? get_post($appointment_id) : null;
+        if (!$appointment || $appointment->post_type !== 'mdbk_appointment') {
+            wp_send_json_error(['message' => __('Appointment not found.', 'doctor-appointment')]);
+        }
+
+        $amount = isset($_POST['amount']) ? sanitize_text_field($_POST['amount']) : '';
+        $amount = is_numeric($amount) ? $amount : '0';
+        $status = (isset($_POST['status']) && $_POST['status'] === 'paid') ? 'paid' : 'unpaid';
+
+        update_post_meta($appointment_id, '_mdbk_invoice_amount', $amount);
+        update_post_meta($appointment_id, '_mdbk_invoice_status', $status);
+
+        wp_send_json_success(['saved' => true]);
     }
 
     private function render_patient_modal_html() { ?>

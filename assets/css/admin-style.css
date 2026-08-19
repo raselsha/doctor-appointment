@@ -614,6 +614,16 @@
 }
 .mdbk-patient-view-info .mdbk-view-field-full { grid-column: 1 / -1; margin-bottom: 0; }
 
+/* Invoice popup's Paid/Unpaid toggle — two buttons, not a single on/off
+   switch, since "which one is currently selected" needs to stay legible
+   even before either has been actively chosen (a fresh, never-saved
+   invoice defaults to Unpaid, not an ambiguous middle state). */
+.mdbk-invoice-status-toggle { display: flex; gap: 8px; }
+.mdbk-invoice-status-btn { flex: 1; padding: 10px; border-radius: 8px; border: 1.5px solid #e2e8f0; background: #fff; font-size: 13px; font-weight: 600; color: #64748b; cursor: pointer; transition: background .15s ease, border-color .15s ease, color .15s ease; }
+.mdbk-invoice-status-btn.is-active[data-status="paid"] { background: #dcfce7; border-color: #16a34a; color: #16a34a; }
+.mdbk-invoice-status-btn.is-active[data-status="unpaid"] { background: #fee2e2; border-color: #dc2626; color: #dc2626; }
+.mdbk-invoice-save-msg { font-size: 12.5px; color: #16a34a; font-weight: 600; margin: 10px 0 0; }
+
 /* Weekly/Monthly Availability — always-expanded modern card sections
    (no collapse/expand interaction; both are short enough that hiding one
    behind a click just cost an extra step for no real space savings). */

@@ -33,6 +33,73 @@ document.addEventListener('DOMContentLoaded', function() {
         return hour12 + ':' + minute + ' ' + suffix;
     }
 
+    function mdbkAdminEscHtml(str) {
+        var div = document.createElement('div');
+        div.textContent = String(str || '');
+        return div.innerHTML;
+    }
+
+    /**
+     * Same standalone-print-window technique form-script.js's own
+     * mdbkPrintBookingCard()/mdbkBuildClinicHeaderHtml() use for the public
+     * booking confirmation — a fresh, empty document instead of
+     * window.print() on the live page (which kept the invoice modal's own
+     * centered-overlay vertical offset baked into the printout there too).
+     * mdbk_admin_obj already carries the same clinic_name/logo/contact/
+     * address fields as the frontend's mdbk_form_obj (see
+     * clinic_branding_data() in doctor-appointment.php), so the header
+     * looks identical either way.
+     */
+    function mdbkPrintInvoice(details) {
+        var obj = typeof mdbk_admin_obj !== 'undefined' ? mdbk_admin_obj : {};
+        var clinicHtml = '';
+        if (obj.clinic_logo) clinicHtml += '<img class="mdbk-print-logo" src="' + obj.clinic_logo + '" alt="">';
+        if (obj.clinic_name) clinicHtml += '<p class="mdbk-print-clinic-name">' + mdbkAdminEscHtml(obj.clinic_name) + '</p>';
+        if (obj.clinic_contact) clinicHtml += '<p class="mdbk-print-clinic-meta">' + mdbkAdminEscHtml(obj.clinic_contact) + '</p>';
+        if (obj.clinic_address) clinicHtml += '<p class="mdbk-print-clinic-meta">' + mdbkAdminEscHtml(obj.clinic_address) + '</p>';
+
+        var rows = [
+            ['Invoice No.', details.invoice_number],
+            ['Date', details.date],
+            ['Patient', details.patient_name],
+            ['Doctor', details.doctor_name]
+        ];
+        var rowsHtml = rows.map(function(r) {
+            return '<div class="mdbk-confirmation-row"><span>' + mdbkAdminEscHtml(r[0]) + '</span><strong>' + mdbkAdminEscHtml(r[1]) + '</strong></div>';
+        }).join('');
+        var statusLabel = details.status === 'paid' ? 'Paid' : 'Unpaid';
+        var statusColor = details.status === 'paid' ? '#16a34a' : '#dc2626';
+
+        var win = window.open('', '_blank', 'width=480,height=700');
+        if (!win) return;
+        win.document.write(
+            '<html><head><title>Invoice ' + mdbkAdminEscHtml(details.invoice_number) + '</title><style>' +
+            '@page{margin:20px;}' +
+            'body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;margin:0;padding:24px;color:#1e293b;text-align:center;}' +
+            '.mdbk-print-logo{max-width:64px;max-height:64px;margin:0 auto 8px;display:block;}' +
+            '.mdbk-print-clinic-name{margin:0 0 3px;font-size:15px;font-weight:700;}' +
+            '.mdbk-print-clinic-meta{margin:0 0 3px;font-size:11px;color:#64748b;}' +
+            'h2{margin:16px 0 4px;font-size:19px;font-weight:700;}' +
+            '.mdbk-invoice-amount{font-size:28px;font-weight:800;margin:0 0 4px;}' +
+            '.mdbk-invoice-status{display:inline-block;font-size:12px;font-weight:700;padding:3px 12px;border-radius:999px;margin-bottom:18px;color:#fff;background:' + statusColor + ';}' +
+            '.mdbk-confirmation-details{text-align:left;background:#f8fafc;border:1px solid #cbd5e1;border-radius:12px;padding:14px 16px;margin:0 auto;max-width:340px;}' +
+            '.mdbk-confirmation-row{display:flex;justify-content:space-between;padding:6px 0;font-size:14px;}' +
+            '.mdbk-confirmation-row + .mdbk-confirmation-row{border-top:1px solid #94a3b8;}' +
+            '.mdbk-confirmation-row span{color:#64748b;}' +
+            '.mdbk-confirmation-row strong{color:#1e293b;font-weight:600;text-align:right;}' +
+            '</style></head><body>' +
+            clinicHtml +
+            '<h2>Invoice</h2>' +
+            '<p class="mdbk-invoice-amount">৳' + mdbkAdminEscHtml(details.amount) + '</p>' +
+            '<span class="mdbk-invoice-status">' + statusLabel + '</span>' +
+            '<div class="mdbk-confirmation-details">' + rowsHtml + '</div>' +
+            '</body></html>'
+        );
+        win.document.close();
+        win.focus();
+        win.print();
+    }
+
     function initModal(modalId, openSelector, formId, editClass, populateFn) {
         const modal = document.getElementById(modalId);
         if (!modal) return;
@@ -715,6 +782,8 @@ document.addEventListener('DOMContentLoaded', function() {
             if (slotDuration) slotDuration.value = row.dataset.slotDuration || 20;
             var slotEnabled = document.getElementById('mdbk-doc-slot-enabled');
             if (slotEnabled) { slotEnabled.checked = row.dataset.slotEnabled !== 'no'; updateSlotDurationVisibility(); }
+            var docFee = document.getElementById('mdbk-doc-fee');
+            if (docFee) docFee.value = row.dataset.fee || '';
             if (doctorSpecSelect && row.dataset.specialty) {
                 const opt = doctorSpecSelect.panel.querySelector('.mdbk-custom-select-option[data-value="' + row.dataset.specialty + '"]');
                 if (opt) doctorSpecSelect.setValue(opt.dataset.value, opt.textContent);
@@ -758,6 +827,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 row.classList.add('is-off');
             });
             if (slotEnabledToggle) { slotEnabledToggle.checked = true; updateSlotDurationVisibility(); }
+            var addDocFee = document.getElementById('mdbk-doc-fee');
+            if (addDocFee) addDocFee.value = '';
             if (docExtraCal) docExtraCal.reset();
             if (docOffCal) docOffCal.reset();
             if (doctorSpecSelect) {
@@ -962,6 +1033,113 @@ document.addEventListener('DOMContentLoaded', function() {
                 .catch(function() {
                     viewBody.innerHTML = '<p style="text-align:center; opacity:.6; padding:30px 0;">Something went wrong.</p>';
                 });
+        });
+    })();
+
+    // Invoice popup — .mdbk-open-invoice trigger on the Booking page's
+    // per-appointment rows. Loads current amount/status (or the doctor's
+    // default fee, for an appointment with no invoice saved yet) via AJAX
+    // on open; Save persists it, Print always prints whatever is currently
+    // in the form (mdbkPrintInvoice(), defined above) whether or not it's
+    // been saved.
+    (function() {
+        var invModal = document.getElementById('mdbk-invoice-modal');
+        if (!invModal || typeof mdbk_admin_obj === 'undefined') return;
+
+        var invNumber = document.getElementById('mdbk-invoice-number');
+        var invDate = document.getElementById('mdbk-invoice-date');
+        var invPatient = document.getElementById('mdbk-invoice-patient');
+        var invDoctor = document.getElementById('mdbk-invoice-doctor');
+        var invAmount = document.getElementById('mdbk-invoice-amount');
+        var invStatusBtns = invModal.querySelectorAll('.mdbk-invoice-status-btn');
+        var invSaveMsg = document.getElementById('mdbk-invoice-save-msg');
+        var invSaveBtn = document.getElementById('mdbk-invoice-save');
+        var invPrintBtn = document.getElementById('mdbk-invoice-print');
+        var currentAppointmentId = null;
+
+        function closeInvModal() { invModal.style.display = 'none'; }
+        var invCloseBtn = invModal.querySelector('.mdbk-modal-close');
+        if (invCloseBtn) invCloseBtn.addEventListener('click', closeInvModal);
+        window.addEventListener('click', function(e) { if (e.target === invModal) closeInvModal(); });
+
+        function setInvoiceStatus(status) {
+            invStatusBtns.forEach(function(btn) {
+                btn.classList.toggle('is-active', btn.dataset.status === status);
+            });
+        }
+        function currentInvoiceStatus() {
+            var active = invModal.querySelector('.mdbk-invoice-status-btn.is-active');
+            return active ? active.dataset.status : 'unpaid';
+        }
+        invStatusBtns.forEach(function(btn) {
+            btn.addEventListener('click', function() { setInvoiceStatus(btn.dataset.status); });
+        });
+
+        document.addEventListener('click', function(e) {
+            var trigger = e.target.closest('.mdbk-open-invoice');
+            if (!trigger) return;
+            e.preventDefault();
+            currentAppointmentId = trigger.dataset.id;
+
+            invSaveMsg.style.display = 'none';
+            invNumber.textContent = '…';
+            invDate.textContent = invPatient.textContent = invDoctor.textContent = '—';
+            invAmount.value = '';
+            setInvoiceStatus('unpaid');
+            invModal.style.display = 'flex';
+
+            var body = new URLSearchParams();
+            body.set('action', 'mdbk_get_invoice');
+            body.set('nonce', mdbk_admin_obj.nonce);
+            body.set('appointment_id', currentAppointmentId);
+            fetch(mdbk_admin_obj.ajax_url, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body.toString() })
+                .then(function(r) { return r.json(); })
+                .then(function(res) {
+                    if (!res || !res.success) { invNumber.textContent = '—'; return; }
+                    invNumber.textContent = res.data.invoice_number;
+                    invDate.textContent = res.data.date_display;
+                    invPatient.textContent = res.data.patient_name;
+                    invDoctor.textContent = res.data.doctor_name;
+                    invAmount.value = res.data.amount;
+                    setInvoiceStatus(res.data.status);
+                })
+                .catch(function() { invNumber.textContent = '—'; });
+        });
+
+        if (invSaveBtn) invSaveBtn.addEventListener('click', function() {
+            if (!currentAppointmentId) return;
+            var body = new URLSearchParams();
+            body.set('action', 'mdbk_save_invoice');
+            body.set('nonce', mdbk_admin_obj.nonce);
+            body.set('appointment_id', currentAppointmentId);
+            body.set('amount', invAmount.value);
+            body.set('status', currentInvoiceStatus());
+            invSaveBtn.disabled = true;
+            fetch(mdbk_admin_obj.ajax_url, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body.toString() })
+                .then(function(r) { return r.json(); })
+                .then(function(res) {
+                    invSaveBtn.disabled = false;
+                    invSaveMsg.style.display = 'block';
+                    invSaveMsg.style.color = (res && res.success) ? '#16a34a' : '#dc2626';
+                    invSaveMsg.textContent = (res && res.success) ? 'Invoice saved.' : 'Could not save invoice.';
+                })
+                .catch(function() {
+                    invSaveBtn.disabled = false;
+                    invSaveMsg.style.display = 'block';
+                    invSaveMsg.style.color = '#dc2626';
+                    invSaveMsg.textContent = 'Could not save invoice.';
+                });
+        });
+
+        if (invPrintBtn) invPrintBtn.addEventListener('click', function() {
+            mdbkPrintInvoice({
+                invoice_number: invNumber.textContent,
+                date: invDate.textContent,
+                patient_name: invPatient.textContent,
+                doctor_name: invDoctor.textContent,
+                amount: invAmount.value,
+                status: currentInvoiceStatus()
+            });
         });
     })();
 
