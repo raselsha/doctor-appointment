@@ -3588,6 +3588,7 @@ class MDBK_Admin_Dashboard {
             'amount'         => $amount,
             'status'         => $status === 'paid' ? 'paid' : 'unpaid',
             'patient_name'   => get_post_meta($appointment_id, '_mdbk_patient_name', true),
+            'patient_phone'  => get_post_meta($appointment_id, '_mdbk_patient_phone', true),
             'doctor_name'    => $doctor_id ? get_the_title($doctor_id) : __('N/A', 'doctor-appointment'),
             'date_display'   => $date ? date_i18n(get_option('date_format'), strtotime($date)) : '—',
         ]);

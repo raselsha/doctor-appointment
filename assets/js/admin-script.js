@@ -39,60 +39,102 @@ document.addEventListener('DOMContentLoaded', function() {
         return div.innerHTML;
     }
 
+    function mdbkFormatInvoiceAmount(amount) {
+        var n = parseFloat(amount);
+        return isNaN(n) ? mdbkAdminEscHtml(amount) : n.toFixed(2);
+    }
+
     /**
-     * Same standalone-print-window technique form-script.js's own
-     * mdbkPrintBookingCard()/mdbkBuildClinicHeaderHtml() use for the public
-     * booking confirmation — a fresh, empty document instead of
-     * window.print() on the live page (which kept the invoice modal's own
-     * centered-overlay vertical offset baked into the printout there too).
-     * mdbk_admin_obj already carries the same clinic_name/logo/contact/
-     * address fields as the frontend's mdbk_form_obj (see
-     * clinic_branding_data() in doctor-appointment.php), so the header
-     * looks identical either way.
+     * A proper single-page A4 portrait invoice — two-column letterhead
+     * (clinic left, INVOICE/number/date/status right), a Bill To block,
+     * a real line-item table with a Total row, and a footer — instead of
+     * the earlier centered receipt-card look, which read fine for a small
+     * QR booking confirmation but not for something meant to be filed or
+     * handed to a patient as a corporate document. Same standalone-
+     * print-window technique form-script.js's own mdbkPrintBookingCard()
+     * uses (a fresh, empty document instead of window.print() on the live
+     * page, which kept the modal's own centered-overlay vertical offset
+     * baked into the printout there too). mdbk_admin_obj already carries
+     * the same clinic_name/logo/contact/address fields as the frontend's
+     * mdbk_form_obj (see clinic_branding_data() in doctor-appointment.php).
      */
     function mdbkPrintInvoice(details) {
         var obj = typeof mdbk_admin_obj !== 'undefined' ? mdbk_admin_obj : {};
-        var clinicHtml = '';
-        if (obj.clinic_logo) clinicHtml += '<img class="mdbk-print-logo" src="' + obj.clinic_logo + '" alt="">';
-        if (obj.clinic_name) clinicHtml += '<p class="mdbk-print-clinic-name">' + mdbkAdminEscHtml(obj.clinic_name) + '</p>';
-        if (obj.clinic_contact) clinicHtml += '<p class="mdbk-print-clinic-meta">' + mdbkAdminEscHtml(obj.clinic_contact) + '</p>';
-        if (obj.clinic_address) clinicHtml += '<p class="mdbk-print-clinic-meta">' + mdbkAdminEscHtml(obj.clinic_address) + '</p>';
+        var isPaid = details.status === 'paid';
+        var statusLabel = isPaid ? 'PAID' : 'UNPAID';
+        var statusColor = isPaid ? '#15803d' : '#b91c1c';
+        var statusBg = isPaid ? '#dcfce7' : '#fee2e2';
 
-        var rows = [
-            ['Invoice No.', details.invoice_number],
-            ['Date', details.date],
-            ['Patient', details.patient_name],
-            ['Doctor', details.doctor_name]
-        ];
-        var rowsHtml = rows.map(function(r) {
-            return '<div class="mdbk-confirmation-row"><span>' + mdbkAdminEscHtml(r[0]) + '</span><strong>' + mdbkAdminEscHtml(r[1]) + '</strong></div>';
-        }).join('');
-        var statusLabel = details.status === 'paid' ? 'Paid' : 'Unpaid';
-        var statusColor = details.status === 'paid' ? '#16a34a' : '#dc2626';
+        var letterheadLeft =
+            '<div class="mdbk-inv-clinic">' +
+            (obj.clinic_logo ? '<img class="mdbk-inv-logo" src="' + obj.clinic_logo + '" alt="">' : '') +
+            (obj.clinic_name ? '<div class="mdbk-inv-clinic-name">' + mdbkAdminEscHtml(obj.clinic_name) + '</div>' : '') +
+            (obj.clinic_contact ? '<div class="mdbk-inv-clinic-meta">' + mdbkAdminEscHtml(obj.clinic_contact) + '</div>' : '') +
+            (obj.clinic_address ? '<div class="mdbk-inv-clinic-meta">' + mdbkAdminEscHtml(obj.clinic_address) + '</div>' : '') +
+            '</div>';
 
-        var win = window.open('', '_blank', 'width=480,height=700');
+        var letterheadRight =
+            '<div class="mdbk-inv-title-block">' +
+            '<div class="mdbk-inv-title">INVOICE</div>' +
+            '<div class="mdbk-inv-meta-row"><span>Invoice No.</span><strong>' + mdbkAdminEscHtml(details.invoice_number) + '</strong></div>' +
+            '<div class="mdbk-inv-meta-row"><span>Date</span><strong>' + mdbkAdminEscHtml(details.date) + '</strong></div>' +
+            '<div class="mdbk-inv-status" style="color:' + statusColor + ';background:' + statusBg + ';">' + statusLabel + '</div>' +
+            '</div>';
+
+        var billTo =
+            '<div class="mdbk-inv-bill-to">' +
+            '<div class="mdbk-inv-label">Bill To</div>' +
+            '<div class="mdbk-inv-patient-name">' + mdbkAdminEscHtml(details.patient_name) + '</div>' +
+            (details.patient_phone ? '<div class="mdbk-inv-clinic-meta">' + mdbkAdminEscHtml(details.patient_phone) + '</div>' : '') +
+            '</div>';
+
+        var amountFormatted = mdbkFormatInvoiceAmount(details.amount);
+        var table =
+            '<table class="mdbk-inv-table">' +
+            '<thead><tr><th>Description</th><th class="mdbk-inv-amount-col">Amount</th></tr></thead>' +
+            '<tbody><tr><td>Consultation Fee — ' + mdbkAdminEscHtml(details.doctor_name) + '</td><td class="mdbk-inv-amount-col">৳' + amountFormatted + '</td></tr></tbody>' +
+            '<tfoot><tr><td>Total</td><td class="mdbk-inv-amount-col">৳' + amountFormatted + '</td></tr></tfoot>' +
+            '</table>';
+
+        var footer =
+            '<div class="mdbk-inv-footer">' +
+            (obj.clinic_name ? '<p>Thank you for choosing ' + mdbkAdminEscHtml(obj.clinic_name) + '.</p>' : '') +
+            '<p class="mdbk-inv-footer-note">This is a computer-generated invoice and does not require a signature.</p>' +
+            '</div>';
+
+        var win = window.open('', '_blank', 'width=720,height=920');
         if (!win) return;
         win.document.write(
             '<html><head><title>Invoice ' + mdbkAdminEscHtml(details.invoice_number) + '</title><style>' +
-            '@page{margin:20px;}' +
-            'body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;margin:0;padding:24px;color:#1e293b;text-align:center;}' +
-            '.mdbk-print-logo{max-width:64px;max-height:64px;margin:0 auto 8px;display:block;}' +
-            '.mdbk-print-clinic-name{margin:0 0 3px;font-size:15px;font-weight:700;}' +
-            '.mdbk-print-clinic-meta{margin:0 0 3px;font-size:11px;color:#64748b;}' +
-            'h2{margin:16px 0 4px;font-size:19px;font-weight:700;}' +
-            '.mdbk-invoice-amount{font-size:28px;font-weight:800;margin:0 0 4px;}' +
-            '.mdbk-invoice-status{display:inline-block;font-size:12px;font-weight:700;padding:3px 12px;border-radius:999px;margin-bottom:18px;color:#fff;background:' + statusColor + ';}' +
-            '.mdbk-confirmation-details{text-align:left;background:#f8fafc;border:1px solid #cbd5e1;border-radius:12px;padding:14px 16px;margin:0 auto;max-width:340px;}' +
-            '.mdbk-confirmation-row{display:flex;justify-content:space-between;padding:6px 0;font-size:14px;}' +
-            '.mdbk-confirmation-row + .mdbk-confirmation-row{border-top:1px solid #94a3b8;}' +
-            '.mdbk-confirmation-row span{color:#64748b;}' +
-            '.mdbk-confirmation-row strong{color:#1e293b;font-weight:600;text-align:right;}' +
+            '@page{size:A4 portrait;margin:18mm;}' +
+            '*{box-sizing:border-box;}' +
+            'body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;margin:0;padding:32px;color:#1e293b;}' +
+            '.mdbk-inv-letterhead{display:flex;justify-content:space-between;align-items:flex-start;gap:24px;padding-bottom:24px;border-bottom:2px solid #1e293b;}' +
+            '.mdbk-inv-logo{max-width:56px;max-height:56px;display:block;margin-bottom:8px;}' +
+            '.mdbk-inv-clinic-name{font-size:18px;font-weight:800;margin-bottom:4px;}' +
+            '.mdbk-inv-clinic-meta{font-size:12px;color:#64748b;line-height:1.6;}' +
+            '.mdbk-inv-title-block{text-align:right;}' +
+            '.mdbk-inv-title{font-size:24px;font-weight:800;letter-spacing:2px;color:#1e293b;margin-bottom:10px;}' +
+            '.mdbk-inv-meta-row{font-size:13px;margin-bottom:4px;}' +
+            '.mdbk-inv-meta-row span{color:#64748b;margin-right:10px;}' +
+            '.mdbk-inv-meta-row strong{color:#1e293b;}' +
+            '.mdbk-inv-status{display:inline-block;margin-top:8px;padding:4px 14px;border-radius:4px;font-size:12px;font-weight:800;letter-spacing:1px;}' +
+            '.mdbk-inv-bill-to{margin:28px 0;}' +
+            '.mdbk-inv-label{font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#94a3b8;margin-bottom:6px;}' +
+            '.mdbk-inv-patient-name{font-size:16px;font-weight:700;margin-bottom:2px;}' +
+            '.mdbk-inv-table{width:100%;border-collapse:collapse;margin-top:8px;}' +
+            '.mdbk-inv-table thead th{text-align:left;font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#64748b;padding:0 0 10px;border-bottom:1.5px solid #1e293b;}' +
+            '.mdbk-inv-table tbody td{padding:16px 0;font-size:14px;border-bottom:1px solid #e2e8f0;}' +
+            '.mdbk-inv-table tfoot td{padding:14px 0 0;font-size:15px;font-weight:800;}' +
+            '.mdbk-inv-amount-col{text-align:right;white-space:nowrap;}' +
+            '.mdbk-inv-footer{margin-top:56px;padding-top:16px;border-top:1px solid #e2e8f0;text-align:center;}' +
+            '.mdbk-inv-footer p{margin:0 0 4px;font-size:12px;color:#64748b;}' +
+            '.mdbk-inv-footer-note{font-style:italic;}' +
             '</style></head><body>' +
-            clinicHtml +
-            '<h2>Invoice</h2>' +
-            '<p class="mdbk-invoice-amount">৳' + mdbkAdminEscHtml(details.amount) + '</p>' +
-            '<span class="mdbk-invoice-status">' + statusLabel + '</span>' +
-            '<div class="mdbk-confirmation-details">' + rowsHtml + '</div>' +
+            '<div class="mdbk-inv-letterhead">' + letterheadLeft + letterheadRight + '</div>' +
+            billTo +
+            table +
+            footer +
             '</body></html>'
         );
         win.document.close();
@@ -1056,6 +1098,7 @@ document.addEventListener('DOMContentLoaded', function() {
         var invSaveBtn = document.getElementById('mdbk-invoice-save');
         var invPrintBtn = document.getElementById('mdbk-invoice-print');
         var currentAppointmentId = null;
+        var currentPatientPhone = '';
 
         function closeInvModal() { invModal.style.display = 'none'; }
         var invCloseBtn = invModal.querySelector('.mdbk-modal-close');
@@ -1101,6 +1144,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     invPatient.textContent = res.data.patient_name;
                     invDoctor.textContent = res.data.doctor_name;
                     invAmount.value = res.data.amount;
+                    currentPatientPhone = res.data.patient_phone || '';
                     setInvoiceStatus(res.data.status);
                 })
                 .catch(function() { invNumber.textContent = '—'; });
@@ -1136,6 +1180,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 invoice_number: invNumber.textContent,
                 date: invDate.textContent,
                 patient_name: invPatient.textContent,
+                patient_phone: currentPatientPhone,
                 doctor_name: invDoctor.textContent,
                 amount: invAmount.value,
                 status: currentInvoiceStatus()
