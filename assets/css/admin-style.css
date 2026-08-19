@@ -339,7 +339,9 @@
 
 .mdbk-actions {
     display: flex;
+    justify-content: flex-end;
     gap: 15px;
+    width: 100%;
 }
 
 .mdbk-action-btn {
