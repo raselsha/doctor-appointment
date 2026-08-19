@@ -1413,11 +1413,17 @@ button.mdbk-mini-cal-nav-btn:hover { background: #f1f5f9; }
    badge column at all. */
 .mdbk-staff-row { grid-template-columns: 50px minmax(160px, 220px) minmax(200px, 1fr) 160px 110px 60px; }
 .mdbk-staff-row .mdbk-badge { white-space: nowrap; justify-self: start; }
-/* -330px (not -260px) leaves room below the card for the pagination bar
-   (~60px incl. its margin) so it lands inside the viewport by default
-   instead of just past the fold, where it read as "missing" until the
-   whole page — not just this internally-scrolling list — got scrolled. */
-.mdbk-directory-list { max-height: calc(100vh - 380px); overflow-y: auto; }
+/* No max-height/overflow here (unlike the Booking page's per-doctor
+   .mdbk-schedule-doctor-card lists, which DO scroll internally) — this
+   list is now capped by real pagination (render_patients_page(), at most
+   100 rows) instead of ever rendering every patient at once, so a second,
+   independently-scrolling box nested inside .mdbk-main-content's own
+   scroll no longer earns its keep: it used to fight the outer page for
+   which one actually scrolls, stacking two (sometimes three, counting the
+   browser window itself) scrollbars at the right edge and burying the
+   pagination bar below an inner viewport few thought to scroll past. One
+   scroll owner (.mdbk-main-content) for the whole page is simpler and
+   guarantees the pager is always right there under the last row. */
 /* Column labels — sits outside the scrollable list (not its first row) so
    it stays put while the rows underneath scroll. Reuses the row's own
    grid-template-columns so labels line up with their data below. */
@@ -1581,6 +1587,19 @@ body.mdbk-doctor-chrome #wpfooter {
 }
 html:has(body.mdbk-doctor-chrome) {
     padding-top: 0 !important;
+    overflow: hidden;
+}
+/* .mdbk-main-content (inside .mdbk-admin-wrapper) is this panel's one
+   intended scroll owner — its own overflow-y:auto is what's supposed to
+   move when content runs long, with the sidebar staying put beside it.
+   Without this, a few extra px of WP-admin's own residual spacing (body
+   margin, wpfooter's old space, sub-pixel viewport rounding — nothing
+   .mdbk-admin-wrapper's height calc above can fully predict) was enough
+   to also make html/body scroll, stacking a second, redundant scrollbar
+   next to .mdbk-main-content's on every mdbk-doctor-chrome screen. */
+body.mdbk-doctor-chrome {
+    overflow: hidden;
+    height: 100vh;
 }
 body.mdbk-doctor-chrome .mdbk-admin-wrapper {
     height: calc(100vh - 40px);
