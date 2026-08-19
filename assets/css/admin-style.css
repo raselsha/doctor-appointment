@@ -1413,17 +1413,73 @@ button.mdbk-mini-cal-nav-btn:hover { background: #f1f5f9; }
    badge column at all. */
 .mdbk-staff-row { grid-template-columns: 50px minmax(160px, 220px) minmax(200px, 1fr) 160px 110px 60px; }
 .mdbk-staff-row .mdbk-badge { white-space: nowrap; justify-self: start; }
-/* No max-height/overflow here (unlike the Booking page's per-doctor
-   .mdbk-schedule-doctor-card lists, which DO scroll internally) — this
-   list is now capped by real pagination (render_patients_page(), at most
-   100 rows) instead of ever rendering every patient at once, so a second,
-   independently-scrolling box nested inside .mdbk-main-content's own
-   scroll no longer earns its keep: it used to fight the outer page for
-   which one actually scrolls, stacking two (sometimes three, counting the
-   browser window itself) scrollbars at the right edge and burying the
-   pagination bar below an inner viewport few thought to scroll past. One
-   scroll owner (.mdbk-main-content) for the whole page is simpler and
-   guarantees the pager is always right there under the last row. */
+/* Patients page layout: header/filters/column-labels/pagination all stay
+   put, and the ROW LIST is the one thing that scrolls internally — not
+   .mdbk-main-content, not the browser window. A flex column all the way
+   down from .mdbk-main-content to #mdbk-patients-results to the card
+   marks every non-list piece flex-shrink:0 (fixed size) and lets
+   .mdbk-directory-list claim the actual leftover space; overflow:hidden
+   on .mdbk-main-content is a backstop, not the primary mechanism — it
+   just clips the odd stray pixel if these sizes are ever slightly off,
+   instead of that turning into a second, competing scrollbar the way an
+   earlier version of this (a bare max-height:calc(100vh - Npx) on the
+   list, with the outer page still free to scroll) could. Scoped to this
+   page's own body class (medbook_page_mdbk-patients — WordPress's
+   {menu-slug}_page_{page-slug} convention) since .mdbk-main-content is
+   shared by every mdbk-* admin screen, most of which have no row list
+   or pagination to make room for and should keep flowing/scrolling
+   normally. */
+body.medbook_page_mdbk-patients .mdbk-main-content {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+body.medbook_page_mdbk-patients .mdbk-header,
+body.medbook_page_mdbk-patients .mdbk-filters-bar {
+    flex-shrink: 0;
+}
+/* flex:0 1 auto (the CSS default, spelled out for clarity) on both of
+   these — NOT flex:1/flex-grow:1, which would force them to stretch to
+   fill .mdbk-main-content's full remaining height regardless of how many
+   rows are actually inside, stranding blank space above the pager on a
+   short page. They still need to BE flex columns (so a shrink applied to
+   them, if content ever exceeds available space, passes down correctly
+   to .mdbk-directory-list below rather than just clipping); they just
+   shouldn't grow past their own content on their own. */
+body.medbook_page_mdbk-patients #mdbk-patients-results {
+    display: flex;
+    flex-direction: column;
+    flex: 0 1 auto;
+    min-height: 0;
+}
+body.medbook_page_mdbk-patients .mdbk-directory-card {
+    display: flex;
+    flex-direction: column;
+    flex: 0 1 auto;
+    min-height: 0;
+}
+body.medbook_page_mdbk-patients .mdbk-directory-list-header {
+    flex-shrink: 0;
+}
+/* flex: 0 1 auto (not 1 1 auto) — flex-basis:auto sizes this to its own
+   CONTENT height first; flex-grow:0 means it never stretches beyond
+   that, so a short page (e.g. the last, partial one) shrink-wraps with
+   the pager sitting right after it instead of leaving blank space below
+   the rows. flex-shrink:1 is what makes it a scroll container at all:
+   it's the only shrinkable item in this column (list-header above is
+   flex-shrink:0), so ALL the negative space when content overflows the
+   card's own bounded height lands here, compressing it to exactly
+   "available space" — no magic-number max-height needed. min-height:0
+   overrides the flex default (min-height:auto, i.e. never shrink below
+   content) that would otherwise block that shrinking outright. */
+body.medbook_page_mdbk-patients .mdbk-directory-list {
+    flex: 0 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+}
+body.medbook_page_mdbk-patients .mdbk-pagination {
+    flex-shrink: 0;
+}
 /* Column labels — sits outside the scrollable list (not its first row) so
    it stays put while the rows underneath scroll. Reuses the row's own
    grid-template-columns so labels line up with their data below. */
