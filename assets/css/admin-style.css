@@ -82,6 +82,26 @@
     color: #000;
 }
 
+.mdbk-sidebar-wp-link {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 4px 20px 0;
+    padding: 12px 14px;
+    border-radius: 10px;
+    background: rgba(0, 97, 213, 0.16);
+    color: #7fb1f5;
+    font-weight: 600;
+    font-size: 13px;
+    text-decoration: none;
+    transition: background .15s ease, color .15s ease;
+}
+.mdbk-sidebar-wp-link svg { flex-shrink: 0; }
+.mdbk-sidebar-wp-link:hover {
+    background: #0061d5;
+    color: #fff;
+}
+
 .mdbk-sidebar-footer {
     padding: 20px 30px;
     border-top: 1px solid rgba(255, 255, 255, 0.1);
@@ -584,6 +604,7 @@
 .mdbk-page-btn.is-active { background: #0061d5; border-color: #0061d5; color: #fff; }
 .mdbk-page-btn:disabled { opacity: 0.4; cursor: default; }
 .mdbk-page-btn:disabled:hover { background: #fff; border-color: #e2e8f0; }
+.mdbk-page-ellipsis { display: flex; align-items: center; justify-content: center; min-width: 20px; height: 36px; color: #94a3b8; font-size: 13px; }
 
 /* ===== Doctor "View" detail popup ===== */
 .mdbk-view-top-row { display: flex; gap: 20px; padding-bottom: 16px; border-bottom: 1px solid #e2e8f0; margin-bottom: 16px; flex-wrap: wrap; }
@@ -1392,7 +1413,11 @@ button.mdbk-mini-cal-nav-btn:hover { background: #f1f5f9; }
    badge column at all. */
 .mdbk-staff-row { grid-template-columns: 50px minmax(160px, 220px) minmax(200px, 1fr) 160px 110px 60px; }
 .mdbk-staff-row .mdbk-badge { white-space: nowrap; justify-self: start; }
-.mdbk-directory-list { max-height: calc(100vh - 260px); overflow-y: auto; }
+/* -330px (not -260px) leaves room below the card for the pagination bar
+   (~60px incl. its margin) so it lands inside the viewport by default
+   instead of just past the fold, where it read as "missing" until the
+   whole page — not just this internally-scrolling list — got scrolled. */
+.mdbk-directory-list { max-height: calc(100vh - 380px); overflow-y: auto; }
 /* Column labels — sits outside the scrollable list (not its first row) so
    it stays put while the rows underneath scroll. Reuses the row's own
    grid-template-columns so labels line up with their data below. */

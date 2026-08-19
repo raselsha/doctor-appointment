@@ -1147,6 +1147,19 @@ class MDBK_Admin_Dashboard {
     }
 
     /**
+     * True on any of this plugin's own admin.php?page=mdbk-* screens.
+     * Shared by enforce_panel_only_access() (restricted-user redirect
+     * exemption) and admin_body_class() (scoping the chrome-hiding class
+     * for a real administrator to just these pages, not every wp-admin
+     * screen — see that method's comment).
+     */
+    private function is_mdbk_page() {
+        global $pagenow;
+        $page = isset($_GET['page']) ? sanitize_key(wp_unslash($_GET['page'])) : '';
+        return 'admin.php' === $pagenow && strpos($page, 'mdbk-') === 0;
+    }
+
+    /**
      * Bounces a restricted panel user off every wp-admin screen this plugin
      * doesn't own — direct-URL (or default post-login) access to a native
      * screen (Dashboard, Media, Users, Plugins, Themes, Settings, Tools,
@@ -1178,8 +1191,7 @@ class MDBK_Admin_Dashboard {
             return;
         }
 
-        $page = isset($_GET['page']) ? sanitize_key(wp_unslash($_GET['page'])) : '';
-        if ('admin.php' === $pagenow && strpos($page, 'mdbk-') === 0) {
+        if ($this->is_mdbk_page()) {
             return;
         }
 
@@ -1203,6 +1215,16 @@ class MDBK_Admin_Dashboard {
      */
     public function admin_body_class($classes) {
         if ($this->is_restricted_panel_user()) {
+            $classes .= ' mdbk-doctor-chrome';
+        } elseif (current_user_can('manage_options') && $this->is_mdbk_page()) {
+            // A real administrator isn't funneled into this panel the way a
+            // doctor/front-desk/manager login is (enforce_panel_only_access()
+            // exempts them entirely) — they still need ordinary wp-admin
+            // access to Plugins/Users/Settings/etc, so the native chrome is
+            // only hidden here while they're actually ON one of this
+            // plugin's own pages, not globally like it is for a restricted
+            // login. render_sidebar()'s "Back to WordPress" link (admin-only)
+            // is how they get back to the native UI once it's hidden.
             $classes .= ' mdbk-doctor-chrome';
         }
         return $classes;
@@ -2889,7 +2911,7 @@ class MDBK_Admin_Dashboard {
     // slot-based grid for alignment) but for patient-level fields
     // (phone/email/address, no per-visit queue/time/status), plus a
     // derived "total visits" count instead of a stored field.
-    private function render_patient_directory_row($p) {
+    private function render_patient_directory_row($p, $visit_count = 0) {
         $phone = get_post_meta($p->ID, '_mdbk_patient_phone', true);
         $email = get_post_meta($p->ID, '_mdbk_patient_email', true);
         $address = get_post_meta($p->ID, '_mdbk_patient_address', true);
@@ -2897,13 +2919,6 @@ class MDBK_Admin_Dashboard {
         $gender = get_post_meta($p->ID, '_mdbk_patient_gender', true);
         $age_gender = trim($gender . ($age && $gender ? ' · ' : '') . $age);
         $gender_key = $gender ? strtolower($gender) : 'unknown';
-        $visit_count = count(get_posts([
-            'post_type'   => 'mdbk_appointment',
-            'numberposts' => -1,
-            'post_status' => \MDBK\MDBK_CPT::APPOINTMENT_STATUSES,
-            'fields'      => 'ids',
-            'meta_query'  => [['key' => '_mdbk_patient_id', 'value' => $p->ID]],
-        ]));
         ob_start();
         ?>
         <div class="mdbk-patient-row mdbk-patient-row-directory" data-id="<?php echo esc_attr($p->ID); ?>" data-name="<?php echo esc_attr($p->post_title); ?>" data-phone="<?php echo esc_attr($phone); ?>" data-email="<?php echo esc_attr($email); ?>" data-address="<?php echo esc_attr($address); ?>" data-age="<?php echo esc_attr($age); ?>" data-gender="<?php echo esc_attr($gender); ?>">
@@ -2952,7 +2967,20 @@ class MDBK_Admin_Dashboard {
      * drift apart the way render_patient_list_html() explains for the
      * Booking page's own live-refreshed list.
      */
-    private function render_patients_results_html($patients, $has_active_filters) {
+    private function render_patients_results_html($patients, $has_active_filters, $paged = 1, $per_page = 25) {
+        $total = count($patients);
+        $total_pages = (int) max(1, ceil($total / $per_page));
+        $paged = min(max(1, $paged), $total_pages);
+        $page_patients = array_slice($patients, ($paged - 1) * $per_page, $per_page);
+
+        // One aggregated query for the CURRENT PAGE's visit counts, instead
+        // of render_patient_directory_row() running its own get_posts() per
+        // row — that N+1 pattern was fine at seed-data scale but took the
+        // Patient Directory to ~35s with 1,000+ patients (each row
+        // re-scanning the entire appointment table). Scoped to just this
+        // page's ids (not all $patients) now that there's pagination, so
+        // the query stays cheap regardless of how many total patients match.
+        $visit_counts = $this->get_visit_counts_for_patients(wp_list_pluck($page_patients, 'ID'));
         ob_start();
         if (empty($patients)) : ?>
             <div class="mdbk-card"><table class="mdbk-table"><tbody><tr><td style="text-align:center; padding:40px; opacity:0.6;"><?php echo $has_active_filters ? esc_html__('No patients match your search.', 'doctor-appointment') : esc_html__('No patients yet.', 'doctor-appointment'); ?></td></tr></tbody></table></div>
@@ -2969,11 +2997,76 @@ class MDBK_Admin_Dashboard {
                     <span></span>
                 </div>
                 <div class="mdbk-patient-list mdbk-directory-list">
-                <?php foreach ($patients as $p) echo $this->render_patient_directory_row($p); ?>
+                <?php foreach ($page_patients as $p) echo $this->render_patient_directory_row($p, isset($visit_counts[$p->ID]) ? $visit_counts[$p->ID] : 0); ?>
                 </div>
             </div>
+            <?php echo $this->render_pagination_html('mdbk-patients-page-btn', $paged, $total_pages); ?>
         <?php endif;
         return ob_get_clean();
+    }
+
+    /**
+     * A compact, windowed pager (first/last page always visible, up to 2
+     * neighbors either side of the current page, "…" gaps for the rest) —
+     * plain server-rendered <a> links so a page reload/direct link/no-JS
+     * visitor all still work, with $btn_class letting admin-script.js
+     * intercept the same links for the AJAX-swap experience instead.
+     * Reusable by any future paginated admin list, not just Patients.
+     */
+    private function render_pagination_html($btn_class, $current_page, $total_pages) {
+        if ($total_pages <= 1) return '';
+
+        $window = 2;
+        $pages = [];
+        for ($p = 1; $p <= $total_pages; $p++) {
+            if ($p === 1 || $p === $total_pages || abs($p - $current_page) <= $window) {
+                $pages[] = $p;
+            } elseif (end($pages) !== '…') {
+                $pages[] = '…';
+            }
+        }
+
+        ob_start();
+        ?>
+        <div class="mdbk-pagination">
+            <button type="button" class="mdbk-page-btn <?php echo esc_attr($btn_class); ?>" data-page="<?php echo esc_attr($current_page - 1); ?>" aria-label="<?php esc_attr_e('Previous page', 'doctor-appointment'); ?>" <?php disabled($current_page <= 1); ?>>&lsaquo;</button>
+            <?php foreach ($pages as $p) : if ($p === '…') : ?>
+                <span class="mdbk-page-ellipsis">&hellip;</span>
+            <?php else : ?>
+                <button type="button" class="mdbk-page-btn <?php echo esc_attr($btn_class); ?><?php echo $p === $current_page ? ' is-active' : ''; ?>" data-page="<?php echo esc_attr($p); ?>"><?php echo esc_html($p); ?></button>
+            <?php endif; endforeach; ?>
+            <button type="button" class="mdbk-page-btn <?php echo esc_attr($btn_class); ?>" data-page="<?php echo esc_attr($current_page + 1); ?>" aria-label="<?php esc_attr_e('Next page', 'doctor-appointment'); ?>" <?php disabled($current_page >= $total_pages); ?>>&rsaquo;</button>
+        </div>
+        <?php
+        return ob_get_clean();
+    }
+
+    /**
+     * patient_id => visit count for every id in $patient_ids, in one
+     * grouped query — see render_patients_results_html()'s comment above.
+     */
+    private function get_visit_counts_for_patients($patient_ids) {
+        global $wpdb;
+        $patient_ids = array_filter(array_map('intval', $patient_ids));
+        if (empty($patient_ids)) return [];
+
+        $statuses = \MDBK\MDBK_CPT::APPOINTMENT_STATUSES;
+        $status_placeholders = implode(',', array_fill(0, count($statuses), '%s'));
+        $id_placeholders = implode(',', array_fill(0, count($patient_ids), '%d'));
+
+        $sql = "SELECT pm.meta_value AS patient_id, COUNT(*) AS cnt
+                FROM {$wpdb->postmeta} pm
+                INNER JOIN {$wpdb->posts} p ON p.ID = pm.post_id
+                WHERE pm.meta_key = '_mdbk_patient_id'
+                  AND pm.meta_value IN ($id_placeholders)
+                  AND p.post_type = 'mdbk_appointment'
+                  AND p.post_status IN ($status_placeholders)
+                GROUP BY pm.meta_value";
+        $rows = $wpdb->get_results($wpdb->prepare($sql, array_merge($patient_ids, $statuses)));
+
+        $counts = [];
+        foreach ($rows as $row) $counts[(int) $row->patient_id] = (int) $row->cnt;
+        return $counts;
     }
 
     /**
@@ -2989,16 +3082,59 @@ class MDBK_Admin_Dashboard {
         if (!current_user_can(MDBK_CAP_QUEUE)) wp_send_json_error(['message' => __('Unauthorized.', 'doctor-appointment')]);
         $search = isset($_POST['s']) ? sanitize_text_field(wp_unslash($_POST['s'])) : '';
         $filter_gender = isset($_POST['filter_gender']) ? sanitize_text_field($_POST['filter_gender']) : '';
+        $paged = isset($_POST['paged']) ? max(1, intval($_POST['paged'])) : 1;
+        $per_page = isset($_POST['per_page']) ? self::sanitize_patients_per_page($_POST['per_page']) : 25;
         $patients = $this->get_filtered_patients($search, $filter_gender);
         wp_send_json_success([
-            'count_html'   => esc_html(sprintf(_n('%d patient', '%d patients', count($patients), 'doctor-appointment'), count($patients))),
-            'results_html' => $this->render_patients_results_html($patients, $search !== '' || $filter_gender !== ''),
+            'count_html'   => $this->render_patients_count_html(count($patients), $paged, $per_page),
+            'results_html' => $this->render_patients_results_html($patients, $search !== '' || $filter_gender !== '', $paged, $per_page),
         ]);
+    }
+
+    /**
+     * Whitelist of "rows per page" choices, shared by the <select> in
+     * render_patients_page() and the sanitizer below so the two can never
+     * drift — an unrecognized value (tampered request, stale query string)
+     * falls back to 25 rather than an arbitrary/unbounded page size.
+     */
+    private static function patients_per_page_choices() {
+        return [10, 25, 50, 100];
+    }
+
+    private static function sanitize_patients_per_page($value) {
+        $value = intval($value);
+        return in_array($value, self::patients_per_page_choices(), true) ? $value : 25;
+    }
+
+    /**
+     * "Showing X–Y of Z patients" — shared by the initial page render and
+     * ajax_search_patients() so the header sentence and the actual sliced
+     * rows (render_patients_results_html()) can never disagree about which
+     * page is showing.
+     */
+    private function render_patients_count_html($total, $paged, $per_page) {
+        if ($total === 0) {
+            return esc_html__('0 patients', 'doctor-appointment');
+        }
+        $total_pages = (int) max(1, ceil($total / $per_page));
+        $paged = min(max(1, $paged), $total_pages);
+        $start = ($paged - 1) * $per_page + 1;
+        $end = min($total, $paged * $per_page);
+        if ($total_pages === 1) {
+            return esc_html(sprintf(_n('%d patient', '%d patients', $total, 'doctor-appointment'), $total));
+        }
+        return esc_html(sprintf(
+            /* translators: 1: first row number, 2: last row number, 3: total patients */
+            __('Showing %1$d–%2$d of %3$d patients', 'doctor-appointment'),
+            $start, $end, $total
+        ));
     }
 
     public function render_patients_page() {
         $search = isset($_GET['s']) ? sanitize_text_field(wp_unslash($_GET['s'])) : '';
         $filter_gender = isset($_GET['filter_gender']) ? sanitize_text_field($_GET['filter_gender']) : '';
+        $paged = isset($_GET['paged']) ? max(1, intval($_GET['paged'])) : 1;
+        $per_page = isset($_GET['per_page']) ? self::sanitize_patients_per_page($_GET['per_page']) : 25;
 
         // Only offer a gender filter option if at least one patient actually
         // has that gender recorded — computed from the full unfiltered list
@@ -3014,7 +3150,7 @@ class MDBK_Admin_Dashboard {
         ?>
         <div id="mdbk-admin-dashboard"><div class="mdbk-admin-wrapper"><?php $this->render_sidebar('patients'); ?>
             <div class="mdbk-main-content">
-                <div class="mdbk-header"><div class="mdbk-header-left"><h1><?php _e('Patient Directory', 'doctor-appointment'); ?></h1><p id="mdbk-patients-count"><?php echo esc_html(sprintf(_n('%d patient', '%d patients', count($patients), 'doctor-appointment'), count($patients))); ?></p></div><a href="#" class="mdbk-btn-add mdbk-add-patient"><?php _e('+ Add Patient', 'doctor-appointment'); ?></a></div>
+                <div class="mdbk-header"><div class="mdbk-header-left"><h1><?php _e('Patient Directory', 'doctor-appointment'); ?></h1><p id="mdbk-patients-count"><?php echo $this->render_patients_count_html(count($patients), $paged, $per_page); ?></p></div><a href="#" class="mdbk-btn-add mdbk-add-patient"><?php _e('+ Add Patient', 'doctor-appointment'); ?></a></div>
 
                 <div class="mdbk-filters-bar">
                     <form method="get" class="mdbk-filters-form" id="mdbk-patients-filters-form">
@@ -3025,6 +3161,11 @@ class MDBK_Admin_Dashboard {
                             <option value=""><?php _e('All Genders', 'doctor-appointment'); ?></option>
                             <?php foreach ($gender_options as $g) : ?>
                                 <option value="<?php echo esc_attr($g); ?>" <?php selected($filter_gender, $g); ?>><?php echo esc_html($gender_labels[$g]); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                        <select name="per_page" id="mdbk-patients-per-page" title="<?php esc_attr_e('Rows per page', 'doctor-appointment'); ?>">
+                            <?php foreach (self::patients_per_page_choices() as $choice) : ?>
+                                <option value="<?php echo esc_attr($choice); ?>" <?php selected($per_page, $choice); ?>><?php echo esc_html(sprintf(__('%d / page', 'doctor-appointment'), $choice)); ?></option>
                             <?php endforeach; ?>
                         </select>
                         <?php // Always rendered (not just when $has_active_filters, like
@@ -3040,7 +3181,7 @@ class MDBK_Admin_Dashboard {
                     </form>
                 </div>
 
-                <div id="mdbk-patients-results"><?php echo $this->render_patients_results_html($patients, $has_active_filters); ?></div>
+                <div id="mdbk-patients-results"><?php echo $this->render_patients_results_html($patients, $has_active_filters, $paged, $per_page); ?></div>
             </div></div><?php $this->render_patient_modal_html(); $this->render_patient_view_modal_html(); ?></div>
         <?php
     }
@@ -3224,7 +3365,20 @@ class MDBK_Admin_Dashboard {
             <li class="mdbk-menu-item <?php echo $active_page == 'global-settings' ? 'active' : ''; ?>" onclick="window.location.href='<?php echo esc_url(admin_url('admin.php?page=mdbk-global-settings')); ?>'"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg><?php _e('Global Settings', 'doctor-appointment'); ?></li>
             <li class="mdbk-menu-item <?php echo $active_page == 'license' ? 'active' : ''; ?>" onclick="window.location.href='<?php echo esc_url(admin_url('admin.php?page=mdbk-license')); ?>'"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="7.5" cy="15.5" r="5.5"></circle><path d="M21 2l-9.6 9.6"></path><path d="M15.5 7.5L18 10"></path><path d="M18.5 4.5L21 7"></path></svg><?php _e('License', 'doctor-appointment'); ?></li>
             <?php endif; ?>
-        </ul><div class="mdbk-sidebar-footer"><div class="mdbk-user-avatar"></div><div class="mdbk-user-info"><div style="font-weight: 700; font-size: 13px;"><?php echo esc_html(wp_get_current_user()->display_name); ?></div><div style="font-size: 11px; opacity: 0.6;"><?php _e('Medical Center', 'doctor-appointment'); ?></div></div></div>
+        </ul>
+        <?php if (current_user_can('manage_options')) : ?>
+        <?php // Only a real administrator sees this — a doctor/front-desk/
+        // manager login is hard-blocked from every non-mdbk-* wp-admin
+        // screen anyway (enforce_panel_only_access()), so this link would
+        // just bounce them straight back here. Native chrome is hidden for
+        // admin too now (admin_body_class()), but only while they're ON an
+        // mdbk-* page — this is the way back to everything else. ?>
+        <a class="mdbk-sidebar-wp-link" href="<?php echo esc_url(admin_url()); ?>">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5"></path><path d="M12 19l-7-7 7-7"></path></svg>
+            <?php _e('Back to WordPress', 'doctor-appointment'); ?>
+        </a>
+        <?php endif; ?>
+        <div class="mdbk-sidebar-footer"><div class="mdbk-user-avatar"></div><div class="mdbk-user-info"><div style="font-weight: 700; font-size: 13px;"><?php echo esc_html(wp_get_current_user()->display_name); ?></div><div style="font-size: 11px; opacity: 0.6;"><?php _e('Medical Center', 'doctor-appointment'); ?></div></div></div>
         <?php
         // Sends a logged-out visitor to the MedBook theme's own themed Login
         // page (page-templates/login.php) instead of wp-login.php's default

@@ -356,7 +356,9 @@ document.addEventListener('DOMContentLoaded', function() {
         const countEl = document.getElementById('mdbk-patients-count');
         const resultsEl = document.getElementById('mdbk-patients-results');
         const clearBtn = document.getElementById('mdbk-patients-clear-filters');
+        const perPageSelect = document.getElementById('mdbk-patients-per-page');
         let debounceTimer;
+        let currentPage = 1;
 
         function runSearch() {
             const body = new URLSearchParams();
@@ -364,6 +366,8 @@ document.addEventListener('DOMContentLoaded', function() {
             body.set('nonce', mdbk_admin_obj.nonce);
             body.set('s', searchInput.value);
             body.set('filter_gender', genderSelect ? genderSelect.value : '');
+            body.set('paged', currentPage);
+            body.set('per_page', perPageSelect ? perPageSelect.value : 25);
             fetch(mdbk_admin_obj.ajax_url, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body.toString() })
                 .then((r) => r.json())
                 .then((res) => {
@@ -376,10 +380,17 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         searchInput.addEventListener('input', function() {
+            currentPage = 1;
             clearTimeout(debounceTimer);
             debounceTimer = setTimeout(runSearch, 300);
         });
         if (genderSelect) genderSelect.addEventListener('change', function() {
+            currentPage = 1;
+            clearTimeout(debounceTimer);
+            runSearch();
+        });
+        if (perPageSelect) perPageSelect.addEventListener('change', function() {
+            currentPage = 1;
             clearTimeout(debounceTimer);
             runSearch();
         });
@@ -387,8 +398,24 @@ document.addEventListener('DOMContentLoaded', function() {
             e.preventDefault();
             searchInput.value = '';
             if (genderSelect) genderSelect.value = '';
+            currentPage = 1;
             clearTimeout(debounceTimer);
             runSearch();
+        });
+
+        // Pagination buttons live inside #mdbk-patients-results, which this
+        // same runSearch() wholesale-replaces on every keystroke/filter —
+        // delegated on document (not bound once per button) so a page
+        // rendered by an earlier AJAX response still responds to clicks.
+        document.addEventListener('click', function(e) {
+            const btn = e.target.closest('.mdbk-patients-page-btn');
+            if (!btn || btn.disabled) return;
+            e.preventDefault();
+            const page = parseInt(btn.dataset.page, 10);
+            if (!page || page < 1) return;
+            currentPage = page;
+            runSearch();
+            if (resultsEl) resultsEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
         });
     })();
 
