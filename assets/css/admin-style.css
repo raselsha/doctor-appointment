@@ -1589,19 +1589,28 @@ html:has(body.mdbk-doctor-chrome) {
     padding-top: 0 !important;
     overflow: hidden;
 }
+body.mdbk-doctor-chrome {
+    overflow: hidden;
+}
 /* .mdbk-main-content (inside .mdbk-admin-wrapper) is this panel's one
    intended scroll owner — its own overflow-y:auto is what's supposed to
    move when content runs long, with the sidebar staying put beside it.
-   Without this, a few extra px of WP-admin's own residual spacing (body
-   margin, wpfooter's old space, sub-pixel viewport rounding — nothing
-   .mdbk-admin-wrapper's height calc above can fully predict) was enough
-   to also make html/body scroll, stacking a second, redundant scrollbar
-   next to .mdbk-main-content's on every mdbk-doctor-chrome screen. */
-body.mdbk-doctor-chrome {
-    overflow: hidden;
-    height: 100vh;
-}
+   A height:calc(100vh - Npx) on .mdbk-admin-wrapper here used to try to
+   match WP-admin's own residual top spacing (body margin, wpfooter's old
+   space, sub-pixel viewport rounding) well enough that the page never
+   needed to scroll — but any mismatch (or a scroll position the browser
+   already had before this CSS took effect, e.g. on a plain reload) left
+   the whole wrapper, sidebar included, shifted up with its top cropped
+   off and dead grey space at the bottom, WITH html/body's overflow:hidden
+   above then trapping it there since scrolling back to fix it was no
+   longer possible. position:fixed removes the wrapper from html/body's
+   flow entirely, pinning it to the actual viewport regardless of any
+   scroll offset either of them is carrying — nothing left to get stuck. */
 body.mdbk-doctor-chrome .mdbk-admin-wrapper {
-    height: calc(100vh - 40px);
+    position: fixed;
+    inset: 0;
+    height: auto;
+    border-radius: 0;
+    box-shadow: none;
 }
 
