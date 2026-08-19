@@ -1679,7 +1679,11 @@ class MDBK_Admin_Dashboard {
                 <span class="mdbk-badge mdbk-badge-status-<?php echo esc_attr($status); ?>"><?php echo esc_html(\MDBK\MDBK_Appointment_Manager::status_display_label($status)); ?></span>
             <?php endif; ?>
             <div class="mdbk-actions">
-                <?php if (current_user_can(MDBK_CAP_QUEUE)) : ?>
+                <?php // Only a closed-out visit has an actual consultation to bill —
+                // a still-waiting/serving/no-show appointment has nothing to
+                // invoice yet, so the action doesn't show at all rather than
+                // opening a popup for a fee nobody's confirmed was earned. ?>
+                <?php if ($status === 'completed' && current_user_can(MDBK_CAP_QUEUE)) : ?>
                 <a href="#" class="mdbk-action-btn mdbk-open-invoice" data-id="<?php echo esc_attr($a->ID); ?>" title="<?php esc_attr_e('Invoice', 'doctor-appointment'); ?>"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="9" y1="13" x2="15" y2="13"></line><line x1="9" y1="17" x2="15" y2="17"></line></svg></a>
                 <?php endif; ?>
                 <a href="#" class="mdbk-action-btn mdbk-edit-appointment" data-id="<?php echo esc_attr($a->ID); ?>"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"></path><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"></path></svg></a>
@@ -3574,6 +3578,14 @@ class MDBK_Admin_Dashboard {
         if (!$appointment || $appointment->post_type !== 'mdbk_appointment') {
             wp_send_json_error(['message' => __('Appointment not found.', 'doctor-appointment')]);
         }
+        // Same rule the Invoice action's own visibility follows (see
+        // render_patient_appointment_row()) — only a closed-out visit has
+        // an actual consultation to bill, enforced here too so the AJAX
+        // endpoint can't be hit directly for one that's still
+        // waiting/serving/no-show.
+        if (\MDBK\MDBK_Appointment_Manager::post_status_to_slug(get_post_status($appointment)) !== 'completed') {
+            wp_send_json_error(['message' => __('This appointment has not been marked Visited yet.', 'doctor-appointment')]);
+        }
 
         $doctor_id = intval(get_post_meta($appointment_id, '_mdbk_doctor_id', true));
         $amount = get_post_meta($appointment_id, '_mdbk_invoice_amount', true);
@@ -3607,6 +3619,9 @@ class MDBK_Admin_Dashboard {
         $appointment = $appointment_id ? get_post($appointment_id) : null;
         if (!$appointment || $appointment->post_type !== 'mdbk_appointment') {
             wp_send_json_error(['message' => __('Appointment not found.', 'doctor-appointment')]);
+        }
+        if (\MDBK\MDBK_Appointment_Manager::post_status_to_slug(get_post_status($appointment)) !== 'completed') {
+            wp_send_json_error(['message' => __('This appointment has not been marked Visited yet.', 'doctor-appointment')]);
         }
 
         $amount = isset($_POST['amount']) ? sanitize_text_field($_POST['amount']) : '';
