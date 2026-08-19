@@ -351,6 +351,13 @@ document.addEventListener('DOMContentLoaded', function() {
             clearTimeout(debounceTimer);
             runSearch();
         });
+
+        // Auto-refresh so a booking made elsewhere (the public form, another
+        // staff member's tab) shows up here without a manual reload — same
+        // 12s cadence the public Live Queue page already polls at
+        // (queue-script.js/queue-view-script.js). Whatever filters/date are
+        // currently applied stay applied; this just re-runs that same query.
+        setInterval(runSearch, 12000);
     })();
 
     // Booking page's own date-filter nav — same modern popover calendar as
