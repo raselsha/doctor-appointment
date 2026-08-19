@@ -600,6 +600,20 @@
 .mdbk-view-field label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.4px; color: #9ca3af; font-weight: 600; }
 .mdbk-view-field span { font-size: 13px; color: #374151; }
 
+/* View Patient popup's contact block — a row of fields (not
+   .mdbk-view-col's single stacked column, which took 5 full-width lines
+   to say five short things) so it reads at a glance instead of needing
+   a scroll past it to reach the actual visit history below. */
+.mdbk-patient-view-info {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 16px 24px;
+    margin-bottom: 20px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid #e2e8f0;
+}
+.mdbk-patient-view-info .mdbk-view-field-full { grid-column: 1 / -1; margin-bottom: 0; }
+
 /* Weekly/Monthly Availability — always-expanded modern card sections
    (no collapse/expand interaction; both are short enough that hiding one
    behind a click just cost an extra step for no real space savings). */
@@ -1410,6 +1424,12 @@ button.mdbk-mini-cal-nav-btn:hover { background: #f1f5f9; }
 .mdbk-patient-row-ticket.mdbk-patient-row-pid { background: #f5f3ff; color: #7c3aed; }
 .mdbk-patient-row-ticket.mdbk-patient-row-queue { background: #eff6ff; color: #1d4ed8; }
 .mdbk-patient-row-name { font-size: 14px; font-weight: 800; color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Same name styling, but as a clickable trigger (.mdbk-view-patient) on
+   the Booking page's rows — stays plain dark text like the span version,
+   not the browser's default blue/underline, with just a color shift on
+   hover as the only "this opens something" cue. */
+a.mdbk-patient-row-name { text-decoration: none; cursor: pointer; }
+a.mdbk-patient-row-name:hover { color: #0d9488; text-decoration: underline; }
 
 .mdbk-patient-row-chip { display: flex; align-items: center; gap: 5px; font-size: 12px; color: #64748b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 .mdbk-patient-row-chip svg { flex-shrink: 0; }

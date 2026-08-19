@@ -1656,7 +1656,11 @@ class MDBK_Admin_Dashboard {
         ?>
         <div class="mdbk-patient-row<?php echo $show_doctor ? ' mdbk-patient-row-has-doctor' : ''; ?> mdbk-status-<?php echo esc_attr($status); ?>" data-id="<?php echo esc_attr($a->ID); ?>" data-patient="<?php echo esc_attr($p_name); ?>" data-phone="<?php echo esc_attr($phone); ?>" data-email="<?php echo esc_attr($email); ?>" data-age="<?php echo esc_attr($age); ?>" data-gender="<?php echo esc_attr($gender); ?>" data-doctor="<?php echo esc_attr($doc_id); ?>" data-specialty="<?php echo esc_attr($app_spec_id); ?>" data-date="<?php echo esc_attr($date); ?>" data-slot-time="<?php echo esc_attr($slot_time); ?>" data-status="<?php echo esc_attr($status); ?>">
             <span class="mdbk-patient-row-ticket-slot"><?php if ($ticket): ?><span class="mdbk-patient-row-ticket mdbk-patient-row-queue" title="<?php esc_attr_e('Queue number', 'doctor-appointment'); ?>">Q<?php echo esc_html(str_pad($ticket, 2, '0', STR_PAD_LEFT)); ?></span><?php endif; ?></span>
-            <span class="mdbk-patient-row-name"><?php echo esc_html($p_name); ?></span>
+            <?php if ($patient_id && current_user_can(MDBK_CAP_QUEUE)) : ?>
+                <a href="#" class="mdbk-patient-row-name mdbk-view-patient" data-id="<?php echo esc_attr($patient_id); ?>" title="<?php esc_attr_e('View patient', 'doctor-appointment'); ?>"><?php echo esc_html($p_name); ?></a>
+            <?php else : ?>
+                <span class="mdbk-patient-row-name"><?php echo esc_html($p_name); ?></span>
+            <?php endif; ?>
             <span class="mdbk-patient-row-ticket-slot"><?php if ($patient_id): ?><span class="mdbk-patient-row-ticket mdbk-patient-row-pid" title="<?php esc_attr_e('Patient ID', 'doctor-appointment'); ?>">P<?php echo esc_html($patient_id); ?></span><?php endif; ?></span>
             <?php if ($show_doctor): ?><span class="mdbk-patient-row-chip mdbk-chip-doctor"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.5 21a8.5 8.5 0 0 0-17 0"></path><circle cx="12" cy="7.5" r="4.5"></circle></svg> <?php echo $doc_id ? esc_html(get_the_title($doc_id)) : esc_html__('N/A', 'doctor-appointment'); ?></span><?php endif; ?>
             <span class="mdbk-patient-row-chip-slot"><?php if ($phone): ?><span class="mdbk-patient-row-chip mdbk-chip-phone"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.12.9.34 1.79.66 2.64a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.44-1.44a2 2 0 0 1 2.11-.45c.85.32 1.74.54 2.64.66A2 2 0 0 1 22 16.92z"></path></svg> <?php echo esc_html($phone); ?></span><?php endif; ?></span>
@@ -1886,7 +1890,7 @@ class MDBK_Admin_Dashboard {
                 </div>
                 <div id="mdbk-schedule-results"><?php echo $this->render_schedule_results_html($filter_date, $filter_doctor, $filter_status, $search, $apps, $is_today_view); ?></div>
                 <?php endif; ?>
-            </div></div><?php $this->render_appointment_modal_html(); ?></div>
+            </div></div><?php $this->render_appointment_modal_html(); $this->render_patient_view_modal_html(); ?></div>
         <?php
     }
 
@@ -3445,12 +3449,12 @@ class MDBK_Admin_Dashboard {
 
         ob_start();
         ?>
-        <div class="mdbk-view-col" style="margin-bottom:20px;">
+        <div class="mdbk-patient-view-info">
             <div class="mdbk-view-field"><label><?php _e('Phone', 'doctor-appointment'); ?></label><span><?php echo esc_html($phone ?: '—'); ?></span></div>
             <div class="mdbk-view-field"><label><?php _e('Email', 'doctor-appointment'); ?></label><span><?php echo esc_html($email ?: '—'); ?></span></div>
-            <div class="mdbk-view-field"><label><?php _e('Address', 'doctor-appointment'); ?></label><span><?php echo esc_html($address ?: '—'); ?></span></div>
             <div class="mdbk-view-field"><label><?php _e('Age / Gender', 'doctor-appointment'); ?></label><span><?php echo esc_html($age_gender ?: '—'); ?></span></div>
             <div class="mdbk-view-field"><label><?php _e('Total Visits', 'doctor-appointment'); ?></label><span><?php echo esc_html(count($apps)); ?></span></div>
+            <div class="mdbk-view-field mdbk-view-field-full"><label><?php _e('Address', 'doctor-appointment'); ?></label><span><?php echo esc_html($address ?: '—'); ?></span></div>
         </div>
         <h4 style="margin:0 0 10px;"><?php _e('Visit History', 'doctor-appointment'); ?></h4>
         <?php $this->render_patient_visit_history_table($apps); ?>
