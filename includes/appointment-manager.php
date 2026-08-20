@@ -393,6 +393,19 @@ class MDBK_Appointment_Manager {
         if (!empty($extra['address'])) {
             update_post_meta($patient_id, '_mdbk_patient_address', sanitize_textarea_field($extra['address']));
         }
+        // Age/gender are captured at every booking (see handle_submission()
+        // and admin-dashboard.php's ajax_save_appointment()) but were only
+        // ever written onto that ONE appointment's own meta — the Patient
+        // Directory reads them off the *patient* post instead, so every
+        // patient showed blank there regardless of what was entered at
+        // booking time. Refreshed on each booking (like email/address
+        // above) since age genuinely changes year to year.
+        if (!empty($extra['age'])) {
+            update_post_meta($patient_id, '_mdbk_patient_age', sanitize_text_field($extra['age']));
+        }
+        if (!empty($extra['gender'])) {
+            update_post_meta($patient_id, '_mdbk_patient_gender', sanitize_text_field($extra['gender']));
+        }
 
         if ($phone) {
             self::link_patient_user($patient_id, $phone);
@@ -936,7 +949,11 @@ class MDBK_Appointment_Manager {
                 return new \WP_Error('mdbk_slot_taken', __('That time slot is no longer available. Please choose another.', 'doctor-appointment'));
             }
 
-            $patient_id = self::find_or_create_patient($name, $phone, ['email' => $email]);
+            $patient_id = self::find_or_create_patient($name, $phone, [
+                'email'  => $email,
+                'age'    => isset($data['age']) ? $data['age'] : '',
+                'gender' => isset($data['gender']) ? $data['gender'] : '',
+            ]);
 
             // Insert as a plain draft first — inserting directly with
             // post_status 'mdbk_waiting' would fire transition_post_status

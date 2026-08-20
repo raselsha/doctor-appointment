@@ -802,7 +802,7 @@ class MDBK_Admin_Dashboard {
         $p_email = isset($_POST['patient_email']) ? sanitize_email($_POST['patient_email']) : '';
         $p_age = isset($_POST['age']) ? sanitize_text_field($_POST['age']) : '';
         $p_gender = isset($_POST['gender']) ? sanitize_text_field($_POST['gender']) : '';
-        $patient_id = \MDBK\MDBK_Appointment_Manager::find_or_create_patient($p_name, $p_phone, ['email' => $p_email]);
+        $patient_id = \MDBK\MDBK_Appointment_Manager::find_or_create_patient($p_name, $p_phone, ['email' => $p_email, 'age' => $p_age, 'gender' => $p_gender]);
 
         $post_status = \MDBK\MDBK_Appointment_Manager::status_slug_to_post_status(sanitize_text_field($_POST['status']));
         $id = wp_update_post(['ID' => $app_id, 'post_title' => "Booking: " . $p_name, 'post_status' => $post_status]);
