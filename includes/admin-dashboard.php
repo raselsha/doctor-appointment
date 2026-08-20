@@ -2721,9 +2721,16 @@ class MDBK_Admin_Dashboard {
                 $html .= '<span class="mdbk-toggle-slider"></span><span class="mdbk-mini-toggle-text">' . esc_html__('Live Queue', 'doctor-appointment') . '</span>';
                 $html .= '</label>';
             }
-            $html .= '<button type="button" class="mdbk-icon-btn mdbk-print-group" title="' . esc_attr__('Print', 'doctor-appointment') . '" onclick="event.preventDefault();event.stopPropagation();"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg></button>';
+            // preventDefault() alone (not stopPropagation() too, like these
+            // two buttons used to have) is enough to stop the click from
+            // also toggling the parent <summary>'s <details> open/closed —
+            // stopping propagation went further and kept the click from
+            // ever reaching admin-script.js's delegated document-level
+            // listeners for these buttons, which are the only thing that
+            // actually opens the print window / builds the image.
+            $html .= '<button type="button" class="mdbk-icon-btn mdbk-print-group" title="' . esc_attr__('Print', 'doctor-appointment') . '" onclick="event.preventDefault();"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg></button>';
             $html .= '<a href="' . esc_url($doc_export_url) . '" class="mdbk-icon-btn" title="' . esc_attr__('Export CSV', 'doctor-appointment') . '" onclick="event.stopPropagation();"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg></a>';
-            $html .= '<button type="button" class="mdbk-icon-btn mdbk-download-group-image" title="' . esc_attr__('Download as Image', 'doctor-appointment') . '" onclick="event.preventDefault();event.stopPropagation();"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg></button>';
+            $html .= '<button type="button" class="mdbk-icon-btn mdbk-download-group-image" title="' . esc_attr__('Download as Image', 'doctor-appointment') . '" onclick="event.preventDefault();"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg></button>';
             // An inline SVG chevron here (not the plain border-corner trick
             // .mdbk-availability-chevron uses elsewhere) — that trick's
             // rotate(45deg)/rotate(-135deg) pairing relies on the box's
