@@ -618,10 +618,17 @@
 .mdbk-view-status.is-active { background: #ecfdf5; color: #059669; }
 .mdbk-view-status.is-inactive { background: #f3f4f6; color: #9ca3af; }
 .mdbk-view-col { display: flex; flex-direction: column; gap: 8px; margin-left: auto; min-width: 160px; }
-.mdbk-view-field { display: flex; flex-direction: column; gap: 2px; }
+.mdbk-view-field { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .mdbk-view-field-full { margin-bottom: 12px; }
 .mdbk-view-field label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.4px; color: #9ca3af; font-weight: 600; }
-.mdbk-view-field span { font-size: 13px; color: #374151; }
+/* overflow-wrap so a long value with no natural break point (an email
+   address especially) wraps onto a second line instead of overflowing
+   its grid cell and visually running into the next column's text —
+   min-width:0 on .mdbk-view-field above is what lets the cell actually
+   shrink to the grid track's width in the first place, since a grid
+   item's default min-width:auto would otherwise keep it stretched to
+   fit that unbroken text no matter how narrow the track is. */
+.mdbk-view-field span { font-size: 13px; color: #374151; overflow-wrap: break-word; }
 
 /* View Patient popup's contact block — a row of fields (not
    .mdbk-view-col's single stacked column, which took 5 full-width lines
