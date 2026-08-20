@@ -637,7 +637,12 @@
    shrink to the grid track's width in the first place, since a grid
    item's default min-width:auto would otherwise keep it stretched to
    fit that unbroken text no matter how narrow the track is. */
-.mdbk-view-field span { font-size: 13px; color: #374151; overflow-wrap: break-word; }
+/* Same bold-value/muted-label split as .mdbk-table above — these are
+   the ID/phone/email/age-gender/visit-count values themselves (Invoice
+   modal, View Patient modal, doctor "View" popup), not decoration, so
+   weight carries the emphasis the label above already has instead of
+   reading flatter than its own field name. */
+.mdbk-view-field span { font-size: 13px; font-weight: 700; color: #1e293b; overflow-wrap: break-word; }
 
 /* View Patient popup's contact block — a row of fields (not
    .mdbk-view-col's single stacked column, which took 5 full-width lines
