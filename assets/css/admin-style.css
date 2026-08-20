@@ -733,6 +733,10 @@ button.mdbk-mini-cal-nav-btn:hover { background: #f1f5f9; }
    since #mdbk-schedule-date-panel (the Booking page's own date-filter nav)
    reuses that same class and must stay a popover. */
 #mdbk-app-calendar { position: static; top: auto; left: auto; z-index: auto; width: 100%; }
+/* Same light-blue pill the public booking form uses (#mdbk-cal-day in
+   form-style.css) to flag every actually bookable date at a glance,
+   instead of every non-selected day looking identical until clicked. */
+#mdbk-app-calendar .mdbk-mini-cal-day:not(.past):not(.unavailable):not(.empty):not(.selected) { background: #dbeafe; }
 #mdbk-app-calendar .mdbk-mini-cal-day.selected,
 #mdbk-schedule-date-panel .mdbk-mini-cal-day.selected { background: #0061d5; color: #fff; font-weight: 700; }
 #mdbk-app-calendar .mdbk-mini-cal-day.today:not(.selected),
