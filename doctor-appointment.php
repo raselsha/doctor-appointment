@@ -135,6 +135,25 @@ if ( ! class_exists( 'MDBK_Doctor_Appointment' ) ) {
             }
             $admin_js_ver = filemtime(MDBK_PATH . 'assets/js/admin-script.js');
             wp_enqueue_media(); // needed for the doctor photo picker's wp.media() uploader
+
+            // Doctor Directory's card-grid drag-to-reorder — SortableJS (MIT,
+            // vendored — RubaXa/SortableJS), not jQuery UI Sortable: jQuery
+            // UI's own sortable was built for normal block/list flow and
+            // drags items via absolute-positioning math that doesn't account
+            // for CSS Grid track layout (.mdbk-admin-doctor-grid is
+            // `display: grid`) — it would intermittently miscalculate the
+            // drop target and silently fail to reorder. SortableJS moves the
+            // real DOM node during drag instead, which the grid just
+            // reflows around, and needs no jQuery UI dependency at all.
+            // Registered as an explicit admin-script.js dependency (not just
+            // enqueued alongside it) so window.Sortable is always defined
+            // before admin-script.js's own DOMContentLoaded handler runs,
+            // regardless of enqueue call order.
+            $admin_script_deps = array();
+            if (isset($_GET['page']) && $_GET['page'] === 'mdbk-doctors') {
+                wp_enqueue_script('mdbk-sortable', MDBK_URL . 'assets/js/vendor/sortable.min.js', array(), filemtime( MDBK_PATH . 'assets/js/vendor/sortable.min.js' ), true);
+                $admin_script_deps[] = 'mdbk-sortable';
+            }
             // Bengali web font — 'Inter' (this panel's own font stack, see
             // admin-style.css) has no Bengali glyphs at all, so without this
             // a Bangla-translated UI (see languages/doctor-appointment-bn_BD.mo)
@@ -150,7 +169,7 @@ if ( ! class_exists( 'MDBK_Doctor_Appointment' ) ) {
             wp_enqueue_style('mdbk-bn-font', 'https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&display=swap', array(), null);
             wp_enqueue_style('mdbk-admin-style', MDBK_URL . 'assets/css/admin-style.css', array('mdbk-bn-font'), filemtime( MDBK_PATH . 'assets/css/admin-style.css' ));
             wp_enqueue_style('front-end-style', MDBK_URL . 'assets/css/front-end.css', array(), filemtime( MDBK_PATH . 'assets/css/front-end.css' ));
-            wp_enqueue_script('mdbk-admin-script', MDBK_URL . 'assets/js/admin-script.js', array(), $admin_js_ver, true);
+            wp_enqueue_script('mdbk-admin-script', MDBK_URL . 'assets/js/admin-script.js', $admin_script_deps, $admin_js_ver, true);
             wp_localize_script( 'mdbk-admin-script', 'mdbk_admin_obj', array_merge( [
                 'ajax_url' => admin_url( 'admin-ajax.php' ),
                 'nonce'    => wp_create_nonce( 'mdbk_admin_nonce' ),

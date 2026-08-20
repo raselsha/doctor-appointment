@@ -1385,7 +1385,9 @@ class MDBK_Admin_Dashboard {
 
                 <div class="mdbk-staff-filters-bar">
                     <a href="#" class="mdbk-btn-add mdbk-add-doctor"><?php _e('+ Add New Doctor', 'doctor-appointment'); ?></a>
-                    <button type="button" class="mdbk-btn-outline" id="mdbk-open-doctor-reorder"><?php _e('Reorder', 'doctor-appointment'); ?></button>
+                    <?php if (current_user_can(MDBK_CAP_ADMIN)): ?>
+                    <span class="mdbk-drag-hint" id="mdbk-doctor-drag-hint"><?php _e('Drag cards to reorder', 'doctor-appointment'); ?></span>
+                    <?php endif; ?>
                     <div class="mdbk-staff-filters-controls">
                         <span class="mdbk-staff-count-badge" id="mdbk-doctor-count-badge"><?php echo esc_html(sprintf(__('Showing %1$d Doctors of %2$d Total', 'doctor-appointment'), min(9, $total), $total)); ?></span>
                         <div class="mdbk-staff-search-box">
@@ -1440,7 +1442,6 @@ class MDBK_Admin_Dashboard {
             </div></div><?php
             $this->render_doctor_modal_html();
             $this->render_doctor_view_modal_html();
-            $this->render_reorder_modal_html(array_map(function($d) { return ['id' => $d->ID, 'name' => $d->post_title]; }, $doctors), 'doctor');
             ?></div>
         <?php
     }
@@ -1520,6 +1521,9 @@ class MDBK_Admin_Dashboard {
         ob_start();
         ?>
         <div class="mdbk-admin-doctor-card<?php echo $active ? '' : ' is-inactive'; ?>" data-id="<?php echo esc_attr($d->ID); ?>" data-name="<?php echo esc_attr($d->post_title); ?>" data-email="<?php echo esc_attr($email); ?>" data-phone="<?php echo esc_attr($phone); ?>" data-bio="<?php echo esc_attr($bio); ?>" data-show-phone="<?php echo esc_attr($show_phone ? $show_phone : 'yes'); ?>" data-show-email="<?php echo esc_attr($show_email ? $show_email : 'yes'); ?>" data-schedule='<?php echo esc_attr(json_encode($schedule)); ?>' data-slot-duration="<?php echo esc_attr($slot_duration ? $slot_duration : 20); ?>" data-slot-enabled="<?php echo esc_attr($slot_enabled === 'no' ? 'no' : 'yes'); ?>" data-extra-dates='<?php echo esc_attr(json_encode(is_array($extra_dates) ? $extra_dates : [])); ?>' data-off-dates='<?php echo esc_attr(json_encode(is_array($off_dates) ? $off_dates : [])); ?>' data-specialty="<?php echo esc_attr($spec_id); ?>" data-thumbnail="<?php echo esc_url($thumb ?: ''); ?>" data-thumbnail-id="<?php echo esc_attr($thumb_id ?: 0); ?>" data-fee="<?php echo esc_attr($fee ?: ''); ?>">
+            <?php if (current_user_can(MDBK_CAP_ADMIN)) : ?>
+            <span class="mdbk-doctor-drag-handle" title="<?php esc_attr_e('Drag to reorder', 'doctor-appointment'); ?>"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><circle cx="8" cy="6" r="1.6"></circle><circle cx="16" cy="6" r="1.6"></circle><circle cx="8" cy="12" r="1.6"></circle><circle cx="16" cy="12" r="1.6"></circle><circle cx="8" cy="18" r="1.6"></circle><circle cx="16" cy="18" r="1.6"></circle></svg></span>
+            <?php endif; ?>
             <div class="mdbk-admin-doctor-card-avatar">
                 <?php if ($thumb): ?>
                     <img src="<?php echo esc_url($thumb); ?>" alt="">
@@ -3532,7 +3536,11 @@ class MDBK_Admin_Dashboard {
 
                 <div class="mdbk-form-row">
                     <label class="mdbk-form-label" for="mdbk-doc-fee"><?php _e('Consultation Fee (৳)', 'doctor-appointment'); ?></label>
-                    <input type="number" name="doc_fee" id="mdbk-doc-fee" min="0" step="0.01" placeholder="<?php esc_attr_e('e.g. 800', 'doctor-appointment'); ?>">
+                    <div class="mdbk-stepper">
+                        <button type="button" class="mdbk-stepper-btn mdbk-stepper-minus" tabindex="-1" aria-label="<?php esc_attr_e('Decrease', 'doctor-appointment'); ?>">&minus;</button>
+                        <input type="number" name="doc_fee" id="mdbk-doc-fee" min="0" step="0.01" data-step="50" placeholder="<?php esc_attr_e('e.g. 800', 'doctor-appointment'); ?>">
+                        <button type="button" class="mdbk-stepper-btn mdbk-stepper-plus" tabindex="-1" aria-label="<?php esc_attr_e('Increase', 'doctor-appointment'); ?>">&plus;</button>
+                    </div>
                     <p class="mdbk-form-hint"><?php _e('Used as the default amount on this doctor\'s invoices — can still be changed on any individual invoice.', 'doctor-appointment'); ?></p>
                 </div>
 

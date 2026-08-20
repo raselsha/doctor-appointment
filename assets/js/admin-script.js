@@ -338,8 +338,30 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         }
     }
-    initReorderModal('mdbk-open-doctor-reorder', 'mdbk-reorder-modal-doctor', 'mdbk_save_doctor_order');
     initReorderModal('mdbk-open-specialty-reorder', 'mdbk-reorder-modal-specialty', 'mdbk_save_specialty_order');
+
+    // +/- stepper buttons around a number input (.mdbk-stepper, e.g. the
+    // Doctor modal's Consultation Fee) — reads data-step (falls back to the
+    // input's own native step, then 1) so the click increment can be a
+    // friendlier round number than whatever `step` the input needs for
+    // native decimal validation. Delegated at the document level since
+    // .mdbk-stepper can live inside any modal, present or future.
+    document.addEventListener('click', function(e) {
+        const btn = e.target.closest('.mdbk-stepper-minus, .mdbk-stepper-plus');
+        if (!btn) return;
+        e.preventDefault();
+        const input = btn.parentElement.querySelector('input[type="number"]');
+        if (!input || input.disabled) return;
+        const step = parseFloat(input.dataset.step || input.step || '1') || 1;
+        const min = input.min !== '' ? parseFloat(input.min) : -Infinity;
+        const max = input.max !== '' ? parseFloat(input.max) : Infinity;
+        let val = parseFloat(input.value) || 0;
+        val = btn.classList.contains('mdbk-stepper-plus') ? val + step : val - step;
+        val = Math.min(max, Math.max(min, val));
+        // Rounds away floating-point noise (0.1 + 0.2 = 0.30000000000000004).
+        input.value = Math.round(val * 100) / 100;
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
 
     // Patient Directory's live search — debounced 300ms on every
     // keystroke (same feel as the tailor-manager project's own live
@@ -2341,11 +2363,16 @@ document.addEventListener('DOMContentLoaded', function() {
         const pageNumbers = document.getElementById('mdbk-doctor-page-numbers');
         const prevBtn = document.getElementById('mdbk-doctor-prev');
         const nextBtn = document.getElementById('mdbk-doctor-next');
+        const dragHint = document.getElementById('mdbk-doctor-drag-hint');
         const PAGE_SIZE = 9;
         let currentPage = 1;
 
         function allCards() {
             return Array.from(doctorGrid.querySelectorAll('.mdbk-admin-doctor-card'));
+        }
+
+        function isUnfiltered() {
+            return !(searchInput.value || '').trim() && !specialtyFilter.value;
         }
 
         function matchingCards() {
@@ -2361,9 +2388,32 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         }
 
+        // Drag-to-reorder (see doctorSortable below) needs every doctor on
+        // screen together — the position it writes back is a plain index
+        // in the visible DOM order, which is only ever the TRUE global order
+        // when nothing is hidden by a filter or a pagination page boundary.
+        // So the unfiltered view skips PAGE_SIZE slicing entirely (shows
+        // every card, hides Prev/Next) instead of trying to make dragging
+        // work across page boundaries it can't see past.
         function refreshGrid() {
             const cards = allCards();
             const matches = matchingCards();
+            const unfiltered = isUnfiltered();
+
+            if (doctorSortable) doctorSortable.option('disabled', !unfiltered);
+            doctorGrid.classList.toggle('mdbk-drag-inactive', !unfiltered);
+            if (dragHint) dragHint.textContent = unfiltered
+                ? 'Drag cards to reorder'
+                : 'Clear search/filter to drag and reorder';
+
+            if (unfiltered) {
+                cards.forEach((c) => c.classList.remove('is-hidden'));
+                if (noMatch) noMatch.style.display = cards.length === 0 ? '' : 'none';
+                if (pagination) pagination.style.display = 'none';
+                if (countBadge) countBadge.textContent = 'Showing ' + cards.length + ' Doctors of ' + cards.length + ' Total';
+                return;
+            }
+
             const totalPages = Math.max(1, Math.ceil(matches.length / PAGE_SIZE));
             if (currentPage > totalPages) currentPage = totalPages;
 
@@ -2389,6 +2439,46 @@ document.addEventListener('DOMContentLoaded', function() {
                     pageNumbers.appendChild(btn);
                 }
             }
+        }
+
+        // SortableJS (window.Sortable, vendored — see doctor-appointment.php's
+        // admin_enqueue_scripts()) drags the real .mdbk-admin-doctor-card DOM
+        // node during a drag, which the CSS Grid just reflows around — jQuery
+        // UI Sortable's absolute-positioning math doesn't understand Grid
+        // tracks and would intermittently miscalculate the drop target.
+        // Starts disabled; refreshGrid() (called once below, and again on
+        // every search/filter change) turns it on only in the unfiltered view.
+        let doctorSortable = null;
+        if (typeof mdbk_admin_obj !== 'undefined' && window.Sortable) {
+            doctorSortable = window.Sortable.create(doctorGrid, {
+                animation: 150,
+                handle: '.mdbk-doctor-drag-handle',
+                draggable: '.mdbk-admin-doctor-card',
+                ghostClass: 'mdbk-drag-ghost',
+                chosenClass: 'mdbk-drag-chosen',
+                disabled: true,
+                // Touch only (mouse stays instant): a short press-and-hold
+                // before the drag actually engages, so a finger really
+                // trying to scroll the page (and moving a few px during
+                // that hold) cancels the drag instead of yanking a card.
+                delay: 150,
+                delayOnTouchOnly: true,
+                touchStartThreshold: 5,
+                onEnd: function(evt) {
+                    const ids = Array.from(doctorGrid.querySelectorAll('.mdbk-admin-doctor-card')).map((c) => c.dataset.id);
+                    if (!ids.length) return;
+                    const body = new URLSearchParams();
+                    body.set('action', 'mdbk_save_doctor_order');
+                    body.set('nonce', mdbk_admin_obj.nonce);
+                    ids.forEach((id) => body.append('order[]', id));
+                    fetch(mdbk_admin_obj.ajax_url, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body.toString() })
+                        .then((r) => r.json())
+                        .then((res) => {
+                            if (!res || !res.success) alert((res && res.data && res.data.message) || 'Something went wrong, please try again.');
+                        })
+                        .catch(() => alert('Something went wrong, please try again.'));
+                }
+            });
         }
 
         if (searchInput) searchInput.addEventListener('input', () => { currentPage = 1; refreshGrid(); });
