@@ -1250,17 +1250,103 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // A slot-disabled doctor is booked serially (queue number auto-assigned
-    // by the server) — the Slot Time field means nothing for them, so it's
-    // dimmed/disabled and a hint takes its place, mirroring the Doctor
-    // modal's own Slot Duration field.
+    // by the server) — the slot picker means nothing for them, so it's
+    // hidden and a hint takes its place, mirroring the Doctor modal's own
+    // Slot Duration field.
     function updateAppSlotTimeAvailability(selectedOpt) {
-        const slotInput = document.getElementById('mdbk-app-slot-time');
+        const picker = document.getElementById('mdbk-app-slot-picker');
         const hint = document.getElementById('mdbk-app-slot-hint');
-        if (!slotInput) return;
+        const valueEl = document.getElementById('mdbk-app-slot-time');
+        if (!picker) return;
         const slotEnabled = !selectedOpt || selectedOpt.dataset.slotEnabled !== 'no';
-        slotInput.disabled = !slotEnabled;
-        if (!slotEnabled) slotInput.value = '';
+        picker.style.display = slotEnabled ? '' : 'none';
         if (hint) hint.style.display = slotEnabled ? 'none' : '';
+        if (!slotEnabled && valueEl) valueEl.value = '';
+    }
+
+    // Fetches and renders the Add/Edit Booking modal's clickable slot
+    // grid — the admin-side equivalent of form-script.js's loadSlotsInto()
+    // for the public booking widget, reusing the same mdbk_get_doctor_slots
+    // endpoint/nonce and the same .mdbk-slot-btn markup/classes so both
+    // pickers look and behave identically. preselectTime/excludeId are
+    // Edit-mode only: excludeId (this appointment's own ID) keeps its
+    // current slot out of the "already booked" count, and preselectTime
+    // marks that same slot as chosen instead of auto-picking the first
+    // open one like a fresh "Add Booking" does.
+    let appSlotToken = 0;
+    function loadAppSlots(doctorId, dateStr, preselectTime, excludeId) {
+        const picker = document.getElementById('mdbk-app-slot-picker');
+        const valueEl = document.getElementById('mdbk-app-slot-time');
+        if (!picker || !valueEl) return;
+        valueEl.value = '';
+
+        if (!doctorId || !dateStr) {
+            picker.classList.add('mdbk-slot-picker-disabled');
+            picker.innerHTML = '<p class="mdbk-time-placeholder">Select a date first</p>';
+            return;
+        }
+
+        picker.classList.remove('mdbk-slot-picker-disabled');
+        picker.innerHTML = '<div class="mdbk-slot-loading">Loading times...</div>';
+
+        const token = ++appSlotToken;
+        const body = new URLSearchParams();
+        body.set('action', 'mdbk_get_doctor_slots');
+        body.set('doctor_id', doctorId);
+        body.set('date', dateStr);
+        body.set('nonce', mdbk_admin_obj.form_nonce);
+        if (excludeId) body.set('exclude_id', excludeId);
+
+        fetch(mdbk_admin_obj.ajax_url, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body.toString() })
+            .then(function(r) { return r.json(); })
+            .then(function(res) {
+                if (token !== appSlotToken) return;
+                const slots = (res && res.success && res.data) ? res.data : [];
+                if (!slots.length) {
+                    picker.innerHTML = '<div class="mdbk-no-slots">No time slots available on this date.</div>';
+                    return;
+                }
+
+                function selectSlot(btn, time) {
+                    const prev = picker.querySelector('.mdbk-slot-btn.selected');
+                    if (prev) prev.classList.remove('selected');
+                    btn.classList.add('selected');
+                    valueEl.value = time;
+                }
+
+                picker.innerHTML = '';
+                let autoBtn = null, autoTime = null;
+                slots.forEach(function(slot) {
+                    const btn = document.createElement('button');
+                    btn.type = 'button';
+                    btn.className = 'mdbk-slot-btn' + (slot.available ? '' : ' mdbk-slot-taken');
+                    btn.textContent = mdbkFormatTimeDisplay(slot.time);
+                    if (!slot.available) {
+                        btn.disabled = true;
+                    } else {
+                        btn.addEventListener('click', function() { selectSlot(btn, slot.time); });
+                        if (preselectTime && slot.time === preselectTime) {
+                            selectSlot(btn, slot.time);
+                        } else if (!autoBtn) {
+                            autoBtn = btn;
+                            autoTime = slot.time;
+                        }
+                    }
+                    picker.appendChild(btn);
+                });
+                // Nothing matched preselectTime (fresh "Add Booking", or an
+                // edit whose date was changed away from its original one) —
+                // auto-assign the earliest open slot, same as the public
+                // form does, so Save never gets submitted with an empty time.
+                if (!valueEl.value && autoBtn) {
+                    autoBtn.classList.add('selected');
+                    valueEl.value = autoTime;
+                }
+            })
+            .catch(function() {
+                if (token !== appSlotToken) return;
+                picker.innerHTML = '<div class="mdbk-no-slots">Error loading time slots.</div>';
+            });
     }
 
     /**
@@ -1375,6 +1461,14 @@ document.addEventListener('DOMContentLoaded', function() {
             wrap.classList.remove('mdbk-field-error');
             render();
             close();
+            // Picking a date is exactly when the slot grid needs to reload
+            // for whichever doctor is currently selected — excludeId is
+            // this appointment's own id (empty on a fresh "Add Booking"),
+            // so re-picking THIS appointment's original date while editing
+            // still shows its own slot as open, not falsely taken.
+            const doctorEl = document.getElementById('mdbk-app-doctor');
+            const appIdEl = document.getElementById('mdbk-app-id');
+            loadAppSlots(doctorEl ? doctorEl.value : '', dateStr, '', appIdEl ? appIdEl.value : '');
         }
 
         trigger.addEventListener('click', function(e) {
@@ -1460,6 +1554,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 viewMonth = today.getMonth();
                 wrap.classList.remove('mdbk-field-error');
                 render();
+                loadAppSlots('', '');
             },
             openPanel: open
         };
@@ -1507,6 +1602,14 @@ document.addEventListener('DOMContentLoaded', function() {
     const appDoctorSelect = initCustomSelect('mdbk-app-doctor-select', function(selectedOpt, value) {
         updateAppSlotTimeAvailability(selectedOpt);
         updateAppDateAvailability(value);
+        // Whatever slot was picked belonged to the PREVIOUS doctor's
+        // schedule, not this one — reload for the currently-selected date
+        // (if any) against the new doctor. During Edit-populate this fires
+        // before the target date/slot are set below and is superseded by
+        // that flow's own final loadAppSlots() call (appSlotToken guards
+        // against this throwaway one resolving later and clobbering it).
+        const dateEl = document.getElementById('mdbk-app-date');
+        loadAppSlots(value, dateEl ? dateEl.value : '');
     });
     const appStatusSelect = initCustomSelect('mdbk-app-status-select');
     const appSpecSelect = initCustomSelect('mdbk-app-spec-select');
@@ -1570,12 +1673,16 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             if (appDateCalendar) appDateCalendar.setSelected(row.dataset.date);
             suppressDateAutoClear = false;
-            // updateAppSlotTimeAvailability() already ran (via the doctor
-            // setValue() above) and disabled this field if the doctor is
-            // slot-disabled — don't restore a value into a field that's
-            // about to be dropped from the submit anyway.
-            const appSlotInput = document.getElementById('mdbk-app-slot-time');
-            if (!appSlotInput.disabled) appSlotInput.value = row.dataset.slotTime || '';
+            // One explicit, fully-informed call now that doctor/date are
+            // both set — supersedes the throwaway ones the doctor setValue()
+            // above already fired (appSlotToken discards those once this
+            // one's response lands). excludeId keeps this SAME appointment's
+            // own slot out of its own "already booked" count; preselectTime
+            // marks it chosen instead of auto-picking the first open slot.
+            // updateAppSlotTimeAvailability() (via the doctor setValue()
+            // above) already hid the whole picker if this doctor is
+            // slot-disabled, so this is a harmless no-op fetch for them.
+            loadAppSlots(row.dataset.doctor, row.dataset.date, row.dataset.slotTime, id);
             if (appStatusSelect && row.dataset.status) {
                 const opt = appStatusSelect.panel.querySelector('.mdbk-custom-select-option[data-value="' + row.dataset.status + '"]');
                 if (opt) appStatusSelect.setValue(opt.dataset.value, opt.textContent);

@@ -4049,9 +4049,23 @@ class MDBK_Admin_Dashboard {
                         <input type="hidden" name="app_date" id="mdbk-app-date">
                     </div>
                     <div>
-                        <label class="mdbk-form-label" for="mdbk-app-slot-time"><?php _e('Slot Time', 'doctor-appointment'); ?></label>
-                        <input type="time" name="slot_time" id="mdbk-app-slot-time" <?php echo ($all_doctors && !\MDBK\MDBK_Appointment_Manager::is_slot_enabled($all_doctors[0]->ID)) ? 'disabled' : ''; ?>>
-                        <p class="mdbk-form-hint" id="mdbk-app-slot-hint" style="<?php echo ($all_doctors && !\MDBK\MDBK_Appointment_Manager::is_slot_enabled($all_doctors[0]->ID)) ? '' : 'display:none;'; ?>"><?php _e('Serial booking — queue number is assigned automatically.', 'doctor-appointment'); ?></p>
+                        <?php
+                        // Same clickable time-slot grid the public booking
+                        // form uses (#mdbk-modal-slot-picker in
+                        // shortcode.php/form-script.js) instead of a bare
+                        // native <input type="time"> — a receptionist gets
+                        // the exact same picture a patient would: which
+                        // slots this doctor actually has open on the
+                        // chosen date, with already-booked ones visibly
+                        // disabled instead of only failing at Save.
+                        $first_slot_enabled = $all_doctors && \MDBK\MDBK_Appointment_Manager::is_slot_enabled($all_doctors[0]->ID);
+                        ?>
+                        <label class="mdbk-form-label"><?php _e('Slot Time', 'doctor-appointment'); ?></label>
+                        <div class="mdbk-slot-picker mdbk-slot-picker-disabled" id="mdbk-app-slot-picker" style="<?php echo $first_slot_enabled ? '' : 'display:none;'; ?>">
+                            <p class="mdbk-time-placeholder"><?php _e('Select a date first', 'doctor-appointment'); ?></p>
+                        </div>
+                        <input type="hidden" name="slot_time" id="mdbk-app-slot-time">
+                        <p class="mdbk-form-hint" id="mdbk-app-slot-hint" style="<?php echo $first_slot_enabled ? 'display:none;' : ''; ?>"><?php _e('Serial booking — queue number is assigned automatically.', 'doctor-appointment'); ?></p>
                     </div>
                 </div>
                 </div>

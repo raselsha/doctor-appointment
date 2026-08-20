@@ -449,7 +449,7 @@ class MDBK_Appointment_Manager {
      * Generate the doctor's time slots for a given date from their day-level
      * schedule + slot duration, flagging which are already booked.
      */
-    public static function get_available_slots($doctor_id, $date) {
+    public static function get_available_slots($doctor_id, $date, $exclude_id = 0) {
         $doctor_id = intval($doctor_id);
         if (!$doctor_id || !$date) return [];
 
@@ -513,7 +513,7 @@ class MDBK_Appointment_Manager {
         }
         if ($start >= $end) return [];
 
-        $booked = self::get_booked_slot_times($doctor_id, $date);
+        $booked = self::get_booked_slot_times($doctor_id, $date, $exclude_id);
 
         // For today's date, a slot that has already passed the current
         // moment isn't a real option any more — drop it instead of just
@@ -538,10 +538,14 @@ class MDBK_Appointment_Manager {
 
     /**
      * Slot times already booked for a doctor+date. no-show frees a slot back
-     * up (excluded here), waiting/serving/completed hold it.
+     * up (excluded here), waiting/serving/completed hold it. $exclude_id —
+     * same purpose as is_slot_taken()'s own param below — leaves the
+     * appointment currently being edited out of its own "taken" count, so
+     * re-opening it for edit doesn't show its own already-booked slot as
+     * unavailable.
      */
-    private static function get_booked_slot_times($doctor_id, $date) {
-        $ids = get_posts([
+    private static function get_booked_slot_times($doctor_id, $date, $exclude_id = 0) {
+        $args = [
             'post_type'   => 'mdbk_appointment',
             'post_status' => ['mdbk_waiting', 'mdbk_serving', 'mdbk_completed'],
             'numberposts' => -1,
@@ -551,7 +555,9 @@ class MDBK_Appointment_Manager {
                 ['key' => '_mdbk_doctor_id', 'value' => $doctor_id],
                 ['key' => '_mdbk_appointment_date', 'value' => $date],
             ],
-        ]);
+        ];
+        if ($exclude_id) $args['post__not_in'] = [intval($exclude_id)];
+        $ids = get_posts($args);
 
         $times = [];
         foreach ($ids as $id) {
@@ -1035,8 +1041,12 @@ class MDBK_Appointment_Manager {
 
         $doctor_id = intval($_POST['doctor_id']);
         $date      = isset($_POST['date']) ? sanitize_text_field($_POST['date']) : '';
+        // Only ever sent by the admin Add/Edit Booking modal (see
+        // get_booked_slot_times()'s comment) — a public booker has no
+        // appointment of their own yet to exclude.
+        $exclude_id = isset($_POST['exclude_id']) ? intval($_POST['exclude_id']) : 0;
 
-        wp_send_json_success(self::get_available_slots($doctor_id, $date));
+        wp_send_json_success(self::get_available_slots($doctor_id, $date, $exclude_id));
     }
 
     /**
