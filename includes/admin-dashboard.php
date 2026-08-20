@@ -3675,7 +3675,7 @@ class MDBK_Admin_Dashboard {
         }
         ?>
         <table class="mdbk-table">
-            <thead><tr><th><?php _e('Date', 'doctor-appointment'); ?></th><th><?php _e('Doctor', 'doctor-appointment'); ?></th><th><?php _e('Time', 'doctor-appointment'); ?></th><th><?php _e('Status', 'doctor-appointment'); ?></th></tr></thead>
+            <thead><tr><th><?php _e('Date', 'doctor-appointment'); ?></th><th><?php _e('Doctor', 'doctor-appointment'); ?></th><th><?php _e('Time', 'doctor-appointment'); ?></th><th><?php _e('Status', 'doctor-appointment'); ?></th><th></th></tr></thead>
             <tbody>
             <?php foreach ($apps as $a): $v_doc_id = get_post_meta($a->ID, '_mdbk_doctor_id', true); $v_date = get_post_meta($a->ID, '_mdbk_appointment_date', true); $v_slot = get_post_meta($a->ID, '_mdbk_slot_time', true); $v_status = \MDBK\MDBK_Appointment_Manager::get_display_status_slug($a->ID); $v_badge_class = in_array($v_status, ['upcoming', 'not-checked-in'], true) ? $v_status : 'status-' . $v_status; ?>
                 <tr>
@@ -3683,6 +3683,17 @@ class MDBK_Admin_Dashboard {
                     <td><?php echo $v_doc_id ? esc_html(get_the_title($v_doc_id)) : esc_html__('N/A', 'doctor-appointment'); ?></td>
                     <td><?php echo esc_html($v_slot ?: '—'); ?></td>
                     <td><span class="mdbk-badge mdbk-badge-<?php echo esc_attr($v_badge_class); ?>"><?php echo esc_html(\MDBK\MDBK_Appointment_Manager::status_display_label($v_status)); ?></span></td>
+                    <td>
+                        <?php // Same completed-and-not-future gate as every other
+                        // Invoice trigger (render_patient_appointment_row(),
+                        // render_my_queue_patient_row()) — a past visit shown
+                        // here is exactly where staff would look one up again,
+                        // so it needs the same access point this modal's own
+                        // "View Patient" click already offers from the row list. ?>
+                        <?php if ($v_status === 'completed' && $v_date <= current_time('Y-m-d')) : ?>
+                            <a href="#" class="mdbk-action-btn mdbk-open-invoice" data-id="<?php echo esc_attr($a->ID); ?>" title="<?php esc_attr_e('Invoice', 'doctor-appointment'); ?>"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="9" y1="13" x2="15" y2="13"></line><line x1="9" y1="17" x2="15" y2="17"></line></svg></a>
+                        <?php endif; ?>
+                    </td>
                 </tr>
             <?php endforeach; ?>
             </tbody>
