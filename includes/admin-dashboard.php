@@ -4038,14 +4038,8 @@ class MDBK_Admin_Dashboard {
 
                 <div class="mdbk-form-row mdbk-form-row-duo">
                     <div class="mdbk-date-picker-wrap" id="mdbk-app-date-wrap">
-                        <label class="mdbk-form-label" for="mdbk-app-date-trigger"><?php _e('Date', 'doctor-appointment'); ?> *</label>
-                        <div class="mdbk-custom-select" id="mdbk-app-date-select">
-                            <button type="button" class="mdbk-custom-select-trigger" id="mdbk-app-date-trigger">
-                                <span class="mdbk-custom-select-value" id="mdbk-app-date-trigger-value"><?php _e('Select a date', 'doctor-appointment'); ?></span>
-                                <span class="mdbk-custom-select-chevron"></span>
-                            </button>
-                            <div class="mdbk-app-date-panel" id="mdbk-app-calendar" style="display:none;"></div>
-                        </div>
+                        <label class="mdbk-form-label"><?php _e('Date', 'doctor-appointment'); ?> *</label>
+                        <div class="mdbk-app-date-panel" id="mdbk-app-calendar"></div>
                         <input type="hidden" name="app_date" id="mdbk-app-date">
                     </div>
                     <div>

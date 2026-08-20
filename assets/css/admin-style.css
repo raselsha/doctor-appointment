@@ -727,11 +727,17 @@ button.mdbk-mini-cal-nav-btn:hover { background: #f1f5f9; }
    Not modal-scoped (despite the name) — the Booking page's own date-filter
    nav (below) reuses this exact same popover panel outside any modal. */
 .mdbk-app-date-panel { position: absolute; top: calc(100% + 6px); left: 0; z-index: 20; width: 260px; background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; box-shadow: 0 10px 30px rgba(15, 23, 42, 0.12); padding: 10px 12px; box-sizing: border-box; }
+/* #mdbk-app-calendar sits inline in the modal now (matching the public
+   form's always-visible #mdbk-calendar) instead of behind a click-to-open
+   trigger — overridden by ID, not by touching .mdbk-app-date-panel itself,
+   since #mdbk-schedule-date-panel (the Booking page's own date-filter nav)
+   reuses that same class and must stay a popover. */
+#mdbk-app-calendar { position: static; top: auto; left: auto; z-index: auto; width: 100%; }
 #mdbk-app-calendar .mdbk-mini-cal-day.selected,
 #mdbk-schedule-date-panel .mdbk-mini-cal-day.selected { background: #0061d5; color: #fff; font-weight: 700; }
 #mdbk-app-calendar .mdbk-mini-cal-day.today:not(.selected),
 #mdbk-schedule-date-panel .mdbk-mini-cal-day.today:not(.selected) { color: #0061d5; font-weight: 700; }
-.mdbk-date-picker-wrap.mdbk-field-error .mdbk-custom-select-trigger { border-color: #dc2626; box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.12); }
+.mdbk-date-picker-wrap.mdbk-field-error #mdbk-app-calendar { border-color: #dc2626; box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.12); }
 
 /* Add/Edit Booking modal's Slot Time grid — same concept, class names,
    and states (open/selected/taken) as the public booking form's own

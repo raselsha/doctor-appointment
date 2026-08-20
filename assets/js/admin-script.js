@@ -1350,21 +1350,18 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     /**
-     * Add/Edit Booking modal's Date field — a hand-built popover calendar
-     * (same approach as the public booking form's own #mdbk-calendar and
-     * this modal's other custom-selects) instead of the browser's native
-     * date input, so a day the selected doctor doesn't work actually shows
-     * as unavailable instead of only being caught after clicking Save.
+     * Add/Edit Booking modal's Date field — a hand-built calendar (same
+     * approach as the public booking form's own #mdbk-calendar) rendered
+     * permanently inline instead of behind a click-to-open trigger, so a
+     * date always gets picked and the slot grid next to it always has
+     * something to load. A day the selected doctor doesn't work shows as
+     * unavailable instead of only being caught after clicking Save.
      */
     function initAppDateCalendar() {
         const wrap = document.getElementById('mdbk-app-date-wrap');
-        const selectEl = document.getElementById('mdbk-app-date-select');
-        const trigger = document.getElementById('mdbk-app-date-trigger');
-        const triggerValue = document.getElementById('mdbk-app-date-trigger-value');
         const panel = document.getElementById('mdbk-app-calendar');
         const hiddenInput = document.getElementById('mdbk-app-date');
-        if (!wrap || !selectEl || !trigger || !panel || !hiddenInput) return null;
-        const defaultLabel = triggerValue.textContent;
+        if (!wrap || !panel || !hiddenInput) return null;
 
         const today = parseServerDate(typeof mdbk_admin_obj !== 'undefined' ? mdbk_admin_obj.today : null);
         let viewYear = today.getFullYear();
@@ -1380,12 +1377,6 @@ document.addEventListener('DOMContentLoaded', function() {
             if (offDates.indexOf(dateStr) !== -1) return true;
             const weekdayOff = disabledWeekdays.indexOf(dayOfWeek) !== -1;
             return weekdayOff && extraDates.indexOf(dateStr) === -1;
-        }
-        function formatLabel(dateStr) {
-            const parts = dateStr.split('-').map(Number);
-            const d = new Date(parts[0], parts[1] - 1, parts[2]);
-            const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-            return monthNames[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear();
         }
 
         function render() {
@@ -1414,53 +1405,11 @@ document.addEventListener('DOMContentLoaded', function() {
             panel.innerHTML = html;
         }
 
-        // Fixed (not absolute) positioning, computed from the trigger's own
-        // viewport rect — the Date field sits near the bottom of the
-        // modal's scrollable body (.mdbk-modal-body has overflow-y:auto),
-        // and an absolutely-positioned panel there does NOT get included in
-        // that ancestor's scrollable area, so it would render fully clipped/
-        // inaccessible instead of just needing a scroll to reach.
-        // Repositioning (not closing) on scroll keeps it glued to the
-        // trigger if the body scrolls while it's open — closing on scroll
-        // was tried first, but even a browser/automation-driven scroll
-        // adjustment during a click (e.g. scrollIntoView as part of a click
-        // action) would slam it shut before the click could land.
-        // Flips above the trigger when there isn't room below (the Date
-        // field sits near the bottom of the form, so on a shorter viewport
-        // the panel would otherwise render partly below the visible
-        // window). offsetHeight only measures correctly once the panel is
-        // actually displayed, so open() below must set display BEFORE
-        // calling this.
-        function reposition() {
-            const rect = trigger.getBoundingClientRect();
-            const panelHeight = panel.offsetHeight;
-            const spaceBelow = window.innerHeight - rect.bottom;
-            if (spaceBelow < panelHeight + 10 && rect.top > panelHeight + 10) {
-                panel.style.top = (rect.top - panelHeight - 6) + 'px';
-            } else {
-                panel.style.top = (rect.bottom + 6) + 'px';
-            }
-            panel.style.left = rect.left + 'px';
-        }
-        function open() {
-            panel.style.position = 'fixed';
-            panel.style.display = 'block';
-            reposition();
-            selectEl.classList.add('open');
-        }
-        function close() { selectEl.classList.remove('open'); panel.style.display = 'none'; }
-        const scrollParent = wrap.closest('.mdbk-modal-body');
-        if (scrollParent) scrollParent.addEventListener('scroll', function() {
-            if (selectEl.classList.contains('open')) reposition();
-        });
-
         function selectDate(dateStr) {
             selectedDateStr = dateStr;
             hiddenInput.value = dateStr;
-            triggerValue.textContent = formatLabel(dateStr);
             wrap.classList.remove('mdbk-field-error');
             render();
-            close();
             // Picking a date is exactly when the slot grid needs to reload
             // for whichever doctor is currently selected — excludeId is
             // this appointment's own id (empty on a fresh "Add Booking"),
@@ -1471,20 +1420,7 @@ document.addEventListener('DOMContentLoaded', function() {
             loadAppSlots(doctorEl ? doctorEl.value : '', dateStr, '', appIdEl ? appIdEl.value : '');
         }
 
-        trigger.addEventListener('click', function(e) {
-            e.preventDefault();
-            selectEl.classList.contains('open') ? close() : open();
-        });
-
         panel.addEventListener('click', function(e) {
-            // render() below rebuilds panel.innerHTML, which detaches the
-            // clicked nav button from the DOM before this click finishes
-            // bubbling up to the document-level "close on outside click"
-            // listener further down — without stopPropagation() that
-            // listener then sees a now-detached e.target, wrap.contains()
-            // returns false, and it incorrectly closes the panel Prev/Next
-            // was just trying to keep open.
-            e.stopPropagation();
             const navBtn = e.target.closest('.mdbk-mini-cal-nav-btn');
             if (navBtn) {
                 if (navBtn.dataset.action === 'prev') { viewMonth--; if (viewMonth < 0) { viewMonth = 11; viewYear--; } }
@@ -1496,9 +1432,6 @@ document.addEventListener('DOMContentLoaded', function() {
             if (!dayEl || dayEl.classList.contains('empty') || dayEl.classList.contains('past') || dayEl.classList.contains('unavailable')) return;
             selectDate(dayEl.getAttribute('data-date'));
         });
-
-        document.addEventListener('click', function(e) { if (!wrap.contains(e.target)) close(); });
-        document.addEventListener('keydown', function(e) { if (e.key === 'Escape') close(); });
 
         render();
 
@@ -1519,7 +1452,6 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (isUnavailable(selectedDateStr, dow)) {
                         selectedDateStr = '';
                         hiddenInput.value = '';
-                        triggerValue.textContent = defaultLabel;
                     }
                 }
                 render();
@@ -1528,7 +1460,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (!dateStr) {
                     selectedDateStr = '';
                     hiddenInput.value = '';
-                    triggerValue.textContent = defaultLabel;
                     viewYear = today.getFullYear();
                     viewMonth = today.getMonth();
                     render();
@@ -1536,7 +1467,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
                 selectedDateStr = dateStr;
                 hiddenInput.value = dateStr;
-                triggerValue.textContent = formatLabel(dateStr);
                 const parts = dateStr.split('-').map(Number);
                 viewYear = parts[0];
                 viewMonth = parts[1] - 1;
@@ -1546,7 +1476,6 @@ document.addEventListener('DOMContentLoaded', function() {
             reset: function() {
                 selectedDateStr = '';
                 hiddenInput.value = '';
-                triggerValue.textContent = defaultLabel;
                 disabledWeekdays = [];
                 extraDates = [];
                 offDates = [];
@@ -1555,8 +1484,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 wrap.classList.remove('mdbk-field-error');
                 render();
                 loadAppSlots('', '');
-            },
-            openPanel: open
+            }
         };
     }
     const appDateCalendar = initAppDateCalendar();
@@ -1734,7 +1662,6 @@ document.addEventListener('DOMContentLoaded', function() {
             if (dateInput && !dateInput.value) {
                 e.preventDefault();
                 if (dateWrap) dateWrap.classList.add('mdbk-field-error');
-                if (appDateCalendar) appDateCalendar.openPanel();
             }
         });
     }
