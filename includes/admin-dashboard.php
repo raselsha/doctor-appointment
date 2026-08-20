@@ -2904,6 +2904,15 @@ class MDBK_Admin_Dashboard {
                 <?php else: ?>
                     <span class="mdbk-badge mdbk-badge-status-<?php echo esc_attr($status); ?>"><?php echo esc_html(\MDBK\MDBK_Appointment_Manager::status_display_label($status)); ?></span>
                 <?php endif; ?>
+                <?php // Invoice — only ever meaningful once a visit has
+                // actually happened (same completed-only gate as the
+                // other date views' render_patient_appointment_row()),
+                // which is exactly when this row's own status badge above
+                // is already showing "Visited" instead of one of the
+                // workflow buttons — this never renders alongside those. ?>
+                <?php if ($status === 'completed' && current_user_can(MDBK_CAP_QUEUE)) : ?>
+                    <a href="#" class="mdbk-action-btn mdbk-open-invoice" data-id="<?php echo esc_attr($a->ID); ?>" title="<?php esc_attr_e('Invoice', 'doctor-appointment'); ?>"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="9" y1="13" x2="15" y2="13"></line><line x1="9" y1="17" x2="15" y2="17"></line></svg></a>
+                <?php endif; ?>
             </div>
         </div>
         <?php

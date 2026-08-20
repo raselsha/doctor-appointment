@@ -1800,26 +1800,31 @@ document.addEventListener('DOMContentLoaded', function() {
     // .mdbk-doctor-group-print-table (a plain <table>, server-rendered by
     // render_today_queue_table()) rather than the visible
     // .mdbk-doctor-group-list, since that's flex/grid patient-row markup
-    // this standalone page/canvas has no matching CSS for.
-    document.querySelectorAll('.mdbk-print-group').forEach(function(btn) {
-        btn.addEventListener('click', function() {
-            const group = btn.closest('.mdbk-doctor-group');
-            if (!group) return;
-            const name = group.querySelector('.mdbk-doctor-group-name');
-            const table = group.querySelector('.mdbk-doctor-group-print-table');
-            if (!table) return;
-            const titleText = name ? name.textContent : 'Print';
-            const win = window.open('', '_blank', 'width=900,height=700');
-            if (!win) return;
-            win.document.write(
-                '<html><head><title>' + titleText + '</title><style>' + MDBK_PRINT_STYLES + '</style></head><body>' +
-                mdbkBuildPrintBody(titleText, table.innerHTML) +
-                '</body></html>'
-            );
-            win.document.close();
-            win.focus();
-            win.print();
-        });
+    // this standalone page/canvas has no matching CSS for. Delegated on
+    // document (not bound once per button at load) — this page's own
+    // 12s auto-refresh (see the schedule search IIFE above) replaces
+    // #mdbk-schedule-results wholesale, which silently detached every
+    // per-element listener a querySelectorAll().forEach() bound here,
+    // leaving Print/Download dead after the first refresh.
+    document.addEventListener('click', function(e) {
+        const btn = e.target.closest('.mdbk-print-group');
+        if (!btn) return;
+        const group = btn.closest('.mdbk-doctor-group');
+        if (!group) return;
+        const name = group.querySelector('.mdbk-doctor-group-name');
+        const table = group.querySelector('.mdbk-doctor-group-print-table');
+        if (!table) return;
+        const titleText = name ? name.textContent : 'Print';
+        const win = window.open('', '_blank', 'width=900,height=700');
+        if (!win) return;
+        win.document.write(
+            '<html><head><title>' + titleText + '</title><style>' + MDBK_PRINT_STYLES + '</style></head><body>' +
+            mdbkBuildPrintBody(titleText, table.innerHTML) +
+            '</body></html>'
+        );
+        win.document.close();
+        win.focus();
+        win.print();
     });
 
     // Renders the same title+table markup onto an off-screen element, then
@@ -1868,16 +1873,19 @@ document.addEventListener('DOMContentLoaded', function() {
             img.src = svgUrl;
         });
     }
-    document.querySelectorAll('.mdbk-download-group-image').forEach(function(btn) {
-        btn.addEventListener('click', function() {
-            const group = btn.closest('.mdbk-doctor-group');
-            if (!group) return;
-            const name = group.querySelector('.mdbk-doctor-group-name');
-            const table = group.querySelector('.mdbk-doctor-group-print-table');
-            if (!table) return;
-            const titleText = name ? name.textContent : 'Patients';
-            mdbkDownloadHtmlAsImage(titleText, table.innerHTML, titleText.replace(/[^a-z0-9]+/gi, '-').toLowerCase() + '-patients.png');
-        });
+    // Delegated for the same reason as .mdbk-print-group above — this
+    // page's own auto-refresh replaces the buttons a plain forEach() here
+    // would have bound to.
+    document.addEventListener('click', function(e) {
+        const btn = e.target.closest('.mdbk-download-group-image');
+        if (!btn) return;
+        const group = btn.closest('.mdbk-doctor-group');
+        if (!group) return;
+        const name = group.querySelector('.mdbk-doctor-group-name');
+        const table = group.querySelector('.mdbk-doctor-group-print-table');
+        if (!table) return;
+        const titleText = name ? name.textContent : 'Patients';
+        mdbkDownloadHtmlAsImage(titleText, table.innerHTML, titleText.replace(/[^a-z0-9]+/gi, '-').toLowerCase() + '-patients.png');
     });
 
     function setSpecialtyIconPreview(url) {
