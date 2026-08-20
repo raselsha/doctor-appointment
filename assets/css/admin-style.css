@@ -750,7 +750,7 @@ button.mdbk-mini-cal-nav-btn:hover { background: #f1f5f9; }
    wrapping grid here rather than form-style.css's one-per-row stack —
    this field sits in a notably wider column than that widget's narrow
    sidebar, so one slot per line would waste most of the row. */
-#mdbk-app-slot-picker.mdbk-slot-picker { display: flex; flex-wrap: wrap; gap: 6px; min-height: 20px; }
+#mdbk-app-slot-picker.mdbk-slot-picker { display: flex; flex-wrap: wrap; align-content: flex-start; gap: 6px; min-height: 20px; max-height: 260px; overflow-y: auto; padding-right: 4px; }
 #mdbk-app-slot-picker.mdbk-slot-picker-disabled { opacity: .5; pointer-events: none; }
 #mdbk-app-slot-picker .mdbk-time-placeholder { width: 100%; text-align: center; font-size: 13px; color: #94a3b8; margin: 0; padding: 16px 8px; }
 button.mdbk-slot-btn { padding: 6px 12px; border: 1.5px solid #e2e8f0; border-radius: 8px; background: #fff; font-size: 12px; font-weight: 600; color: #475569; cursor: pointer; transition: all .15s ease; }
