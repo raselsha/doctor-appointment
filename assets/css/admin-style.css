@@ -1562,7 +1562,19 @@ a.mdbk-patient-row-name:hover { color: #0d9488; text-decoration: underline; }
 .mdbk-patient-row-time-value { font-size: 13px; font-weight: 700; }
 
 /* Status-colored badge — waiting/serving/completed/no-show each read
-   distinctly at a glance instead of every status sharing one blue pill. */
+   distinctly at a glance instead of every status sharing one blue pill.
+   Color alone isn't a reliable signal (color-blind staff, a black-and-
+   white printout, a low-quality screen) so every status also gets its
+   own ::before glyph — shape, not just hue, is what actually carries
+   the meaning. Pure CSS (a Unicode character, not an <img>/<svg>), so
+   every existing badge everywhere in the admin picks this up with no
+   markup change. */
+.mdbk-badge-status-waiting::before { content: '\25CB\2002'; }
+.mdbk-badge-status-serving::before { content: '\25B6\2002'; }
+.mdbk-badge-status-completed::before { content: '\2713\2002'; }
+.mdbk-badge-status-no-show::before { content: '\2715\2002'; }
+.mdbk-badge-upcoming::before { content: '\25F7\2002'; }
+.mdbk-badge-not-checked-in::before { content: '\2013\2002'; }
 .mdbk-badge-status-waiting { background: #ffedd5; color: #c2410c; }
 .mdbk-badge-status-serving { background: #d1fae5; color: #065f46; }
 .mdbk-badge-status-completed { background: #f1f5f9; color: #475569; }
