@@ -642,6 +642,11 @@ class MDBK_Admin_Dashboard {
         if (!current_user_can(MDBK_CAP_QUEUE) && !current_user_can('manage_options')) wp_die(__('You do not have permission to do this.', 'doctor-appointment'));
         check_admin_referer('mdbk_save_patient');
         $patient_id = !empty($_POST['patient_id']) ? intval($_POST['patient_id']) : 0;
+        // Editing an existing patient's record is manager-only (matches
+        // handle_appointment_save()'s matching split) — front-desk staff
+        // can still ADD a brand new patient via the QUEUE-level gate
+        // above, just not modify one already on file.
+        if ($patient_id && !current_user_can(MDBK_CAP_ADMIN)) wp_die(__('You do not have permission to do this.', 'doctor-appointment'));
         $post_data = ['post_title' => sanitize_text_field($_POST['patient_name']), 'post_type' => 'mdbk_patient', 'post_status' => 'publish'];
         if ($patient_id) $post_data['ID'] = $patient_id;
         $id = $patient_id ? wp_update_post($post_data) : wp_insert_post($post_data);
@@ -783,6 +788,12 @@ class MDBK_Admin_Dashboard {
             wp_redirect(admin_url('admin.php?page=mdbk-schedule&success=1'));
             exit;
         }
+
+        // Editing an existing appointment is manager-only (matches Delete's
+        // existing gate in handle_delete_actions()) — front-desk staff can
+        // still create NEW bookings via the QUEUE-level gate above, just
+        // not modify one already on the books.
+        if (!current_user_can(MDBK_CAP_ADMIN)) wp_die(__('You do not have permission to do this.', 'doctor-appointment'));
 
         // Editing an existing appointment.
         $p_name  = sanitize_text_field($_POST['patient_name']);
@@ -1636,14 +1647,15 @@ class MDBK_Admin_Dashboard {
         }
         ?>
         <table class="mdbk-table">
-            <thead><tr><th><?php _e('Queue', 'doctor-appointment'); ?></th><th><?php _e('Patient', 'doctor-appointment'); ?></th><?php if ($show_doctor_column): ?><th><?php _e('Doctor', 'doctor-appointment'); ?></th><?php endif; ?><th><?php _e('Age', 'doctor-appointment'); ?></th><th><?php _e('Time', 'doctor-appointment'); ?></th><th><?php _e('Status', 'doctor-appointment'); ?></th></tr></thead>
+            <thead><tr><th><?php _e('Queue', 'doctor-appointment'); ?></th><th><?php _e('Patient', 'doctor-appointment'); ?></th><?php if ($show_doctor_column): ?><th><?php _e('Doctor', 'doctor-appointment'); ?></th><?php endif; ?><th><?php _e('Age', 'doctor-appointment'); ?></th><th><?php _e('Gender', 'doctor-appointment'); ?></th><th><?php _e('Time', 'doctor-appointment'); ?></th><th><?php _e('Status', 'doctor-appointment'); ?></th></tr></thead>
             <tbody>
-            <?php $n = 0; foreach ($apps as $app): $n++; $t_doc_id = get_post_meta($app->ID, '_mdbk_doctor_id', true); $t_age = get_post_meta($app->ID, '_mdbk_patient_age', true); $t_slot = get_post_meta($app->ID, '_mdbk_slot_time', true); $t_status = \MDBK\MDBK_Appointment_Manager::get_display_status_slug($app->ID); $t_badge_class = in_array($t_status, ['upcoming', 'not-checked-in'], true) ? $t_status : 'status-' . $t_status; ?>
+            <?php $n = 0; foreach ($apps as $app): $n++; $t_doc_id = get_post_meta($app->ID, '_mdbk_doctor_id', true); $t_age = get_post_meta($app->ID, '_mdbk_patient_age', true); $t_gender = get_post_meta($app->ID, '_mdbk_patient_gender', true); $t_slot = get_post_meta($app->ID, '_mdbk_slot_time', true); $t_status = \MDBK\MDBK_Appointment_Manager::get_display_status_slug($app->ID); $t_badge_class = in_array($t_status, ['upcoming', 'not-checked-in'], true) ? $t_status : 'status-' . $t_status; ?>
                 <tr>
                     <td><span class="mdbk-patient-row-ticket mdbk-patient-row-queue">Q<?php echo esc_html(str_pad($n, 2, '0', STR_PAD_LEFT)); ?></span></td>
                     <td><strong><?php echo esc_html(get_post_meta($app->ID, '_mdbk_patient_name', true)); ?></strong></td>
                     <?php if ($show_doctor_column): ?><td><?php echo $t_doc_id ? esc_html(get_the_title($t_doc_id)) : esc_html__('N/A', 'doctor-appointment'); ?></td><?php endif; ?>
                     <td><?php echo $t_age ? esc_html($t_age) : '—'; ?></td>
+                    <td><?php echo $t_gender ? esc_html($t_gender) : '—'; ?></td>
                     <td><?php echo esc_html($t_slot ?: '—'); ?></td>
                     <td><span class="mdbk-badge mdbk-badge-<?php echo esc_attr($t_badge_class); ?>"><?php echo esc_html(\MDBK\MDBK_Appointment_Manager::status_display_label($t_status)); ?></span></td>
                 </tr>
@@ -1716,8 +1728,8 @@ class MDBK_Admin_Dashboard {
                 <?php if ($status === 'completed' && $date <= current_time('Y-m-d') && current_user_can(MDBK_CAP_QUEUE)) : ?>
                 <a href="#" class="mdbk-action-btn mdbk-open-invoice" data-id="<?php echo esc_attr($a->ID); ?>" title="<?php esc_attr_e('Invoice', 'doctor-appointment'); ?>"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="9" y1="13" x2="15" y2="13"></line><line x1="9" y1="17" x2="15" y2="17"></line></svg></a>
                 <?php endif; ?>
-                <a href="#" class="mdbk-action-btn mdbk-edit-appointment" data-id="<?php echo esc_attr($a->ID); ?>"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"></path><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"></path></svg></a>
                 <?php if (current_user_can(MDBK_CAP_ADMIN)) : ?>
+                <a href="#" class="mdbk-action-btn mdbk-edit-appointment" data-id="<?php echo esc_attr($a->ID); ?>"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"></path><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"></path></svg></a>
                 <a href="<?php echo esc_url(wp_nonce_url(admin_url('admin.php?page=mdbk-schedule&action=mdbk_delete_appointment&id='.$a->ID), 'mdbk_delete_action')); ?>" class="mdbk-action-btn mdbk-action-btn-red" onclick="return confirm('<?php esc_attr_e('Delete?', 'doctor-appointment'); ?>')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path></svg></a>
                 <?php endif; ?>
             </div>
@@ -2803,6 +2815,10 @@ class MDBK_Admin_Dashboard {
         $p_name = get_post_meta($a->ID, '_mdbk_patient_name', true);
         $phone = get_post_meta($a->ID, '_mdbk_patient_phone', true);
         $email = get_post_meta($a->ID, '_mdbk_patient_email', true);
+        $age = get_post_meta($a->ID, '_mdbk_patient_age', true);
+        $gender = get_post_meta($a->ID, '_mdbk_patient_gender', true);
+        $age_gender = trim($gender . ($age && $gender ? ' · ' : '') . $age);
+        $gender_key = $gender ? strtolower($gender) : 'unknown';
         $date = get_post_meta($a->ID, '_mdbk_appointment_date', true);
         $slot_time = get_post_meta($a->ID, '_mdbk_slot_time', true);
         $ticket = get_post_meta($a->ID, '_mdbk_ticket_number', true);
@@ -2881,6 +2897,7 @@ class MDBK_Admin_Dashboard {
             <?php endif; ?>
             <span class="mdbk-patient-row-chip-slot"><?php if ($phone): ?><span class="mdbk-patient-row-chip mdbk-chip-phone"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.12.9.34 1.79.66 2.64a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.44-1.44a2 2 0 0 1 2.11-.45c.85.32 1.74.54 2.64.66A2 2 0 0 1 22 16.92z"></path></svg> <?php echo esc_html($phone); ?></span><?php endif; ?></span>
             <span class="mdbk-patient-row-chip-slot"><?php if ($email): ?><span class="mdbk-patient-row-chip mdbk-chip-email"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 6l-10 7L2 6"></path><path d="M2 6h20v12H2z"></path></svg> <?php echo esc_html($email); ?></span><?php endif; ?></span>
+            <span class="mdbk-patient-row-chip-slot"><?php if ($age_gender): ?><span class="mdbk-patient-row-chip mdbk-meta-pill mdbk-gender-<?php echo esc_attr($gender_key); ?>"><?php echo esc_html($age_gender); ?></span><?php endif; ?></span>
             <span class="mdbk-patient-row-spacer"></span>
             <span class="mdbk-patient-row-date-col">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="3"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
@@ -2963,8 +2980,10 @@ class MDBK_Admin_Dashboard {
             <span class="mdbk-patient-row-chip-slot"><?php if ($age_gender): ?><span class="mdbk-patient-row-chip mdbk-meta-pill mdbk-gender-<?php echo esc_attr($gender_key); ?>"><?php echo esc_html($age_gender); ?></span><?php endif; ?></span>
             <span class="mdbk-badge mdbk-badge-green" title="<?php esc_attr_e('Total visits', 'doctor-appointment'); ?>"><?php echo esc_html($visit_count); ?></span>
             <div class="mdbk-actions">
+                <?php if (current_user_can(MDBK_CAP_ADMIN)) : ?>
                 <a href="#" class="mdbk-action-btn mdbk-edit-patient" data-id="<?php echo esc_attr($p->ID); ?>"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"></path><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"></path></svg></a>
                 <a href="<?php echo esc_url(wp_nonce_url(admin_url('admin.php?page=mdbk-patients&action=mdbk_delete_patient&id='.$p->ID), 'mdbk_delete_action')); ?>" class="mdbk-action-btn mdbk-action-btn-red" onclick="return confirm('<?php esc_attr_e('Delete?', 'doctor-appointment'); ?>')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path></svg></a>
+                <?php endif; ?>
             </div>
         </div>
         <?php

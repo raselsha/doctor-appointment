@@ -1275,9 +1275,9 @@ button.mdbk-slot-btn.mdbk-slot-taken { opacity: .5; cursor: not-allowed; pointer
 .mdbk-patient-row:hover { background: #f8fafc; }
 
 /* The Booking page's rich "Today" view (render_schedule_today_view()) —
-   a simpler 7-track row layout (ticket, name, phone, email, spacer,
-   date/time, action), deliberately its own grid rather than force-fitting
-   into the plain history-list's 11-track template above. */
+   a simpler 8-track row layout (ticket, name, phone, email, age/gender,
+   spacer, date/time, action), deliberately its own grid rather than
+   force-fitting into the plain history-list's 11-track template above. */
 .mdbk-patient-row.mdbk-my-queue-row {
     /* The last (actions) track is a fixed width, not auto — each row is
        its OWN independent grid (a separate <div> per row, not shared rows
@@ -1289,7 +1289,7 @@ button.mdbk-slot-btn.mdbk-slot-taken { opacity: .5; cursor: not-allowed; pointer
        though their own width stays fixed. A constant width here (wide
        enough for the busiest row: skip icon + badge + button) keeps every
        column's start position identical on every row. */
-    grid-template-columns: 44px minmax(120px, 200px) 130px minmax(160px, 1fr) 1fr 125px 125px 230px;
+    grid-template-columns: 44px minmax(120px, 200px) 130px minmax(160px, 1fr) 90px 1fr 125px 125px 230px;
 }
 /* Front-desk staff's all-doctors view of this same page groups rows
    under a collapsible per-doctor <details> section instead (see
