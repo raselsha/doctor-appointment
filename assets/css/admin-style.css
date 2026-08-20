@@ -339,9 +339,18 @@
     font-weight: 600;
 }
 
+/* Bold, dark values (not a color) against the header row's muted
+   uppercase labels — the same "shape/weight, not hue" rule the status
+   badges' ::before glyphs follow, applied here so the actual data
+   (date/doctor/time — the thing someone opened this table to read) is
+   the visually loudest thing in the row instead of reading as flat as
+   its own field labels once printed in grayscale or viewed by someone
+   who can't rely on color contrast. */
 .mdbk-table td {
     padding: 20px 30px;
     border-bottom: 1px solid #f1f5f9;
+    font-weight: 600;
+    color: #1e293b;
 }
 
 .mdbk-badge {
