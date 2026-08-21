@@ -39,6 +39,31 @@ document.addEventListener('DOMContentLoaded', function() {
         bar.addEventListener('toggle', function() {
             localStorage.setItem('mdbk_filters_bar_collapsed', bar.open ? '0' : '1');
         });
+
+        // Tablet/desktop (see admin-style.css's @media (min-width: 783px))
+        // makes the bar sticky again instead of collapsible, which means
+        // .mdbk-schedule-queue-scroll-wrap's own per-section sticky
+        // headers (.mdbk-card-header) need to stick just BELOW it rather
+        // than at the same top:0 — otherwise the two sticky elements
+        // would paint on top of each other. Measures the bar's own actual
+        // rendered height (0 below the breakpoint, where it isn't sticky
+        // at all) rather than assuming a fixed number, since the filter
+        // form's own row can wrap to more than one line depending on
+        // exactly how much width is available.
+        const scrollWrap = document.querySelector('.mdbk-schedule-queue-scroll-wrap');
+        if (scrollWrap) {
+            let resizeTimer;
+            function updateFiltersBarHeight() {
+                const isDesktop = window.innerWidth >= 783;
+                const height = isDesktop ? bar.getBoundingClientRect().height : 0;
+                scrollWrap.style.setProperty('--mdbk-filters-bar-height', height + 'px');
+            }
+            updateFiltersBarHeight();
+            window.addEventListener('resize', function() {
+                clearTimeout(resizeTimer);
+                resizeTimer = setTimeout(updateFiltersBarHeight, 120);
+            });
+        }
     })();
 
     // "Today" for the scheduling calendars below comes from the server

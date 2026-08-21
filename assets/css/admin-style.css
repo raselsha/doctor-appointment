@@ -1245,7 +1245,14 @@ button.mdbk-slot-btn.mdbk-slot-taken { opacity: .5; cursor: not-allowed; pointer
    scrolls fully past — no JS hand-off needed. */
 .mdbk-schedule-queue-scroll-wrap .mdbk-card-header {
     position: sticky;
-    top: 0;
+    /* On desktop/tablet the filters bar above is ALSO sticky again (see
+       its own @media (min-width: 783px) block) — both can't sit at the
+       same top:0 without overlapping, so this stacks right below it
+       instead. --mdbk-filters-bar-height is set by admin-script.js from
+       the bar's own actual measured height (0 on mobile, where the bar
+       isn't sticky at all), so this stays correct regardless of how many
+       lines the filter form wraps to at a given width. */
+    top: var(--mdbk-filters-bar-height, 0px);
     z-index: 10;
     background: #fff;
     border-radius: 20px 20px 0 0;
@@ -1298,6 +1305,28 @@ button.mdbk-slot-btn.mdbk-slot-taken { opacity: .5; cursor: not-allowed; pointer
 .mdbk-filters-bar-chevron { flex-shrink: 0; width: 8px; height: 8px; border-right: 1.5px solid #94a3b8; border-bottom: 1.5px solid #94a3b8; transform: rotate(45deg); transition: transform 0.2s ease; }
 .mdbk-filters-bar:not([open]) .mdbk-filters-bar-chevron { transform: rotate(-45deg); }
 .mdbk-filters-bar-body { margin-top: 10px; }
+/* Collapse/expand is a mobile-only affordance — at tablet/desktop widths
+   there's room to just show the form outright, exactly like before this
+   became a <details>. Hides the (now pointless) "FILTERS" summary row
+   and forces the body visible regardless of the <details>' own [open]
+   state — overriding the browser's UA-stylesheet rule that hides a
+   closed <details>' non-summary children is a standard, well-supported
+   technique for exactly this "collapsible below X, always-open above X"
+   pattern, since author styles win over that default with plain class
+   selectors, no !important needed. The bar itself goes back to
+   position:sticky here too — .mdbk-schedule-queue-scroll-wrap's own
+   per-section sticky headers (.mdbk-card-header) still work independently
+   of this and don't need to be turned off. */
+@media (min-width: 783px) {
+    .mdbk-filters-bar-summary { display: none; }
+    .mdbk-filters-bar-body { margin-top: 0; }
+    .mdbk-filters-bar:not([open]) .mdbk-filters-bar-body { display: block; }
+    .mdbk-filters-bar {
+        position: sticky;
+        top: 0;
+        z-index: 15;
+    }
+}
 .mdbk-filters-form { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 
 .mdbk-date-nav-group { display: flex; align-items: center; gap: 8px; }
