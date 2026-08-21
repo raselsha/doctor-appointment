@@ -1732,6 +1732,43 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
+    // Patient Directory's "Book" link — a full-page navigation here with
+    // ?book_patient_id=123, resolved server-side (doctor-appointment.php)
+    // into mdbk_admin_obj.prefill_patient (name/phone/email/age/gender
+    // only — this is a NEW booking, not an edit of an existing one, so no
+    // appointment ID is involved). Opens the Add Booking modal via a real
+    // click on "+ New Booking" (running its own reset logic above first,
+    // same as if staff had clicked it themselves) and then fills in those
+    // fields — the same ones the modal's own phone-autosuggest already
+    // fills when staff picks a suggestion there, this just skips having
+    // to type the phone number first.
+    (function() {
+        const prefill = typeof mdbk_admin_obj !== 'undefined' ? mdbk_admin_obj.prefill_patient : null;
+        if (!prefill) return;
+        const addBtn = document.querySelector('.mdbk-add-appointment');
+        if (!addBtn) return;
+        addBtn.click();
+        const nameInput = document.getElementById('mdbk-app-patient');
+        const phoneInput = document.getElementById('mdbk-app-phone');
+        const emailInput = document.getElementById('mdbk-app-email');
+        const ageInput = document.getElementById('mdbk-app-age');
+        if (nameInput) nameInput.value = prefill.name || '';
+        if (phoneInput) phoneInput.value = prefill.phone || '';
+        if (emailInput) emailInput.value = prefill.email || '';
+        if (ageInput) ageInput.value = prefill.age || '';
+        if (appGenderSelect && prefill.gender) {
+            const genderOpt = appGenderSelect.panel.querySelector('.mdbk-custom-select-option[data-value="' + prefill.gender + '"]');
+            if (genderOpt) appGenderSelect.setValue(genderOpt.dataset.value, genderOpt.textContent);
+        }
+        // Scrubs the query param so a reload or bookmark of this URL
+        // doesn't keep reopening the same prefilled modal indefinitely.
+        if (window.history && window.history.replaceState) {
+            const url = new URL(window.location.href);
+            url.searchParams.delete('book_patient_id');
+            window.history.replaceState({}, '', url.toString());
+        }
+    })();
+
     // The Date field is now a hidden <input>, not a native
     // <input type="date" required"> — hidden inputs are barred from HTML5
     // constraint validation, so an empty date has to be caught explicitly
