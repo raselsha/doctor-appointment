@@ -32,6 +32,7 @@ class MDBK_Admin_Dashboard {
         add_action('wp_ajax_mdbk_admin_checkin', [$this, 'ajax_admin_checkin']);
         add_action('wp_ajax_mdbk_toggle_skip', [$this, 'ajax_toggle_skip']);
         add_action('wp_ajax_mdbk_start_visiting', [$this, 'ajax_start_visiting']);
+        add_action('wp_ajax_mdbk_refresh_doctor_group', [$this, 'ajax_refresh_doctor_group']);
         add_filter('login_redirect', [$this, 'doctor_login_redirect'], 10, 3);
         add_filter('edit_profile_url', [$this, 'redirect_profile_url'], 10, 3);
         add_filter('admin_body_class', [$this, 'admin_body_class']);
@@ -286,6 +287,71 @@ class MDBK_Admin_Dashboard {
         // Check-In, see render_today_queue_rows().
         list($fragment_doctor_id, $group_by_doctor) = $this->resolve_queue_view_scope($appointment_doctor_id);
         wp_send_json_success(['fragment' => $this->render_today_queue_rows($fragment_doctor_id, $group_by_doctor)]);
+    }
+
+    /**
+     * Manual per-doctor-group refresh (the Booking page's own Refresh
+     * icon, next to Print/Export/Download-Image on each doctor's
+     * collapsible header) — replaces the earlier setInterval(runSearch,
+     * 12000) whole-page auto-refresh, which reset every <details>' open/
+     * closed state and the page's scroll position on every single tick
+     * (a full server-rendered #mdbk-schedule-results swap has no way to
+     * know which groups a staff member had manually collapsed). This
+     * touches only the ONE group that was clicked — the <details> element
+     * itself, and every OTHER group, are never replaced, so their
+     * open/closed state and the page's scroll position both stay exactly
+     * where the user left them. Only present on the grouped (all-doctors)
+     * view, gated the same as that view itself (MDBK_CAP_QUEUE), so no
+     * separate per-doctor ownership check is needed here the way the
+     * single-row actions above (Start Visiting etc.) need one.
+     */
+    public function ajax_refresh_doctor_group() {
+        check_ajax_referer('mdbk_admin_nonce', 'nonce');
+        if (!current_user_can(MDBK_CAP_QUEUE)) {
+            wp_send_json_error(['message' => __('Unauthorized.', 'doctor-appointment')]);
+        }
+
+        $doctor_id = isset($_POST['doctor_id']) ? intval($_POST['doctor_id']) : 0;
+        $is_today = isset($_POST['is_today']) && $_POST['is_today'] === '1';
+        $search = isset($_POST['s']) ? sanitize_text_field($_POST['s']) : '';
+        $filter_status = isset($_POST['filter_status']) ? sanitize_text_field($_POST['filter_status']) : '';
+
+        $apps = $is_today ? $this->get_today_queue_apps($doctor_id) : $this->get_upcoming_queue_apps($doctor_id);
+        if ($search !== '' || $filter_status !== '') {
+            $apps = array_values(array_filter($apps, function($a) use ($search, $filter_status) {
+                if ($filter_status && \MDBK\MDBK_Appointment_Manager::post_status_to_slug(get_post_status($a)) !== $filter_status) return false;
+                if ($search !== '') {
+                    $haystack = get_post_meta($a->ID, '_mdbk_patient_name', true) . ' ' . get_post_meta($a->ID, '_mdbk_patient_phone', true) . ' ' . get_post_meta($a->ID, '_mdbk_patient_email', true);
+                    if (stripos($haystack, $search) === false) return false;
+                }
+                return true;
+            }));
+        }
+
+        // Computed from the unfiltered today's-queue (see
+        // get_serving_doctor_ids()'s comment) — only meaningful for the
+        // Today's Queue group, same as render_patient_list_html().
+        $is_visiting = false;
+        if ($is_today && $doctor_id) {
+            $serving_doctor_ids = $this->get_serving_doctor_ids($this->get_today_queue_apps($doctor_id));
+            $is_visiting = isset($serving_doctor_ids[$doctor_id]);
+        }
+
+        $list_html = '';
+        foreach ($apps as $a) {
+            $list_html .= $this->render_my_queue_patient_row($a, $is_visiting ? [$doctor_id => true] : []);
+        }
+        ob_start();
+        $this->render_today_queue_table($apps, false);
+        $print_table_html = ob_get_clean();
+
+        wp_send_json_success([
+            'count'            => count($apps),
+            'count_label'      => sprintf(_n('%d patient', '%d patients', count($apps), 'doctor-appointment'), count($apps)),
+            'list_html'        => $list_html,
+            'print_table_html' => $print_table_html,
+            'is_visiting'      => $is_visiting,
+        ]);
     }
 
     /**
@@ -2203,16 +2269,7 @@ class MDBK_Admin_Dashboard {
     private function render_schedule_today_view($doctor_id, $search, $filter_status) {
         $group_by_doctor = !$doctor_id;
         $today_apps = $this->get_today_queue_apps($doctor_id);
-        $today = current_time('Y-m-d');
-        $all_apps = $this->get_filtered_appointments(null, $doctor_id, '');
-        // Strictly future dates only — this section used to also pull in
-        // every PAST booking (anything "!== $today"), which didn't match
-        // what "Upcoming Dates" actually promises. Past bookings are still
-        // reachable via a specific date or the All Dates list, just not
-        // listed here anymore.
-        $upcoming_apps = array_values(array_filter($all_apps, function($a) use ($today) {
-            return get_post_meta($a->ID, '_mdbk_appointment_date', true) > $today;
-        }));
+        $upcoming_apps = $this->get_upcoming_queue_apps($doctor_id);
 
         $apply_filters = function($apps) use ($search, $filter_status) {
             if ($search === '' && $filter_status === '') return $apps;
@@ -2724,7 +2781,7 @@ class MDBK_Admin_Dashboard {
             $show_visiting_dot = $is_today_group && $doc_id;
             $doctor_is_visiting = $show_visiting_dot && isset($serving_doctor_ids[$doc_id]);
 
-            $html .= '<details class="mdbk-doctor-group" open>';
+            $html .= '<details class="mdbk-doctor-group" data-doctor-id="' . esc_attr($doc_id) . '" data-is-today="' . ($is_today_group ? '1' : '0') . '" open>';
             $html .= '<summary class="mdbk-doctor-group-header">';
             if ($show_visiting_dot) {
                 $html .= '<span class="mdbk-live-pulse-dot' . ($doctor_is_visiting ? ' mdbk-live-pulse-active' : '') . '" title="' . esc_attr__('Doctor is currently visiting a patient', 'doctor-appointment') . '"></span> ';
@@ -2738,12 +2795,13 @@ class MDBK_Admin_Dashboard {
                 $html .= '</label>';
             }
             // preventDefault() alone (not stopPropagation() too, like these
-            // two buttons used to have) is enough to stop the click from
+            // buttons used to have) is enough to stop the click from
             // also toggling the parent <summary>'s <details> open/closed —
             // stopping propagation went further and kept the click from
             // ever reaching admin-script.js's delegated document-level
             // listeners for these buttons, which are the only thing that
             // actually opens the print window / builds the image.
+            $html .= '<button type="button" class="mdbk-icon-btn mdbk-refresh-group" title="' . esc_attr__('Refresh this doctor\'s list', 'doctor-appointment') . '" onclick="event.preventDefault();"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg></button>';
             $html .= '<button type="button" class="mdbk-icon-btn mdbk-print-group" title="' . esc_attr__('Print', 'doctor-appointment') . '" onclick="event.preventDefault();"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg></button>';
             $html .= '<a href="' . esc_url($doc_export_url) . '" class="mdbk-icon-btn" title="' . esc_attr__('Export CSV', 'doctor-appointment') . '" onclick="event.stopPropagation();"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg></a>';
             $html .= '<button type="button" class="mdbk-icon-btn mdbk-download-group-image" title="' . esc_attr__('Download as Image', 'doctor-appointment') . '" onclick="event.preventDefault();"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg></button>';
@@ -2809,6 +2867,23 @@ class MDBK_Admin_Dashboard {
         });
 
         return $today_apps;
+    }
+
+    /**
+     * One doctor's (or every doctor's, $doctor_id=0) strictly-future
+     * bookings — "Upcoming Dates" used to also pull in every PAST booking
+     * (anything "!== today"), which didn't match what that section
+     * actually promises; past bookings stay reachable via a specific date
+     * or the All Dates list. Shared by render_schedule_today_view() and
+     * ajax_refresh_doctor_group() (the per-doctor-group refresh button),
+     * so the two never drift apart on what counts as "upcoming".
+     */
+    private function get_upcoming_queue_apps($doctor_id) {
+        $today = current_time('Y-m-d');
+        $all_apps = $this->get_filtered_appointments(null, $doctor_id, '');
+        return array_values(array_filter($all_apps, function($a) use ($today) {
+            return get_post_meta($a->ID, '_mdbk_appointment_date', true) > $today;
+        }));
     }
 
     private function render_my_queue_patient_row($a, $serving_doctor_ids = []) {

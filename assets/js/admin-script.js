@@ -510,12 +510,6 @@ document.addEventListener('DOMContentLoaded', function() {
             runSearch();
         });
 
-        // Auto-refresh so a booking made elsewhere (the public form, another
-        // staff member's tab) shows up here without a manual reload — same
-        // 12s cadence the public Live Queue page already polls at
-        // (queue-script.js/queue-view-script.js). Whatever filters/date are
-        // currently applied stay applied; this just re-runs that same query.
-        setInterval(runSearch, 12000);
     })();
 
     // Booking page's own date-filter nav — same modern popover calendar as
@@ -1857,11 +1851,11 @@ document.addEventListener('DOMContentLoaded', function() {
     // render_today_queue_table()) rather than the visible
     // .mdbk-doctor-group-list, since that's flex/grid patient-row markup
     // this standalone page/canvas has no matching CSS for. Delegated on
-    // document (not bound once per button at load) — this page's own
-    // 12s auto-refresh (see the schedule search IIFE above) replaces
-    // #mdbk-schedule-results wholesale, which silently detached every
-    // per-element listener a querySelectorAll().forEach() bound here,
-    // leaving Print/Download dead after the first refresh.
+    // document (not bound once per button at load) — the search/filter
+    // inputs above and the group's own Refresh button (further down) both
+    // replace #mdbk-schedule-results / a single group's markup, which
+    // would silently detach any per-element listener a plain
+    // querySelectorAll().forEach() bound here instead.
     document.addEventListener('click', function(e) {
         const btn = e.target.closest('.mdbk-print-group');
         if (!btn) return;
@@ -1929,9 +1923,7 @@ document.addEventListener('DOMContentLoaded', function() {
             img.src = svgUrl;
         });
     }
-    // Delegated for the same reason as .mdbk-print-group above — this
-    // page's own auto-refresh replaces the buttons a plain forEach() here
-    // would have bound to.
+    // Delegated for the same reason as .mdbk-print-group above.
     document.addEventListener('click', function(e) {
         const btn = e.target.closest('.mdbk-download-group-image');
         if (!btn) return;
@@ -1942,6 +1934,56 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!table) return;
         const titleText = name ? name.textContent : 'Patients';
         mdbkDownloadHtmlAsImage(titleText, table.innerHTML, titleText.replace(/[^a-z0-9]+/gi, '-').toLowerCase() + '-patients.png');
+    });
+
+    // Per-doctor-group manual Refresh — replaces the earlier
+    // setInterval(runSearch, 12000) whole-page auto-refresh (see the
+    // schedule search IIFE above), which wholesale-replaced
+    // #mdbk-schedule-results on every tick and, in doing so, reset every
+    // <details>' open/closed state back to the server's default (always
+    // open) and could jump the page's scroll position — a staff member
+    // who'd deliberately collapsed one doctor's queue to focus on
+    // another's would find it sprung back open again 12 seconds later.
+    // This instead touches only the ONE group that was clicked: its own
+    // <details> element is never replaced (so its open/closed state is
+    // untouched), and every OTHER group on the page — including their
+    // scroll position — is left completely alone.
+    document.addEventListener('click', function(e) {
+        const btn = e.target.closest('.mdbk-refresh-group');
+        if (!btn || typeof mdbk_admin_obj === 'undefined') return;
+        const group = btn.closest('.mdbk-doctor-group');
+        if (!group || btn.disabled) return;
+        const icon = btn.querySelector('svg');
+        btn.disabled = true;
+        if (icon) icon.classList.add('mdbk-spin');
+
+        const searchInput = document.getElementById('mdbk-schedule-search');
+        const statusSelect = document.getElementById('mdbk-schedule-filter-status');
+        const body = new URLSearchParams();
+        body.set('action', 'mdbk_refresh_doctor_group');
+        body.set('nonce', mdbk_admin_obj.nonce);
+        body.set('doctor_id', group.dataset.doctorId || '0');
+        body.set('is_today', group.dataset.isToday || '0');
+        body.set('s', searchInput ? searchInput.value : '');
+        body.set('filter_status', statusSelect ? statusSelect.value : '');
+
+        fetch(mdbk_admin_obj.ajax_url, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body.toString() })
+            .then(function(r) { return r.json(); })
+            .then(function(res) {
+                if (!res || !res.success) return;
+                const countEl = group.querySelector('.mdbk-doctor-group-count');
+                const listEl = group.querySelector('.mdbk-doctor-group-list');
+                const tableEl = group.querySelector('.mdbk-doctor-group-print-table');
+                const dotEl = group.querySelector('.mdbk-live-pulse-dot');
+                if (countEl) countEl.textContent = res.data.count_label;
+                if (listEl) listEl.innerHTML = res.data.list_html;
+                if (tableEl) tableEl.innerHTML = res.data.print_table_html;
+                if (dotEl) dotEl.classList.toggle('mdbk-live-pulse-active', !!res.data.is_visiting);
+            })
+            .finally(function() {
+                btn.disabled = false;
+                if (icon) icon.classList.remove('mdbk-spin');
+            });
     });
 
     function setSpecialtyIconPreview(url) {

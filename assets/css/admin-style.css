@@ -1058,6 +1058,16 @@ button.mdbk-slot-btn.mdbk-slot-taken { opacity: .5; cursor: not-allowed; pointer
     100% { box-shadow: 0 0 0 0 rgba(22, 163, 74, 0); }
 }
 
+/* Booking page doctor-group header's manual Refresh button (admin-script.js) —
+   spins its icon while the AJAX request is in flight, same signal a native
+   pull-to-refresh gives, so a slow request doesn't look like the click did
+   nothing. */
+.mdbk-refresh-group svg.mdbk-spin { animation: mdbk-spin 0.7s linear infinite; }
+@keyframes mdbk-spin {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
+}
+
 /* Editable weekly-availability rows (Add/Edit modal) — day name, on/off
    toggle, and a from–to time range, all on one line. */
 .mdbk-day-grid { display: flex; flex-direction: column; gap: 4px; }
