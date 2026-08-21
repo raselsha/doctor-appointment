@@ -3067,13 +3067,11 @@ class MDBK_Admin_Dashboard {
             <span class="mdbk-directory-visits-cell">
                 <span class="mdbk-badge mdbk-badge-green" title="<?php esc_attr_e('Total visits', 'doctor-appointment'); ?>"><?php echo esc_html($visit_count); ?></span>
                 <?php if (current_user_can(MDBK_CAP_QUEUE)) : ?>
-                <?php // Existing patient, new booking — a plain full-page
-                // link (not a JS/AJAX in-place open) to the Booking
-                // page's own Add Booking modal, carrying just this
-                // patient's ID; admin-script.js resolves the rest
-                // server-side and fills the modal in on load. See
-                // doctor-appointment.php's admin_enqueue_scripts(). ?>
-                <a href="<?php echo esc_url(admin_url('admin.php?page=mdbk-schedule&book_patient_id=' . $p->ID)); ?>" class="mdbk-book-btn" title="<?php esc_attr_e('Book Appointment', 'doctor-appointment'); ?>"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="3"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg><?php _e('Book', 'doctor-appointment'); ?></a>
+                <?php // Existing patient, new booking — opens the same
+                // Add Booking modal rendered on THIS page in place (see
+                // render_patients_page()), prefilled from the row's own
+                // data-name/phone/email/age/gender. No page navigation. ?>
+                <a href="#" class="mdbk-book-btn mdbk-book-appointment" data-id="<?php echo esc_attr($p->ID); ?>" title="<?php esc_attr_e('Book Appointment', 'doctor-appointment'); ?>"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="3"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg><?php _e('Book', 'doctor-appointment'); ?></a>
                 <?php endif; ?>
             </span>
             <div class="mdbk-actions">
@@ -3333,7 +3331,7 @@ class MDBK_Admin_Dashboard {
                 </div>
 
                 <div id="mdbk-patients-results"><?php echo $this->render_patients_results_html($patients, $has_active_filters, $paged, $per_page); ?></div>
-            </div></div><?php $this->render_patient_modal_html(); $this->render_patient_view_modal_html(); ?></div>
+            </div></div><?php $this->render_patient_modal_html(); $this->render_patient_view_modal_html(); if (current_user_can(MDBK_CAP_QUEUE)) { $this->render_appointment_modal_html(); } ?></div>
         <?php
     }
 

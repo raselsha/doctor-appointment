@@ -170,34 +170,10 @@ if ( ! class_exists( 'MDBK_Doctor_Appointment' ) ) {
             wp_enqueue_style('mdbk-admin-style', MDBK_URL . 'assets/css/admin-style.css', array('mdbk-bn-font'), filemtime( MDBK_PATH . 'assets/css/admin-style.css' ));
             wp_enqueue_style('front-end-style', MDBK_URL . 'assets/css/front-end.css', array(), filemtime( MDBK_PATH . 'assets/css/front-end.css' ));
             wp_enqueue_script('mdbk-admin-script', MDBK_URL . 'assets/js/admin-script.js', $admin_script_deps, $admin_js_ver, true);
-            // Patient Directory's "Book" link (admin-dashboard.php's
-            // render_patient_directory_row()) — a plain full-page
-            // navigation to the Booking page carrying just the patient's
-            // ID, not their name/phone/etc. directly in the URL. Looked
-            // up here server-side instead so admin-script.js can open the
-            // Add Booking modal and fill it in the instant the page
-            // loads, same fields the modal's own phone-autosuggest
-            // already fills when staff picks an existing patient there —
-            // this just skips having to type the phone number first.
-            $prefill_patient = null;
-            if (isset($_GET['page']) && $_GET['page'] === 'mdbk-schedule' && !empty($_GET['book_patient_id']) && current_user_can(MDBK_CAP_QUEUE)) {
-                $patient_id = intval($_GET['book_patient_id']);
-                $patient_post = $patient_id && get_post_type($patient_id) === 'mdbk_patient' ? get_post($patient_id) : null;
-                if ($patient_post) {
-                    $prefill_patient = [
-                        'name'   => $patient_post->post_title,
-                        'phone'  => get_post_meta($patient_id, '_mdbk_patient_phone', true),
-                        'email'  => get_post_meta($patient_id, '_mdbk_patient_email', true),
-                        'age'    => get_post_meta($patient_id, '_mdbk_patient_age', true),
-                        'gender' => get_post_meta($patient_id, '_mdbk_patient_gender', true),
-                    ];
-                }
-            }
 
             wp_localize_script( 'mdbk-admin-script', 'mdbk_admin_obj', array_merge( [
                 'ajax_url' => admin_url( 'admin-ajax.php' ),
                 'nonce'    => wp_create_nonce( 'mdbk_admin_nonce' ),
-                'prefill_patient' => $prefill_patient,
                 // Lets the Add/Edit Booking modal's date calendar call the
                 // SAME get_doctor_schedule() AJAX handler the public booking
                 // form already uses (appointment-manager.php) — one nonce

@@ -1620,6 +1620,11 @@ document.addEventListener('DOMContentLoaded', function() {
         // against this throwaway one resolving later and clobbering it).
         const dateEl = document.getElementById('mdbk-app-date');
         loadAppSlots(value, dateEl ? dateEl.value : '');
+        // Remembered so the NEXT "+ New Booking" (openAddAppointmentModal()
+        // below) can restore it instead of always defaulting back to the
+        // first doctor — a receptionist booking several patients in a row
+        // for the same doctor shouldn't have to reselect it every time.
+        if (value) localStorage.setItem('mdbk_last_doctor_id', value);
     });
     const appStatusSelect = initCustomSelect('mdbk-app-status-select');
     const appSpecSelect = initCustomSelect('mdbk-app-spec-select');
@@ -1644,11 +1649,19 @@ document.addEventListener('DOMContentLoaded', function() {
     if (appSpecSelect) {
         appSpecSelect.panel.addEventListener('click', function(e) {
             const opt = e.target.closest('.mdbk-custom-select-option');
-            if (opt) filterDoctorsBySpecialty(opt.dataset.value);
+            if (!opt) return;
+            filterDoctorsBySpecialty(opt.dataset.value);
+            localStorage.setItem('mdbk_last_specialty_id', opt.dataset.value || '');
         });
     }
 
-    initModal('mdbk-appointment-modal', '.mdbk-add-appointment, .mdbk-edit-appointment', 'mdbk-appointment-form', 'mdbk-edit-appointment', (id, btn) => {
+    // Add-path only — initModal()'s own generic form.reset() (fired for
+    // any non-edit openSelector match) would otherwise run AFTER this and
+    // silently revert the hidden <select>s this restores back to their
+    // page-load defaults, so the ADD flow is handled entirely outside
+    // initModal() below instead (openAddAppointmentModal()); only Edit
+    // still goes through it.
+    initModal('mdbk-appointment-modal', '.mdbk-edit-appointment', 'mdbk-appointment-form', 'mdbk-edit-appointment', (id, btn) => {
         document.getElementById('mdbk-app-id').value = id;
         const title = document.getElementById('mdbk-appointment-modal-title');
         if (title) title.textContent = 'Edit Booking';
@@ -1700,74 +1713,95 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
+    // Restores whichever Specialty/Doctor were last used for a new booking
+    // (saved by appDoctorSelect/appSpecSelect above) instead of always
+    // resetting to "All Specialties" / the first doctor. Falls back to
+    // those old defaults if nothing's stored yet, or if a stored id no
+    // longer matches any option (e.g. it was deleted, or filtered out by
+    // the specialty just restored).
+    function applyLastUsedDoctorSpecialty() {
+        const lastSpecId = localStorage.getItem('mdbk_last_specialty_id') || '';
+        const lastDoctorId = localStorage.getItem('mdbk_last_doctor_id') || '';
+        if (appSpecSelect) {
+            let specOpt = lastSpecId ? appSpecSelect.panel.querySelector('.mdbk-custom-select-option[data-value="' + lastSpecId + '"]') : null;
+            if (!specOpt) specOpt = appSpecSelect.panel.querySelector('.mdbk-custom-select-option[data-value=""]');
+            if (specOpt) {
+                appSpecSelect.setValue(specOpt.dataset.value, specOpt.textContent);
+                filterDoctorsBySpecialty(specOpt.dataset.value);
+            }
+        }
+        if (appDoctorSelect) {
+            let doctorOpt = lastDoctorId ? appDoctorSelect.panel.querySelector('.mdbk-custom-select-option[data-value="' + lastDoctorId + '"]:not([style*="display: none"])') : null;
+            if (!doctorOpt) doctorOpt = appDoctorSelect.panel.querySelector('.mdbk-custom-select-option:not([style*="display: none"])');
+            if (doctorOpt) appDoctorSelect.setValue(doctorOpt.dataset.value, doctorOpt.textContent);
+        }
+    }
+
+    // Everything "+ New Booking" needs done, in the one order that's safe:
+    // form.reset() FIRST (restores the hidden <select>s to their page-load
+    // defaults), THEN the custom-select restores/overrides — the other way
+    // round, form.reset() would silently revert what those just set. Used
+    // directly by both the real "+ New Booking" buttons below and the
+    // Patient Directory's "Book" button, which has no "+ New Booking"
+    // button of its own on that page to click through.
+    function openAddAppointmentModal() {
+        const modal = document.getElementById('mdbk-appointment-modal');
+        const form = document.getElementById('mdbk-appointment-form');
+        if (!modal || !form) return;
+        form.reset();
+        modal.style.display = 'flex';
+        const title = document.getElementById('mdbk-appointment-modal-title');
+        if (title) title.textContent = 'Add Booking';
+        applyLastUsedDoctorSpecialty();
+        // Reset gender back to its default (Male) — form.reset() alone
+        // only restores the hidden <select>'s value, not the visible
+        // custom-select trigger label, so without this an earlier edit
+        // (e.g. a booking whose gender was "Female") would leave a stale
+        // label showing on the next "+ New Booking".
+        if (appGenderSelect) {
+            const defaultOpt = appGenderSelect.panel.querySelector('.mdbk-custom-select-option[data-value="Male"]');
+            if (defaultOpt) appGenderSelect.setValue(defaultOpt.dataset.value, defaultOpt.textContent);
+        }
+        // Wipe any date left selected from a previous Add/Edit — the
+        // applyLastUsedDoctorSpecialty() call above already kicks off a
+        // fresh availability fetch for whichever doctor this reset lands on.
+        if (appDateCalendar) appDateCalendar.reset();
+    }
+
     document.querySelectorAll('.mdbk-add-appointment').forEach(function(btn) {
-        btn.addEventListener('click', function() {
-            const title = document.getElementById('mdbk-appointment-modal-title');
-            if (title) title.textContent = 'Add Booking';
-            // Reset specialty to All Specialties
-            if (appSpecSelect) {
-                const allOpt = appSpecSelect.panel.querySelector('.mdbk-custom-select-option[data-value=""]');
-                if (allOpt) {
-                    appSpecSelect.setValue(allOpt.dataset.value, allOpt.textContent);
-                    filterDoctorsBySpecialty('');
-                }
-            }
-            if (appDoctorSelect) {
-                const firstOpt = appDoctorSelect.panel.querySelector('.mdbk-custom-select-option:not([style*="display: none"])');
-                if (firstOpt) appDoctorSelect.setValue(firstOpt.dataset.value, firstOpt.textContent);
-            }
-            // Reset gender back to its default (Male) — form.reset() alone
-            // only restores the hidden <select>'s value, not the visible
-            // custom-select trigger label, so without this an earlier edit
-            // (e.g. a booking whose gender was "Female") would leave a stale
-            // label showing on the next "+ New Booking".
-            if (appGenderSelect) {
-                const defaultOpt = appGenderSelect.panel.querySelector('.mdbk-custom-select-option[data-value="Male"]');
-                if (defaultOpt) appGenderSelect.setValue(defaultOpt.dataset.value, defaultOpt.textContent);
-            }
-            // Wipe any date left selected from a previous Add/Edit — the
-            // appDoctorSelect.setValue() above already kicks off a fresh
-            // availability fetch for whichever doctor this reset lands on.
-            if (appDateCalendar) appDateCalendar.reset();
+        btn.addEventListener('click', function(e) {
+            e.preventDefault();
+            openAddAppointmentModal();
         });
     });
 
-    // Patient Directory's "Book" link — a full-page navigation here with
-    // ?book_patient_id=123, resolved server-side (doctor-appointment.php)
-    // into mdbk_admin_obj.prefill_patient (name/phone/email/age/gender
-    // only — this is a NEW booking, not an edit of an existing one, so no
-    // appointment ID is involved). Opens the Add Booking modal via a real
-    // click on "+ New Booking" (running its own reset logic above first,
-    // same as if staff had clicked it themselves) and then fills in those
-    // fields — the same ones the modal's own phone-autosuggest already
-    // fills when staff picks a suggestion there, this just skips having
-    // to type the phone number first.
-    (function() {
-        const prefill = typeof mdbk_admin_obj !== 'undefined' ? mdbk_admin_obj.prefill_patient : null;
-        if (!prefill) return;
-        const addBtn = document.querySelector('.mdbk-add-appointment');
-        if (!addBtn) return;
-        addBtn.click();
-        const nameInput = document.getElementById('mdbk-app-patient');
-        const phoneInput = document.getElementById('mdbk-app-phone');
-        const emailInput = document.getElementById('mdbk-app-email');
-        const ageInput = document.getElementById('mdbk-app-age');
-        if (nameInput) nameInput.value = prefill.name || '';
-        if (phoneInput) phoneInput.value = prefill.phone || '';
-        if (emailInput) emailInput.value = prefill.email || '';
-        if (ageInput) ageInput.value = prefill.age || '';
-        if (appGenderSelect && prefill.gender) {
-            const genderOpt = appGenderSelect.panel.querySelector('.mdbk-custom-select-option[data-value="' + prefill.gender + '"]');
-            if (genderOpt) appGenderSelect.setValue(genderOpt.dataset.value, genderOpt.textContent);
-        }
-        // Scrubs the query param so a reload or bookmark of this URL
-        // doesn't keep reopening the same prefilled modal indefinitely.
-        if (window.history && window.history.replaceState) {
-            const url = new URL(window.location.href);
-            url.searchParams.delete('book_patient_id');
-            window.history.replaceState({}, '', url.toString());
-        }
-    })();
+    // Patient Directory's "Book" button — opens this SAME modal in place
+    // (no page navigation to the Booking page), prefilled from the
+    // clicked row's own data-name/phone/email/age/gender (already on
+    // .mdbk-patient-row-directory for the View/Edit flows). Doctor/
+    // Specialty are deliberately left at whatever openAddAppointmentModal()
+    // just restored (the last-used ones) rather than reset per-patient — a
+    // patient isn't tied to one doctor, only Date/Time need picking fresh.
+    document.querySelectorAll('.mdbk-book-appointment').forEach(function(btn) {
+        btn.addEventListener('click', function(e) {
+            e.preventDefault();
+            const row = btn.closest('.mdbk-patient-row-directory');
+            if (!row) return;
+            openAddAppointmentModal();
+            const nameInput = document.getElementById('mdbk-app-patient');
+            const phoneInput = document.getElementById('mdbk-app-phone');
+            const emailInput = document.getElementById('mdbk-app-email');
+            const ageInput = document.getElementById('mdbk-app-age');
+            if (nameInput) nameInput.value = row.dataset.name || '';
+            if (phoneInput) phoneInput.value = row.dataset.phone || '';
+            if (emailInput) emailInput.value = row.dataset.email || '';
+            if (ageInput) ageInput.value = row.dataset.age || '';
+            if (appGenderSelect && row.dataset.gender) {
+                const genderOpt = appGenderSelect.panel.querySelector('.mdbk-custom-select-option[data-value="' + row.dataset.gender + '"]');
+                if (genderOpt) appGenderSelect.setValue(genderOpt.dataset.value, genderOpt.textContent);
+            }
+        });
+    });
 
     // The Date field is now a hidden <input>, not a native
     // <input type="date" required"> — hidden inputs are barred from HTML5
