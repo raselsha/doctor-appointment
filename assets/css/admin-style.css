@@ -1358,6 +1358,13 @@ button.mdbk-slot-btn.mdbk-slot-taken { opacity: .5; cursor: not-allowed; pointer
    public Live Queue's own palette. */
 .mdbk-my-queue-row.mdbk-row-state-serving { background: #ecfdf5; }
 .mdbk-my-queue-row.mdbk-row-state-waiting-checked-in { background: #fff7ed; }
+/* .mdbk-patient-row's own border-bottom (#f1f5f9, a very pale gray) reads
+   fine against a plain white row, but disappears entirely against these
+   two tinted backgrounds — consecutive checked-in/serving rows ran
+   together with no visible seam at all. A tint-matched, slightly darker
+   line restores the separator without fighting the row's own color. */
+.mdbk-my-queue-row.mdbk-row-state-serving { border-bottom-color: #a7f3d0; }
+.mdbk-my-queue-row.mdbk-row-state-waiting-checked-in { border-bottom-color: #fed7aa; }
 
 /* Front-desk staff's all-doctors "Patients" view — each doctor's rows
    collapsed under their own <details> section (see
@@ -1387,8 +1394,18 @@ button.mdbk-slot-btn.mdbk-slot-taken { opacity: .5; cursor: not-allowed; pointer
 /* Per-doctor Print/Export CSV/Download Image cluster, pushed to the
    header's right edge (replaces the chevron's own margin-left:auto —
    the chevron now sits at the end of this cluster instead). */
-.mdbk-doctor-group-actions { display: flex; align-items: center; gap: 6px; margin-left: auto; }
-.mdbk-doctor-group-actions .mdbk-icon-btn { width: 26px; height: 26px; }
+.mdbk-doctor-group-actions { display: flex; align-items: center; gap: 10px; margin-left: auto; }
+.mdbk-doctor-group-actions .mdbk-icon-btn { width: 30px; height: 30px; }
+/* Coarse-pointer/no-hover devices (touchscreens) get a further bump on top
+   of the base 30px/10px gap above — same reasoning as the doctor card's
+   own drag handle: a touch target needs more room than a mouse cursor
+   does to land on the right one of several buttons sitting this close
+   together. */
+@media (hover: none), (pointer: coarse) {
+    .mdbk-doctor-group-actions { gap: 12px; }
+    .mdbk-doctor-group-actions .mdbk-icon-btn { width: 36px; height: 36px; }
+    .mdbk-doctor-group-actions .mdbk-availability-chevron { width: 30px; height: 30px; }
+}
 /* Collapse/expand chevron, made into a proper circular button here (bigger
    hit area, background, bolder arrow, hover state) instead of the plain
    thin corner-border arrow .mdbk-availability-chevron is elsewhere — this
@@ -1406,9 +1423,9 @@ button.mdbk-slot-btn.mdbk-slot-taken { opacity: .5; cursor: not-allowed; pointer
    above, which still applies to every OTHER use of this class) and all
    rotation happens on the <svg> child instead. */
 .mdbk-doctor-group-actions .mdbk-availability-chevron {
-    width: 22px;
-    height: 22px;
-    margin-left: 4px;
+    width: 26px;
+    height: 26px;
+    margin-left: 2px;
     border: none;
     border-radius: 50%;
     background: #eef2f7;
