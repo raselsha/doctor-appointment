@@ -3457,7 +3457,12 @@ class MDBK_Admin_Dashboard {
         $clinic_name = get_option('mdbk_clinic_name', '') ?: 'MedBook';
         $clinic_contact = get_option('mdbk_clinic_contact', '');
         ?>
-        <div class="mdbk-sidebar"><div class="mdbk-sidebar-logo"><?php echo esc_html($clinic_name); ?><?php if ($clinic_contact) : ?><div class="mdbk-sidebar-clinic-contact"><?php echo esc_html($clinic_contact); ?></div><?php endif; ?></div><ul class="mdbk-sidebar-menu">
+        <button type="button" class="mdbk-mobile-menu-toggle" id="mdbk-mobile-menu-toggle" aria-label="<?php esc_attr_e('Menu', 'doctor-appointment'); ?>">
+            <svg class="mdbk-mobile-menu-icon-open" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+            <svg class="mdbk-mobile-menu-icon-close" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+        <div class="mdbk-sidebar-backdrop" id="mdbk-sidebar-backdrop"></div>
+        <div class="mdbk-sidebar" id="mdbk-sidebar"><div class="mdbk-sidebar-logo"><?php echo esc_html($clinic_name); ?><?php if ($clinic_contact) : ?><div class="mdbk-sidebar-clinic-contact"><?php echo esc_html($clinic_contact); ?></div><?php endif; ?></div><ul class="mdbk-sidebar-menu">
             <?php if (current_user_can(MDBK_CAP_ADMIN)) : ?>
             <li class="mdbk-menu-item <?php echo $active_page == 'dashboard' ? 'active' : ''; ?>" onclick="window.location.href='<?php echo esc_url(admin_url('admin.php?page=mdbk-dashboard')); ?>'"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg><?php _e('Dashboard', 'doctor-appointment'); ?></li>
             <li class="mdbk-menu-item <?php echo $active_page == 'doctors' ? 'active' : ''; ?>" onclick="window.location.href='<?php echo esc_url(admin_url('admin.php?page=mdbk-doctors')); ?>'"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.5 21a8.5 8.5 0 0 0-17 0"></path><circle cx="12" cy="7.5" r="4.5"></circle></svg><?php _e('Doctors', 'doctor-appointment'); ?></li>

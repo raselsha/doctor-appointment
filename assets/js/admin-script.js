@@ -1,5 +1,28 @@
 document.addEventListener('DOMContentLoaded', function() {
 
+    // Mobile off-canvas sidebar (see admin-style.css's matching
+    // @media (max-width: 782px) block) — every .mdbk-menu-item link is a
+    // real navigation (onclick="window.location.href=..."), so the drawer
+    // never needs to be closed programmatically on menu selection, only
+    // on the backdrop tap.
+    (function() {
+        const toggle = document.getElementById('mdbk-mobile-menu-toggle');
+        const sidebar = document.getElementById('mdbk-sidebar');
+        const backdrop = document.getElementById('mdbk-sidebar-backdrop');
+        if (!toggle || !sidebar || !backdrop) return;
+        function closeSidebar() {
+            sidebar.classList.remove('is-open');
+            backdrop.classList.remove('is-open');
+            toggle.classList.remove('is-open');
+        }
+        toggle.addEventListener('click', function() {
+            const isOpen = sidebar.classList.toggle('is-open');
+            backdrop.classList.toggle('is-open', isOpen);
+            toggle.classList.toggle('is-open', isOpen);
+        });
+        backdrop.addEventListener('click', closeSidebar);
+    })();
+
     // "Today" for the scheduling calendars below comes from the server
     // (mdbk_admin_obj.today, set via current_time('Y-m-d') — WP's
     // configured site timezone), not the admin's own browser clock, so the

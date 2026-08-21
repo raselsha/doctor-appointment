@@ -142,6 +142,44 @@
     overflow-y: auto;
 }
 
+/* Mobile off-canvas sidebar (render_sidebar() prepends the toggle button
+   and backdrop; admin-script.js wires the click handlers) — hidden on
+   desktop. .mdbk-sidebar's fixed 260px width left almost no room at all
+   for .mdbk-main-content on an actual phone screen, so below the
+   breakpoint it becomes a slide-in drawer instead of a permanent column. */
+.mdbk-mobile-menu-toggle {
+    display: none;
+    position: fixed;
+    top: 14px;
+    left: 14px;
+    z-index: 1001;
+    width: 40px;
+    height: 40px;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    border-radius: 10px;
+    background: #2d3139;
+    color: #fff;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+/* Swaps to an X once the drawer is open — the button sits fixed at the
+   same top-left spot the sidebar itself slides in over, so leaving the
+   hamburger glyph showing would read as "tap again to do... what?" right
+   on top of the now-open menu. */
+.mdbk-mobile-menu-icon-close { display: none; }
+.mdbk-mobile-menu-toggle.is-open .mdbk-mobile-menu-icon-open { display: none; }
+.mdbk-mobile-menu-toggle.is-open .mdbk-mobile-menu-icon-close { display: block; }
+.mdbk-sidebar-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.5);
+    z-index: 999;
+}
+.mdbk-sidebar-backdrop.is-open { display: block; }
+
 .mdbk-header {
     display: flex;
     justify-content: space-between;
@@ -1794,5 +1832,86 @@ body.mdbk-doctor-chrome .mdbk-admin-wrapper {
     right: 20px;
     bottom: 20px;
     height: auto;
+}
+
+/* ===== Mobile shell (deliberately last in the file) =====
+   Every rule below overrides an unconditional, equal-or-lower-specificity
+   base rule declared earlier in this file (e.g. .mdbk-header-left h1's
+   own font-size, .mdbk-stats-grid-5's own 5-column grid) — two rules of
+   the same specificity resolve by SOURCE ORDER, not by whichever one sits
+   inside a @media block, so scattering these fixes near each rule's own
+   base definition (as this block used to be split across the file) silently
+   lost that tiebreak to whatever came after it. Keeping every mobile
+   override down here, after everything it touches, is what actually makes
+   it win. */
+@media (max-width: 782px) {
+    #mdbk-admin-dashboard { margin: 0; }
+    .mdbk-admin-wrapper { border-radius: 0; box-shadow: none; }
+    .mdbk-mobile-menu-toggle { display: flex; }
+    /* translateX (not display:none) so the slide transition has something
+       to animate, and so the sidebar's own scroll position/DOM state
+       survives being toggled shut instead of resetting every time. */
+    .mdbk-sidebar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 260px;
+        height: 100%;
+        z-index: 1000;
+        transform: translateX(-100%);
+        transition: transform 0.25s ease;
+        box-shadow: 4px 0 20px rgba(0, 0, 0, 0.25);
+    }
+    .mdbk-sidebar.is-open { transform: translateX(0); }
+    .mdbk-main-content {
+        width: 100%;
+        padding: 20px 16px;
+        /* Clears the fixed hamburger button (top:14px, 40px tall) so it
+           never overlaps this page's own first heading/button row. */
+        padding-top: 64px;
+    }
+    .mdbk-header { flex-wrap: wrap; gap: 12px; margin-bottom: 20px; }
+    .mdbk-header-left h1 { font-size: 22px; }
+    .mdbk-header-right { flex-wrap: wrap; gap: 10px; }
+    .mdbk-stats-grid,
+    .mdbk-stats-grid.mdbk-stats-grid-5 { grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 20px; }
+    /* Doctor-group header's Live Queue toggle + 3 icon buttons + chevron
+       left almost no room for a real doctor name — without wrapping, the
+       browser's only option was breaking the NAME itself one word per
+       line instead. Letting the whole header wrap keeps the name on one
+       readable line and drops the action cluster to a second line. */
+    .mdbk-doctor-group { margin-left: 12px; margin-right: 12px; }
+    .mdbk-doctor-group-header { flex-wrap: wrap; padding: 12px 14px; }
+    .mdbk-doctor-group-actions { margin-left: 0; flex-basis: 100%; justify-content: flex-end; }
+    /* Both fixed-pixel-track patient-row grids (the 11-track history-list
+       row and the 8-track Today's-Queue row) sum to several hundred px of
+       hard-coded column widths — nowhere near fitting an actual phone's
+       viewport. Each row switches to a wrapping flex line instead: every
+       child keeps its own natural size and just wraps onto however many
+       lines it needs, rather than forcing a horizontal scrollbar onto
+       what is otherwise the single most-viewed screen in this panel. */
+    .mdbk-patient-row,
+    .mdbk-patient-row-has-doctor,
+    .mdbk-patient-row.mdbk-my-queue-row {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 6px 10px;
+        padding: 12px 14px;
+    }
+    .mdbk-patient-row-spacer { display: none; }
+    .mdbk-patient-row-name { flex: 1 1 auto; min-width: 120px; }
+    .mdbk-my-queue-actions { justify-self: auto; margin-left: auto; flex-wrap: wrap; }
+    /* Drag-to-reorder is a mouse/hover interaction (see the handle's own
+       opacity-on-:hover) that doesn't translate to touch — hiding it here
+       also clears the top-right corner a narrow card's own name would
+       otherwise run underneath. */
+    .mdbk-doctor-drag-handle { display: none; }
+    /* Dashboard's "Patient Bookings" widget — a 4-column grid meant for
+       one card per doctor. With few doctors (often just one or two)
+       having bookings today, a still-4-column grid left the single real
+       card squeezed into its first quarter with the rest of the row
+       sitting empty. */
+    .mdbk-dashboard-doctor-grid { grid-template-columns: 1fr; }
 }
 
