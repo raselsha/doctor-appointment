@@ -544,11 +544,13 @@
     flex-direction: column;
     gap: 8px;
     padding: 16px;
-    /* Caps the visible list at ~5 rows; a 6th+ patient scrolls instead of
-       growing the card indefinitely — queue-view-script.js scrolls the
-       currently-serving row into view here on every refresh, so whoever's
-       being seen right now never gets scrolled out of sight. */
-    max-height: 276px;
+    /* Caps the visible list at ~10 rows (roughly a mobile screen's own
+       viewable height, so a phone showing this page doesn't need to
+       scroll to see a normal-sized queue) — an 11th+ patient scrolls
+       instead of growing the card indefinitely. queue-view-script.js
+       scrolls the currently-serving row into view here on every refresh,
+       so whoever's being seen right now never gets scrolled out of sight. */
+    max-height: 585px;
     overflow-y: auto;
     scroll-behavior: smooth;
 }
@@ -700,11 +702,12 @@
     width: 100%;
 }
 
-/* Every card reserves the same amount of list space (~5 rows) regardless
-   of how many patients that doctor actually has — a doctor with 1 patient
-   and one with 8 end up the same height in the grid. */
+/* Every card reserves the same amount of list space (~10 rows, roughly a
+   mobile screen's own viewable height) regardless of how many patients
+   that doctor actually has — a doctor with 1 patient and one with 20 end
+   up the same height in the grid. */
 .mdbk-queue-list-all .mdbk-queue-list-columns {
-    height: 276px;
+    height: 585px;
 }
 
 /* A doctor with zero patients today has nothing to show in the grid, so
