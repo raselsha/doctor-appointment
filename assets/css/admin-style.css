@@ -1235,13 +1235,31 @@ button.mdbk-slot-btn.mdbk-slot-taken { opacity: .5; cursor: not-allowed; pointer
     min-height: 0;
     overflow-y: auto;
 }
-.mdbk-filters-bar-sticky {
+/* "Today's Queue" / "Upcoming Dates" section headers (render_schedule_today_view())
+   pin to the top of the scroll-wrap above as each section scrolls past —
+   same idea the filters bar used to handle alone before it became
+   collapsible (see .mdbk-filters-bar-summary). Each header only stays
+   stuck while its OWN .mdbk-card is still in view (a sticky element can't
+   stick past its containing block's edge), so "Upcoming Dates"' own
+   header naturally takes over the instant "Today's Queue"'s card
+   scrolls fully past — no JS hand-off needed. */
+.mdbk-schedule-queue-scroll-wrap .mdbk-card-header {
     position: sticky;
     top: 0;
-    z-index: 15;
-    transition: transform 0.2s ease;
+    z-index: 10;
+    background: #fff;
+    border-radius: 20px 20px 0 0;
 }
-
+/* .mdbk-card's own overflow:hidden (there to clip square-cornered content
+   to the card's rounded corners) doubles as an unintended scroll-clipping
+   ancestor for position:sticky — a sticky element can only stick relative
+   to its nearest ancestor with non-visible overflow, and since that
+   ancestor here (.mdbk-card) never itself scrolls, the header just sat at
+   its normal in-flow position and scrolled away with everything else
+   instead of pinning to .mdbk-schedule-queue-scroll-wrap. The header's
+   own border-radius above already recreates the rounded-top-corner clip
+   overflow:hidden was providing, so it's safe to drop here. */
+.mdbk-schedule-queue-scroll-wrap .mdbk-card { overflow: visible; }
 /* Badge + "View All" (opens the full-list popup) + collapse chevron,
    grouped together on the header's right side rather than space-between'd
    apart from each other. */
@@ -1270,6 +1288,16 @@ button.mdbk-slot-btn.mdbk-slot-taken { opacity: .5; cursor: not-allowed; pointer
    status filters, and the Clear/All Dates links all sit in a single card,
    on a single line on wide screens (wraps gracefully below that). ===== */
 .mdbk-filters-bar { background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; padding: 10px 16px; margin-bottom: 20px; }
+/* The Booking page's two <details id="mdbk-filters-bar"> (render_schedule_page())
+   reuse this same padded box as their <summary>/body's shared container —
+   the Patients page's OWN .mdbk-filters-bar is still a plain <div> with no
+   <summary>, so this padding has to stay put on the outer element rather
+   than moving onto a wrapper only the Booking page has. */
+.mdbk-filters-bar-summary { display: flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; list-style: none; font-size: 12px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: .04em; }
+.mdbk-filters-bar-summary::-webkit-details-marker { display: none; }
+.mdbk-filters-bar-chevron { flex-shrink: 0; width: 8px; height: 8px; border-right: 1.5px solid #94a3b8; border-bottom: 1.5px solid #94a3b8; transform: rotate(45deg); transition: transform 0.2s ease; }
+.mdbk-filters-bar:not([open]) .mdbk-filters-bar-chevron { transform: rotate(-45deg); }
+.mdbk-filters-bar-body { margin-top: 10px; }
 .mdbk-filters-form { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 
 .mdbk-date-nav-group { display: flex; align-items: center; gap: 8px; }
@@ -1931,18 +1959,5 @@ body.mdbk-doctor-chrome .mdbk-admin-wrapper {
        card squeezed into its first quarter with the rest of the row
        sitting empty. */
     .mdbk-dashboard-doctor-grid { grid-template-columns: 1fr; }
-    /* Booking page's Today view — the filters bar (date nav/search/
-       doctor+status filters) stays permanently pinned via position:sticky
-       on desktop, which is fine there since there's room to spare. On a
-       phone screen that same permanent bar eats into the little vertical
-       space there is for the actual queue below it, so here it also
-       slides fully out of view on scroll-down (see admin-script.js's
-       scroll-direction listener on .mdbk-schedule-queue-scroll-wrap,
-       which toggles this class) and slides back the moment the user
-       scrolls back up even slightly — sticky positioning alone can't do
-       this since CSS has no way to know which direction a scroll moved. */
-    .mdbk-filters-bar-sticky.mdbk-filters-bar-hidden {
-        transform: translateY(calc(-100% - 12px));
-    }
 }
 

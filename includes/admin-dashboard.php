@@ -1998,15 +1998,21 @@ class MDBK_Admin_Dashboard {
                 <?php if ($is_today_view): ?>
                 <div class="mdbk-schedule-queue-scroll-wrap">
                     <div id="mdbk-schedule-analytics" style="margin-bottom:20px;"><?php echo $this->render_schedule_analytics_html($filter_doctor); ?></div>
-                    <div class="mdbk-filters-bar mdbk-filters-bar-sticky">
-                        <?php $this->render_schedule_filters_bar($filter_date, $filter_doctor, $filter_status, $search, $is_doctor_only, $all_doctors, $day_url, $all_dates_url); ?>
-                    </div>
+                    <details class="mdbk-filters-bar" id="mdbk-filters-bar" open>
+                        <summary class="mdbk-filters-bar-summary"><?php _e('Filters', 'doctor-appointment'); ?><span class="mdbk-filters-bar-chevron"></span></summary>
+                        <div class="mdbk-filters-bar-body">
+                            <?php $this->render_schedule_filters_bar($filter_date, $filter_doctor, $filter_status, $search, $is_doctor_only, $all_doctors, $day_url, $all_dates_url); ?>
+                        </div>
+                    </details>
                     <div id="mdbk-schedule-results"><?php echo $this->render_schedule_results_html($filter_date, $filter_doctor, $filter_status, $search, $apps, $is_today_view); ?></div>
                 </div>
                 <?php else: ?>
-                <div class="mdbk-filters-bar">
-                    <?php $this->render_schedule_filters_bar($filter_date, $filter_doctor, $filter_status, $search, $is_doctor_only, $all_doctors, $day_url, $all_dates_url); ?>
-                </div>
+                <details class="mdbk-filters-bar" id="mdbk-filters-bar" open>
+                    <summary class="mdbk-filters-bar-summary"><?php _e('Filters', 'doctor-appointment'); ?><span class="mdbk-filters-bar-chevron"></span></summary>
+                    <div class="mdbk-filters-bar-body">
+                        <?php $this->render_schedule_filters_bar($filter_date, $filter_doctor, $filter_status, $search, $is_doctor_only, $all_doctors, $day_url, $all_dates_url); ?>
+                    </div>
+                </details>
                 <div id="mdbk-schedule-results"><?php echo $this->render_schedule_results_html($filter_date, $filter_doctor, $filter_status, $search, $apps, $is_today_view); ?></div>
                 <?php endif; ?>
             </div></div><?php $this->render_appointment_modal_html(); $this->render_patient_view_modal_html(); $this->render_invoice_modal_html(); ?></div>
@@ -2014,12 +2020,14 @@ class MDBK_Admin_Dashboard {
     }
 
     /**
-     * Booking page's filter <form> (date nav, search, doctor/status filters)
-     * — shared between render_schedule_page() (rendered once, never touched
-     * by the live-search AJAX swap so the search input never loses focus
-     * mid-keystroke) and, for the Today view specifically, positioned
-     * BELOW the analytics cards and pinned via .mdbk-filters-bar-sticky so
-     * it stays visible while the analytics/queue content scrolls under it.
+     * Booking page's filter <form> (date nav, search, doctor/status
+     * filters) — shared between both call sites in render_schedule_page(),
+     * rendered once and never touched by the live-search AJAX swap, so
+     * the search input never loses focus mid-keystroke. Both callers wrap
+     * this in a <details id="mdbk-filters-bar"> (admin-script.js persists
+     * its open/collapsed state in localStorage) rather than rendering it
+     * here directly, since the wrapper itself doesn't depend on any of
+     * this method's own arguments.
      */
     private function render_schedule_filters_bar($filter_date, $filter_doctor, $filter_status, $search, $is_doctor_only, $all_doctors, $day_url, $all_dates_url) {
         ?>

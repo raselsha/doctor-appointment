@@ -23,34 +23,22 @@ document.addEventListener('DOMContentLoaded', function() {
         backdrop.addEventListener('click', closeSidebar);
     })();
 
-    // Booking page's Today view — hides the sticky filters bar (date nav/
-    // search/doctor+status filters) on scroll-down, brings it back on
-    // scroll-up, on top of (not instead of) its own position:sticky. Only
-    // has a visible effect below the mobile breakpoint (see
-    // .mdbk-filters-bar-hidden in admin-style.css); runs unconditionally
-    // here since scoping it to mobile in CSS is simpler and more reliable
-    // than tracking a resize/matchMedia in JS just to skip the listener.
-    // Listens on .mdbk-schedule-queue-scroll-wrap, not window — that inner
-    // container is what actually scrolls (see its own comment in
-    // admin-style.css), the page/window itself never does.
+    // Booking page's filters bar (date nav/search/doctor+status filters) —
+    // a plain <details>/<summary> (same collapse mechanism as each doctor
+    // group below it) instead of the earlier scroll-direction auto-hide
+    // attempt, which reopened every time the user scrolled up even a
+    // little and gave no way to just leave it collapsed. Persisted per
+    // browser (not per page load) via localStorage, same pattern as the
+    // Doctors page's own grid/list view toggle, so a staff member who
+    // collapses it once doesn't have to redo it on every visit.
     (function() {
-        const wrap = document.querySelector('.mdbk-schedule-queue-scroll-wrap');
-        const bar = document.querySelector('.mdbk-filters-bar-sticky');
-        if (!wrap || !bar) return;
-        let lastScrollTop = 0;
-        wrap.addEventListener('scroll', function() {
-            const st = wrap.scrollTop;
-            // A small threshold (24px) before hiding — otherwise a tiny
-            // scroll wobble (e.g. rubber-band overscroll on iOS) flickers
-            // the bar in and out. No threshold on the way back up: any
-            // upward movement at all should bring it back immediately.
-            if (st > lastScrollTop && st > 24) {
-                bar.classList.add('mdbk-filters-bar-hidden');
-            } else if (st < lastScrollTop) {
-                bar.classList.remove('mdbk-filters-bar-hidden');
-            }
-            lastScrollTop = st <= 0 ? 0 : st;
-        }, { passive: true });
+        const bar = document.getElementById('mdbk-filters-bar');
+        if (!bar) return;
+        const collapsed = localStorage.getItem('mdbk_filters_bar_collapsed') === '1';
+        if (collapsed) bar.removeAttribute('open');
+        bar.addEventListener('toggle', function() {
+            localStorage.setItem('mdbk_filters_bar_collapsed', bar.open ? '0' : '1');
+        });
     })();
 
     // "Today" for the scheduling calendars below comes from the server
