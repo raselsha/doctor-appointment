@@ -1239,6 +1239,7 @@ button.mdbk-slot-btn.mdbk-slot-taken { opacity: .5; cursor: not-allowed; pointer
     position: sticky;
     top: 0;
     z-index: 15;
+    transition: transform 0.2s ease;
 }
 
 /* Badge + "View All" (opens the full-list popup) + collapse chevron,
@@ -1930,5 +1931,18 @@ body.mdbk-doctor-chrome .mdbk-admin-wrapper {
        card squeezed into its first quarter with the rest of the row
        sitting empty. */
     .mdbk-dashboard-doctor-grid { grid-template-columns: 1fr; }
+    /* Booking page's Today view — the filters bar (date nav/search/
+       doctor+status filters) stays permanently pinned via position:sticky
+       on desktop, which is fine there since there's room to spare. On a
+       phone screen that same permanent bar eats into the little vertical
+       space there is for the actual queue below it, so here it also
+       slides fully out of view on scroll-down (see admin-script.js's
+       scroll-direction listener on .mdbk-schedule-queue-scroll-wrap,
+       which toggles this class) and slides back the moment the user
+       scrolls back up even slightly — sticky positioning alone can't do
+       this since CSS has no way to know which direction a scroll moved. */
+    .mdbk-filters-bar-sticky.mdbk-filters-bar-hidden {
+        transform: translateY(calc(-100% - 12px));
+    }
 }
 
