@@ -1618,7 +1618,23 @@ button.mdbk-slot-btn.mdbk-slot-taken { opacity: .5; cursor: not-allowed; pointer
    different column set (no queue/visit-time/status; a patient isn't tied
    to one appointment) plus a derived "total visits" badge in place of a
    stored field. */
-.mdbk-patient-row-directory { grid-template-columns: 50px minmax(140px, 200px) 150px minmax(180px, 1fr) minmax(160px, 1fr) 90px 46px 60px; }
+/* Track 7 (visits) grew from 46px to fit the new "Book" button riding
+   alongside the visit-count badge (see .mdbk-directory-visits-cell); track
+   8 (actions) grew from 60px to fit View joining Edit/Delete as a 3rd
+   icon there — both used to be sized for less content than they hold
+   now, which is why adding those without widening these two first made
+   everything past "Age/Gender" visibly collide. */
+.mdbk-patient-row-directory { grid-template-columns: 50px minmax(140px, 200px) 150px minmax(180px, 1fr) minmax(160px, 1fr) 90px 130px 90px; }
+.mdbk-directory-visits-cell { display: flex; align-items: center; gap: 8px; }
+/* "Book" sits right next to the visit-count badge rather than lumped in
+   with the plain gray View/Edit/Delete icons in .mdbk-actions — it's the
+   one action here that actually DOES something with this patient (starts
+   a new booking) rather than just inspecting/editing the record, so it
+   gets its own filled, labeled pill instead of blending in as a 4th
+   same-looking icon. */
+.mdbk-book-btn { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 20px; background: #0061d5; color: #fff; font-size: 11px; font-weight: 700; text-decoration: none; white-space: nowrap; transition: background .15s ease; }
+.mdbk-book-btn:hover { background: #0052b8; color: #fff; }
+.mdbk-book-btn svg { flex-shrink: 0; }
 .mdbk-chip-address svg { color: #d97706; }
 
 /* Staff (front-desk) list — same row shell as the Patient Directory

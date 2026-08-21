@@ -3064,17 +3064,21 @@ class MDBK_Admin_Dashboard {
             <span class="mdbk-patient-row-chip-slot"><?php if ($email): ?><span class="mdbk-patient-row-chip mdbk-chip-email"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 6l-10 7L2 6"></path><path d="M2 6h20v12H2z"></path></svg> <?php echo esc_html($email); ?></span><?php endif; ?></span>
             <span class="mdbk-patient-row-chip-slot"><?php if ($address): ?><span class="mdbk-patient-row-chip mdbk-chip-address" title="<?php echo esc_attr($address); ?>"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg> <?php echo esc_html($address); ?></span><?php endif; ?></span>
             <span class="mdbk-patient-row-chip-slot"><?php if ($age_gender): ?><span class="mdbk-patient-row-chip mdbk-meta-pill mdbk-gender-<?php echo esc_attr($gender_key); ?>"><?php echo esc_html($age_gender); ?></span><?php endif; ?></span>
-            <span class="mdbk-badge mdbk-badge-green" title="<?php esc_attr_e('Total visits', 'doctor-appointment'); ?>"><?php echo esc_html($visit_count); ?></span>
-            <div class="mdbk-actions">
+            <span class="mdbk-directory-visits-cell">
+                <span class="mdbk-badge mdbk-badge-green" title="<?php esc_attr_e('Total visits', 'doctor-appointment'); ?>"><?php echo esc_html($visit_count); ?></span>
                 <?php if (current_user_can(MDBK_CAP_QUEUE)) : ?>
-                <a href="#" class="mdbk-action-btn mdbk-view-patient" data-id="<?php echo esc_attr($p->ID); ?>" title="<?php esc_attr_e('View', 'doctor-appointment'); ?>"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg></a>
                 <?php // Existing patient, new booking — a plain full-page
                 // link (not a JS/AJAX in-place open) to the Booking
                 // page's own Add Booking modal, carrying just this
                 // patient's ID; admin-script.js resolves the rest
                 // server-side and fills the modal in on load. See
                 // doctor-appointment.php's admin_enqueue_scripts(). ?>
-                <a href="<?php echo esc_url(admin_url('admin.php?page=mdbk-schedule&book_patient_id=' . $p->ID)); ?>" class="mdbk-action-btn" title="<?php esc_attr_e('Book Appointment', 'doctor-appointment'); ?>"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="3"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg></a>
+                <a href="<?php echo esc_url(admin_url('admin.php?page=mdbk-schedule&book_patient_id=' . $p->ID)); ?>" class="mdbk-book-btn" title="<?php esc_attr_e('Book Appointment', 'doctor-appointment'); ?>"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="3"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg><?php _e('Book', 'doctor-appointment'); ?></a>
+                <?php endif; ?>
+            </span>
+            <div class="mdbk-actions">
+                <?php if (current_user_can(MDBK_CAP_QUEUE)) : ?>
+                <a href="#" class="mdbk-action-btn mdbk-view-patient" data-id="<?php echo esc_attr($p->ID); ?>" title="<?php esc_attr_e('View', 'doctor-appointment'); ?>"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg></a>
                 <?php endif; ?>
                 <?php if (current_user_can(MDBK_CAP_ADMIN)) : ?>
                 <a href="#" class="mdbk-action-btn mdbk-edit-patient" data-id="<?php echo esc_attr($p->ID); ?>"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"></path><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"></path></svg></a>
