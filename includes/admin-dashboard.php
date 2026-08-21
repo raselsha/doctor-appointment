@@ -2299,7 +2299,10 @@ class MDBK_Admin_Dashboard {
 
         // "Expand All" / "Collapse All" only makes sense once there's
         // actually per-doctor grouping to toggle.
-        $group_toggle_buttons = '<div class="mdbk-group-toggle-btns"><button type="button" class="mdbk-btn-outline mdbk-btn-sm mdbk-expand-all">' . esc_html__('Expand All', 'doctor-appointment') . '</button><button type="button" class="mdbk-btn-outline mdbk-btn-sm mdbk-collapse-all">' . esc_html__('Collapse All', 'doctor-appointment') . '</button></div>';
+        $group_toggle_buttons = '<div class="mdbk-group-toggle-btns">'
+            . '<button type="button" class="mdbk-icon-btn mdbk-expand-all" title="' . esc_attr__('Expand All', 'doctor-appointment') . '"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="7 13 12 18 17 13"></polyline><polyline points="7 6 12 11 17 6"></polyline></svg></button>'
+            . '<button type="button" class="mdbk-icon-btn mdbk-collapse-all" title="' . esc_attr__('Collapse All', 'doctor-appointment') . '"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="17 11 12 6 7 11"></polyline><polyline points="17 18 12 13 7 18"></polyline></svg></button>'
+            . '</div>';
         ?>
         <div class="mdbk-card" style="margin-bottom:20px;">
             <div class="mdbk-card-header">

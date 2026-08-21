@@ -1293,7 +1293,7 @@ button.mdbk-slot-btn.mdbk-slot-taken { opacity: .5; cursor: not-allowed; pointer
    the Patients page's OWN .mdbk-filters-bar is still a plain <div> with no
    <summary>, so this padding has to stay put on the outer element rather
    than moving onto a wrapper only the Booking page has. */
-.mdbk-filters-bar-summary { display: flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; list-style: none; font-size: 12px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: .04em; }
+.mdbk-filters-bar-summary { display: flex; align-items: center; justify-content: space-between; cursor: pointer; user-select: none; list-style: none; font-size: 12px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: .04em; }
 .mdbk-filters-bar-summary::-webkit-details-marker { display: none; }
 .mdbk-filters-bar-chevron { flex-shrink: 0; width: 8px; height: 8px; border-right: 1.5px solid #94a3b8; border-bottom: 1.5px solid #94a3b8; transform: rotate(45deg); transition: transform 0.2s ease; }
 .mdbk-filters-bar:not([open]) .mdbk-filters-bar-chevron { transform: rotate(-45deg); }
