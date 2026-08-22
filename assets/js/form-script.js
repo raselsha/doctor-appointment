@@ -279,12 +279,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 var btn = document.createElement('button');
                 btn.type = 'button';
                 // slot.break (get_available_slots() in appointment-manager.php)
-                // — inside the doctor's own break window, distinct from a
-                // slot someone else already booked, so a patient sees WHY
-                // it's unavailable instead of it looking identical to "taken".
+                // — that break's own name string when this slot falls
+                // inside one, else false. Distinct from a slot someone
+                // else already booked, so a patient sees WHICH break it
+                // is instead of it looking identical to "taken".
                 btn.className = 'mdbk-slot-btn' + (slot.break ? ' mdbk-slot-break' : (slot.available ? '' : ' mdbk-slot-taken'));
                 if (slot.break) {
-                    btn.textContent = 'Break';
+                    btn.textContent = slot.break;
                     btn.title = formatTime12h(slot.time);
                 } else {
                     btn.textContent = formatTime12h(slot.time);

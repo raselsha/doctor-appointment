@@ -578,21 +578,11 @@ class MDBK_Admin_Dashboard {
             update_post_meta($id, '_mdbk_show_email', isset($_POST['show_email']) ? 'yes' : 'no');
             if (!empty($_POST['slot_duration'])) update_post_meta($id, '_mdbk_slot_duration', intval($_POST['slot_duration']));
             update_post_meta($id, '_mdbk_slot_enabled', isset($_POST['slot_enabled']) ? 'yes' : 'no');
-            // One break window, doctor-wide — applies inside whichever days
-            // above are active, not configured per day (see
-            // get_available_slots() in appointment-manager.php, which is
-            // the only place that reads these). Both empty means no break;
-            // a lone one or an inverted range can't exclude a real window,
-            // so it's discarded rather than saved half-configured.
-            $break_from = isset($_POST['break_from']) ? sanitize_text_field($_POST['break_from']) : '';
-            $break_to = isset($_POST['break_to']) ? sanitize_text_field($_POST['break_to']) : '';
-            if ($break_from && $break_to && $break_from < $break_to) {
-                update_post_meta($id, '_mdbk_break_from', $break_from);
-                update_post_meta($id, '_mdbk_break_to', $break_to);
-            } else {
-                delete_post_meta($id, '_mdbk_break_from');
-                delete_post_meta($id, '_mdbk_break_to');
-            }
+            // Named break windows, doctor-wide — apply inside whichever
+            // days above are active, not configured per day (see
+            // get_available_slots() in appointment-manager.php, the only
+            // place that reads these).
+            update_post_meta($id, '_mdbk_breaks', self::sanitize_breaks_list($_POST['breaks_json'] ?? ''));
             update_post_meta($id, '_mdbk_doc_fee', isset($_POST['doc_fee']) && is_numeric($_POST['doc_fee']) ? sanitize_text_field($_POST['doc_fee']) : '');
             if (isset($_POST['schedule'])) update_post_meta($id, '_mdbk_schedule', $_POST['schedule']);
             update_post_meta($id, '_mdbk_extra_dates', self::sanitize_date_list($_POST['extra_dates_json'] ?? ''));
@@ -713,6 +703,30 @@ class MDBK_Admin_Dashboard {
             return $parsed && $parsed->format('Y-m-d') === $d;
         });
         return array_values(array_unique($valid));
+    }
+
+    /**
+     * Decode + sanitize the JSON break-list the Doctor Edit form's repeater
+     * submits (built/kept in sync client-side in admin-script.js, same
+     * hidden-JSON-input shape sanitize_date_list() above already uses) —
+     * a hand-authored JSON hidden field is as untrusted as any other POST
+     * value. Rows missing a name/from/to, or with an inverted range
+     * (to <= from), are dropped rather than saved half-configured — see
+     * get_available_slots() in appointment-manager.php, the only reader.
+     */
+    private function sanitize_breaks_list($json) {
+        $breaks = json_decode(stripslashes((string) $json), true);
+        if (!is_array($breaks)) return [];
+        $valid = [];
+        foreach ($breaks as $b) {
+            if (!is_array($b)) continue;
+            $from = isset($b['from']) ? sanitize_text_field($b['from']) : '';
+            $to = isset($b['to']) ? sanitize_text_field($b['to']) : '';
+            if (!$from || !$to || $from >= $to) continue;
+            $name = isset($b['name']) ? sanitize_text_field($b['name']) : '';
+            $valid[] = ['name' => $name !== '' ? $name : __('Break', 'doctor-appointment'), 'from' => $from, 'to' => $to];
+        }
+        return $valid;
     }
 
     public function handle_patient_save() {
@@ -1636,8 +1650,8 @@ class MDBK_Admin_Dashboard {
         $extra_dates = get_post_meta($d->ID, '_mdbk_extra_dates', true);
         $off_dates = get_post_meta($d->ID, '_mdbk_off_dates', true);
         $fee = get_post_meta($d->ID, '_mdbk_doc_fee', true);
-        $break_from = get_post_meta($d->ID, '_mdbk_break_from', true);
-        $break_to = get_post_meta($d->ID, '_mdbk_break_to', true);
+        $breaks = get_post_meta($d->ID, '_mdbk_breaks', true);
+        if (!is_array($breaks)) $breaks = [];
         // Doctors default to active — the meta only ever gets written (to 'no')
         // the first time someone flips the card's toggle off.
         $active = get_post_meta($d->ID, '_mdbk_doctor_active', true) !== 'no';
@@ -1646,7 +1660,7 @@ class MDBK_Admin_Dashboard {
         $colors = self::specialty_colors($spec_id);
         ob_start();
         ?>
-        <div class="mdbk-admin-doctor-card<?php echo $active ? '' : ' is-inactive'; ?>" data-id="<?php echo esc_attr($d->ID); ?>" data-name="<?php echo esc_attr($d->post_title); ?>" data-email="<?php echo esc_attr($email); ?>" data-phone="<?php echo esc_attr($phone); ?>" data-bio="<?php echo esc_attr($bio); ?>" data-show-phone="<?php echo esc_attr($show_phone ? $show_phone : 'yes'); ?>" data-show-email="<?php echo esc_attr($show_email ? $show_email : 'yes'); ?>" data-schedule='<?php echo esc_attr(json_encode($schedule)); ?>' data-slot-duration="<?php echo esc_attr($slot_duration ? $slot_duration : 20); ?>" data-slot-enabled="<?php echo esc_attr($slot_enabled === 'no' ? 'no' : 'yes'); ?>" data-extra-dates='<?php echo esc_attr(json_encode(is_array($extra_dates) ? $extra_dates : [])); ?>' data-off-dates='<?php echo esc_attr(json_encode(is_array($off_dates) ? $off_dates : [])); ?>' data-specialty="<?php echo esc_attr($spec_id); ?>" data-thumbnail="<?php echo esc_url($thumb ?: ''); ?>" data-thumbnail-id="<?php echo esc_attr($thumb_id ?: 0); ?>" data-fee="<?php echo esc_attr($fee ?: ''); ?>" data-break-from="<?php echo esc_attr($break_from); ?>" data-break-to="<?php echo esc_attr($break_to); ?>">
+        <div class="mdbk-admin-doctor-card<?php echo $active ? '' : ' is-inactive'; ?>" data-id="<?php echo esc_attr($d->ID); ?>" data-name="<?php echo esc_attr($d->post_title); ?>" data-email="<?php echo esc_attr($email); ?>" data-phone="<?php echo esc_attr($phone); ?>" data-bio="<?php echo esc_attr($bio); ?>" data-show-phone="<?php echo esc_attr($show_phone ? $show_phone : 'yes'); ?>" data-show-email="<?php echo esc_attr($show_email ? $show_email : 'yes'); ?>" data-schedule='<?php echo esc_attr(json_encode($schedule)); ?>' data-slot-duration="<?php echo esc_attr($slot_duration ? $slot_duration : 20); ?>" data-slot-enabled="<?php echo esc_attr($slot_enabled === 'no' ? 'no' : 'yes'); ?>" data-extra-dates='<?php echo esc_attr(json_encode(is_array($extra_dates) ? $extra_dates : [])); ?>' data-off-dates='<?php echo esc_attr(json_encode(is_array($off_dates) ? $off_dates : [])); ?>' data-specialty="<?php echo esc_attr($spec_id); ?>" data-thumbnail="<?php echo esc_url($thumb ?: ''); ?>" data-thumbnail-id="<?php echo esc_attr($thumb_id ?: 0); ?>" data-fee="<?php echo esc_attr($fee ?: ''); ?>" data-breaks='<?php echo esc_attr(json_encode($breaks)); ?>'>
             <?php if (current_user_can(MDBK_CAP_ADMIN)) : ?>
             <span class="mdbk-doctor-drag-handle" title="<?php esc_attr_e('Drag to reorder', 'doctor-appointment'); ?>"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><circle cx="8" cy="6" r="1.6"></circle><circle cx="16" cy="6" r="1.6"></circle><circle cx="8" cy="12" r="1.6"></circle><circle cx="16" cy="12" r="1.6"></circle><circle cx="8" cy="18" r="1.6"></circle><circle cx="16" cy="18" r="1.6"></circle></svg></span>
             <?php endif; ?>
@@ -2469,8 +2483,8 @@ class MDBK_Admin_Dashboard {
                     $off_dates = get_post_meta($doctor_id, '_mdbk_off_dates', true);
                     if (!is_array($off_dates)) $off_dates = [];
                     $fee = get_post_meta($doctor_id, '_mdbk_doc_fee', true);
-                    $break_from = get_post_meta($doctor_id, '_mdbk_break_from', true);
-                    $break_to = get_post_meta($doctor_id, '_mdbk_break_to', true);
+                    $breaks = get_post_meta($doctor_id, '_mdbk_breaks', true);
+                    if (!is_array($breaks)) $breaks = [];
                     $thumb = get_the_post_thumbnail_url($doctor_id, 'thumbnail');
                     $thumb_id = get_post_thumbnail_id($doctor_id);
                     $spec = get_the_terms($doctor_id, 'mdbk_department');
@@ -2501,8 +2515,7 @@ class MDBK_Admin_Dashboard {
                         data-specialty="<?php echo esc_attr($spec_id); ?>"
                         data-thumbnail="<?php echo esc_url($thumb ?: ''); ?>"
                         data-thumbnail-id="<?php echo esc_attr($thumb_id ?: 0); ?>"
-                        data-break-from="<?php echo esc_attr($break_from); ?>"
-                        data-break-to="<?php echo esc_attr($break_to); ?>">
+                        data-breaks='<?php echo esc_attr(json_encode($breaks)); ?>'>
                         <div class="mdbk-view-top-row">
                             <div class="mdbk-view-hero">
                                 <div class="mdbk-view-avatar">
@@ -3797,11 +3810,32 @@ class MDBK_Admin_Dashboard {
                     </div>
                     <?php endforeach; ?>
                     </div>
-                    <div class="mdbk-form-row mdbk-form-row-duo mdbk-break-time-row">
-                        <div><label class="mdbk-form-label" for="mdbk-doc-break-from"><?php _e('Break Time — From', 'doctor-appointment'); ?></label><input type="time" name="break_from" id="mdbk-doc-break-from"></div>
-                        <div><label class="mdbk-form-label" for="mdbk-doc-break-to"><?php _e('Break Time — To', 'doctor-appointment'); ?></label><input type="time" name="break_to" id="mdbk-doc-break-to"></div>
-                    </div>
-                    <p class="mdbk-form-hint"><?php _e('Optional. Applies inside every active day above (e.g. lunch) — slots in this window show as "Break" and can\'t be booked. Leave both blank for no break.', 'doctor-appointment'); ?></p>
+                </details>
+
+                <details class="mdbk-availability-section" id="mdbk-break-section">
+                    <summary class="mdbk-availability-header"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg><h4><?php _e('Break Times', 'doctor-appointment'); ?></h4><span class="mdbk-availability-chevron"></span></summary>
+                    <p class="mdbk-form-hint"><?php _e('Optional, doctor-wide — applies inside every active day in Weekly Availability above (e.g. lunch, prayer). Booking slots inside a break show its name and can\'t be selected.', 'doctor-appointment'); ?></p>
+                    <?php // Same "JS keeps a hidden JSON input in sync" shape as
+                    // extra_dates_json/off_dates_json below (createMiniCalendar()
+                    // in admin-script.js) — not name="breaks[N][field]" repeater
+                    // fields, since a row's 3 inputs have no name attributes of
+                    // their own to submit natively. ?>
+                    <input type="hidden" name="breaks_json" id="mdbk-breaks-json" value="[]">
+                    <div class="mdbk-break-repeater" id="mdbk-break-repeater"></div>
+                    <button type="button" class="mdbk-btn-outline mdbk-btn-sm" id="mdbk-add-break-row"><?php _e('+ Add Break', 'doctor-appointment'); ?></button>
+                    <?php // Template for JS-added rows (add-break click handler,
+                    // admin-script.js) — kept in the same markup shape
+                    // renderBreakRow() also uses for existing/edit-populated
+                    // rows, so both paths can never drift apart. ?>
+                    <template id="mdbk-break-row-template">
+                        <div class="mdbk-break-row">
+                            <input type="text" class="mdbk-break-name" placeholder="<?php esc_attr_e('e.g. Lunch Break', 'doctor-appointment'); ?>">
+                            <input type="time" class="mdbk-break-from">
+                            <span class="mdbk-break-row-sep">&ndash;</span>
+                            <input type="time" class="mdbk-break-to">
+                            <button type="button" class="mdbk-action-btn mdbk-action-btn-red mdbk-remove-break-row" title="<?php esc_attr_e('Remove', 'doctor-appointment'); ?>"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>
+                        </div>
+                    </template>
                 </details>
 
                 <details class="mdbk-availability-section">

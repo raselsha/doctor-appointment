@@ -528,26 +528,30 @@ class MDBK_Appointment_Manager {
 
         $booked = self::get_booked_slot_times($doctor_id, $date, $exclude_id);
 
-        // One break window, doctor-wide (not per-day — see
-        // handle_doctor_save() in admin-dashboard.php) — applied inside
-        // whichever day's working hours are active above. Both start/end
-        // built the same explicit-timezone way as $start/$end above, so
-        // they compare correctly against $t regardless of server timezone.
-        // An invalid/inverted range (break_to <= break_from) can't
-        // exclude a real window and is treated as no break configured —
-        // handle_doctor_save() already refuses to save one, but this
-        // guards any value written before that validation existed too.
-        $break_from = get_post_meta($doctor_id, '_mdbk_break_from', true);
-        $break_to = get_post_meta($doctor_id, '_mdbk_break_to', true);
-        $break_start = $break_end = null;
-        if ($break_from && $break_to) {
+        // Named break windows, doctor-wide (not per-day — see
+        // handle_doctor_save() in admin-dashboard.php), applied inside
+        // whichever day's working hours are active above. Each one's
+        // start/end are built the same explicit-timezone way as
+        // $start/$end above, so they compare correctly against $t
+        // regardless of server timezone. sanitize_breaks_list() already
+        // refuses to save an invalid/inverted range (to <= from) or a
+        // missing from/to, but this re-checks in case a value was written
+        // before that validation existed.
+        $breaks_raw = get_post_meta($doctor_id, '_mdbk_breaks', true);
+        if (!is_array($breaks_raw)) $breaks_raw = [];
+        $breaks = [];
+        foreach ($breaks_raw as $b) {
+            $b_from = isset($b['from']) ? $b['from'] : '';
+            $b_to   = isset($b['to']) ? $b['to'] : '';
+            if (!$b_from || !$b_to) continue;
             try {
-                $bs = (new \DateTime($date . ' ' . $break_from, $tz))->getTimestamp();
-                $be = (new \DateTime($date . ' ' . $break_to, $tz))->getTimestamp();
-                if ($bs < $be) { $break_start = $bs; $break_end = $be; }
+                $bs = (new \DateTime($date . ' ' . $b_from, $tz))->getTimestamp();
+                $be = (new \DateTime($date . ' ' . $b_to, $tz))->getTimestamp();
             } catch (\Exception $e) {
-                // leave break_start/break_end null — no break applied
+                continue;
             }
+            if ($bs >= $be) continue;
+            $breaks[] = ['start' => $bs, 'end' => $be, 'name' => !empty($b['name']) ? $b['name'] : __('Break', 'doctor-appointment')];
         }
 
         // For today's date, a slot that has already passed the current
@@ -563,11 +567,17 @@ class MDBK_Appointment_Manager {
         for ($t = $start; $t < $end; $t += $duration * 60) {
             if ($is_today && $t < $now) continue;
             $time_str = wp_date('H:i', $t, $tz);
-            $in_break = $break_start !== null && $t >= $break_start && $t < $break_end;
+            // Name of whichever break this slot falls in, or '' if none —
+            // the JS slot pickers (admin-script.js, form-script.js) use
+            // this string directly as the disabled button's label.
+            $break_name = '';
+            foreach ($breaks as $b) {
+                if ($t >= $b['start'] && $t < $b['end']) { $break_name = $b['name']; break; }
+            }
             $slots[]  = [
                 'time'      => $time_str,
-                'available' => !$in_break && !in_array($time_str, $booked, true),
-                'break'     => $in_break,
+                'available' => $break_name === '' && !in_array($time_str, $booked, true),
+                'break'     => $break_name !== '' ? $break_name : false,
             ];
         }
         return $slots;

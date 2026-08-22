@@ -835,6 +835,72 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     const docExtraCal = createMiniCalendar('mdbk-doc-extra-cal', 'mdbk-doc-extra-dates-input', getRegularActiveWeekdays);
     const docOffCal = createMiniCalendar('mdbk-doc-off-cal', 'mdbk-doc-off-dates-input', getRegularActiveWeekdays);
+
+    // Doctor Edit form's Break Times repeater (name + from/to per row,
+    // <template id="mdbk-break-row-template"> in render_doctor_modal_html()).
+    // Same "JS keeps a hidden JSON input in sync" shape as the mini
+    // calendars above (createMiniCalendar()) — a row's 3 inputs have no
+    // name attributes of their own to submit natively, and cloning from a
+    // <template> keeps the JS-added-row markup and the PHP-edit-populated
+    // row markup identical by construction, so the two paths can't drift.
+    function initBreakRepeater() {
+        const repeater = document.getElementById('mdbk-break-repeater');
+        const hiddenInput = document.getElementById('mdbk-breaks-json');
+        const template = document.getElementById('mdbk-break-row-template');
+        const addBtn = document.getElementById('mdbk-add-break-row');
+        if (!repeater || !hiddenInput || !template || !addBtn) return null;
+
+        function sync() {
+            const rows = [];
+            repeater.querySelectorAll('.mdbk-break-row').forEach(function(row) {
+                rows.push({
+                    name: row.querySelector('.mdbk-break-name').value.trim(),
+                    from: row.querySelector('.mdbk-break-from').value,
+                    to: row.querySelector('.mdbk-break-to').value
+                });
+            });
+            hiddenInput.value = JSON.stringify(rows);
+        }
+
+        function addRow(b) {
+            const frag = template.content.cloneNode(true);
+            const row = frag.querySelector('.mdbk-break-row');
+            row.querySelector('.mdbk-break-name').value = (b && b.name) || '';
+            row.querySelector('.mdbk-break-from').value = (b && b.from) || '';
+            row.querySelector('.mdbk-break-to').value = (b && b.to) || '';
+            repeater.appendChild(row);
+        }
+
+        addBtn.addEventListener('click', function() {
+            addRow(null);
+            sync();
+        });
+        // Delegated (not bound per-row) — rows come and go via addRow()/
+        // removal below, so a per-element binding would go dead on any
+        // row added after page load.
+        repeater.addEventListener('click', function(e) {
+            const removeBtn = e.target.closest('.mdbk-remove-break-row');
+            if (!removeBtn) return;
+            removeBtn.closest('.mdbk-break-row').remove();
+            sync();
+        });
+        repeater.addEventListener('input', function(e) {
+            if (e.target.closest('.mdbk-break-row')) sync();
+        });
+
+        return {
+            setBreaks: function(breaks) {
+                repeater.innerHTML = '';
+                (Array.isArray(breaks) ? breaks : []).forEach(addRow);
+                sync();
+            },
+            reset: function() {
+                repeater.innerHTML = '';
+                sync();
+            }
+        };
+    }
+    const breakRepeater = initBreakRepeater();
     // Enabling a day with no hours set yet defaults it to a normal
     // 9-to-5 rather than leaving the from/to time inputs blank (which
     // get_available_slots() would just treat as "closed that day" —
@@ -982,10 +1048,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (fromInput) fromInput.value = isActive ? (d.from || '') : '';
                 if (toInput) toInput.value = isActive ? (d.to || '') : '';
             });
-            var breakFrom = document.getElementById('mdbk-doc-break-from');
-            var breakTo = document.getElementById('mdbk-doc-break-to');
-            if (breakFrom) breakFrom.value = row.dataset.breakFrom || '';
-            if (breakTo) breakTo.value = row.dataset.breakTo || '';
+            if (breakRepeater) {
+                let breaks = [];
+                try { breaks = JSON.parse(row.dataset.breaks) || []; } catch(e) {}
+                breakRepeater.setBreaks(breaks);
+            }
 
             if (docExtraCal) { try { docExtraCal.setSelected(JSON.parse(row.dataset.extraDates) || []); } catch(e) { docExtraCal.reset(); } }
             if (docOffCal) { try { docOffCal.setSelected(JSON.parse(row.dataset.offDates) || []); } catch(e) { docOffCal.reset(); } }
@@ -1003,10 +1070,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (slotEnabledToggle) { slotEnabledToggle.checked = true; updateSlotDurationVisibility(); }
             var addDocFee = document.getElementById('mdbk-doc-fee');
             if (addDocFee) addDocFee.value = '';
-            var addBreakFrom = document.getElementById('mdbk-doc-break-from');
-            var addBreakTo = document.getElementById('mdbk-doc-break-to');
-            if (addBreakFrom) addBreakFrom.value = '';
-            if (addBreakTo) addBreakTo.value = '';
+            if (breakRepeater) breakRepeater.reset();
             if (docExtraCal) docExtraCal.reset();
             if (docOffCal) docOffCal.reset();
             if (doctorSpecSelect) {
@@ -1512,12 +1576,13 @@ document.addEventListener('DOMContentLoaded', function() {
                     const btn = document.createElement('button');
                     btn.type = 'button';
                     // slot.break (get_available_slots() in appointment-manager.php)
-                    // — inside the doctor's own break window, distinct from a
-                    // slot someone else already booked, so staff see WHY it's
-                    // unavailable instead of it looking identical to "taken".
+                    // — that break's own name string when this slot falls
+                    // inside one, else false. Distinct from a slot someone
+                    // else already booked, so staff see WHICH break it is
+                    // instead of it looking identical to "taken".
                     btn.className = 'mdbk-slot-btn' + (slot.break ? ' mdbk-slot-break' : (slot.available ? '' : ' mdbk-slot-taken'));
                     if (slot.break) {
-                        btn.textContent = 'Break';
+                        btn.textContent = slot.break;
                         btn.title = mdbkFormatTimeDisplay(slot.time);
                     } else {
                         btn.textContent = mdbkFormatTimeDisplay(slot.time);

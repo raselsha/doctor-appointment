@@ -1113,7 +1113,6 @@ button.mdbk-slot-btn.mdbk-slot-break { cursor: not-allowed; pointer-events: none
 /* Editable weekly-availability rows (Add/Edit modal) — day name, on/off
    toggle, and a from–to time range, all on one line. */
 .mdbk-day-grid { display: flex; flex-direction: column; gap: 4px; }
-.mdbk-break-time-row { margin-top: 14px; }
 .mdbk-day-row { display: grid; grid-template-columns: 88px 30px 1fr; align-items: center; gap: 10px; padding: 6px 0; }
 .mdbk-day-row + .mdbk-day-row { border-top: 1px solid #f3f4f6; }
 .mdbk-day-row.is-off { opacity: 0.5; }
@@ -1122,6 +1121,19 @@ button.mdbk-slot-btn.mdbk-slot-break { cursor: not-allowed; pointer-events: none
 .mdbk-day-times input[type="time"] { padding: 5px 6px; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 12px; width: 92px; font-family: inherit; }
 .mdbk-day-times input[type="time"]:focus { border-color: #0061d5; outline: none; }
 .mdbk-day-times span { color: #9ca3af; font-size: 11px; }
+
+/* Break Times repeater (Add/Edit Doctor modal) — one row per break: a
+   name field plus a from–to time range, same input styling as the
+   Weekly Availability rows above for visual consistency, plus a remove
+   button since rows can be added/removed freely. */
+.mdbk-break-repeater { display: flex; flex-direction: column; gap: 8px; margin: 10px 0; }
+.mdbk-break-row { display: flex; align-items: center; gap: 8px; }
+.mdbk-break-row .mdbk-break-name { flex: 1; min-width: 0; padding: 6px 10px; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 12px; font-family: inherit; }
+.mdbk-break-row .mdbk-break-name:focus { border-color: #0061d5; outline: none; }
+.mdbk-break-row input[type="time"] { padding: 5px 6px; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 12px; width: 92px; font-family: inherit; flex-shrink: 0; }
+.mdbk-break-row input[type="time"]:focus { border-color: #0061d5; outline: none; }
+.mdbk-break-row-sep { color: #9ca3af; font-size: 11px; flex-shrink: 0; }
+.mdbk-break-row .mdbk-remove-break-row { flex-shrink: 0; }
 
 /* Custom Specialty dropdown (Add/Edit modal) — a native <select> can't be
    restyled once its option panel is open, and its closed-state height drifts
