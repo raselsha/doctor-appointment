@@ -1128,10 +1128,18 @@ button.mdbk-slot-btn.mdbk-slot-break { cursor: not-allowed; pointer-events: none
    button since rows can be added/removed freely. */
 .mdbk-break-repeater { display: flex; flex-direction: column; gap: 8px; margin: 10px 0; }
 .mdbk-break-row { display: flex; align-items: center; gap: 8px; }
-.mdbk-break-row .mdbk-break-name { flex: 1; min-width: 0; padding: 6px 10px; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 12px; font-family: inherit; }
-.mdbk-break-row .mdbk-break-name:focus { border-color: #0061d5; outline: none; }
-.mdbk-break-row input[type="time"] { padding: 5px 6px; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 12px; width: 92px; font-family: inherit; flex-shrink: 0; }
-.mdbk-break-row input[type="time"]:focus { border-color: #0061d5; outline: none; }
+/* .mdbk-modal-compact form prefix (matching that base rule's own
+   selector, not just adding a class) — its own input[type="time"]/
+   input[type="text"] rule sets width:100% at specificity (0,2,2), which
+   otherwise beats a plain .mdbk-break-row input[type="time"] (0,2,1)
+   regardless of source order: both time inputs would compute to the
+   ROW's full width (not 92px), and with flex-shrink:0 refusing to give
+   that back, they'd overflow the row and squeeze the name field down to
+   a sliver instead of sharing space normally. */
+.mdbk-modal-compact form .mdbk-break-row .mdbk-break-name { flex: 1; min-width: 0; padding: 6px 10px; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 12px; font-family: inherit; width: auto; }
+.mdbk-modal-compact form .mdbk-break-row .mdbk-break-name:focus { border-color: #0061d5; outline: none; }
+.mdbk-modal-compact form .mdbk-break-row input[type="time"] { padding: 5px 6px; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 12px; width: 92px; font-family: inherit; flex-shrink: 0; }
+.mdbk-modal-compact form .mdbk-break-row input[type="time"]:focus { border-color: #0061d5; outline: none; }
 .mdbk-break-row-sep { color: #9ca3af; font-size: 11px; flex-shrink: 0; }
 .mdbk-break-row .mdbk-remove-break-row { flex-shrink: 0; }
 
