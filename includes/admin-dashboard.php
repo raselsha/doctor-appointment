@@ -1722,7 +1722,13 @@ class MDBK_Admin_Dashboard {
                     <?php if ($show_doctor_column): ?><td><?php echo $t_doc_id ? esc_html(get_the_title($t_doc_id)) : esc_html__('N/A', 'doctor-appointment'); ?></td><?php endif; ?>
                     <td><?php echo $t_age ? esc_html($t_age) : '—'; ?></td>
                     <td><?php echo $t_gender ? esc_html($t_gender) : '—'; ?></td>
-                    <td><?php echo esc_html($t_slot ?: '—'); ?></td>
+                    <?php // Stored/compared as 24h (_mdbk_slot_time, e.g. is_slot_taken()'s
+                    // string comparisons) but shown everywhere else in this
+                    // 12h format — render_my_queue_patient_row()'s own
+                    // $time_display uses this exact same conversion, so the
+                    // printed table matched what's on screen instead of the
+                    // raw stored value. ?>
+                    <td><?php echo esc_html($t_slot ? date_i18n('g:i A', strtotime($t_slot)) : '—'); ?></td>
                     <td><span class="mdbk-badge mdbk-badge-<?php echo esc_attr($t_badge_class); ?>"><?php echo esc_html(\MDBK\MDBK_Appointment_Manager::status_display_label($t_status)); ?></span></td>
                 </tr>
             <?php endforeach; ?>
@@ -3864,7 +3870,7 @@ class MDBK_Admin_Dashboard {
                 <tr>
                     <td><?php echo $v_date ? esc_html(date_i18n(get_option('date_format'), strtotime($v_date))) : '—'; ?></td>
                     <td><?php echo $v_doc_id ? esc_html(get_the_title($v_doc_id)) : esc_html__('N/A', 'doctor-appointment'); ?></td>
-                    <td><?php echo esc_html($v_slot ?: '—'); ?></td>
+                    <td><?php echo esc_html($v_slot ? date_i18n('g:i A', strtotime($v_slot)) : '—'); ?></td>
                     <td><span class="mdbk-badge mdbk-badge-<?php echo esc_attr($v_badge_class); ?>"><?php echo esc_html(\MDBK\MDBK_Appointment_Manager::status_display_label($v_status)); ?></span></td>
                     <td>
                         <?php // Same completed-and-not-future gate as every other
