@@ -3536,11 +3536,11 @@ class MDBK_Admin_Dashboard {
             <div class="mdbk-modal-body">
                 <div class="mdbk-form-row">
                     <label class="mdbk-form-label" for="mdbk-staff-name"><?php _e('Full Name', 'doctor-appointment'); ?> *</label>
-                    <input type="text" name="staff_name" id="mdbk-staff-name" required>
+                    <input type="text" name="staff_name" id="mdbk-staff-name" placeholder="<?php esc_attr_e('e.g. Rahim Uddin', 'doctor-appointment'); ?>" required>
                 </div>
                 <div class="mdbk-form-row mdbk-form-row-duo">
-                    <div><label class="mdbk-form-label" for="mdbk-staff-email"><?php _e('Email', 'doctor-appointment'); ?> *</label><input type="email" name="staff_email" id="mdbk-staff-email" required></div>
-                    <div><label class="mdbk-form-label" for="mdbk-staff-phone"><?php _e('Phone', 'doctor-appointment'); ?></label><input type="text" name="staff_phone" id="mdbk-staff-phone"></div>
+                    <div><label class="mdbk-form-label" for="mdbk-staff-email"><?php _e('Email', 'doctor-appointment'); ?> *</label><input type="email" name="staff_email" id="mdbk-staff-email" placeholder="<?php esc_attr_e('e.g. staff@clinic.com', 'doctor-appointment'); ?>" required></div>
+                    <div><label class="mdbk-form-label" for="mdbk-staff-phone"><?php _e('Phone', 'doctor-appointment'); ?></label><input type="text" name="staff_phone" id="mdbk-staff-phone" placeholder="<?php esc_attr_e('e.g. 01700-000000', 'doctor-appointment'); ?>"></div>
                 </div>
                 <div class="mdbk-form-row">
                     <label class="mdbk-form-label" for="mdbk-staff-role-trigger"><?php _e('Role', 'doctor-appointment'); ?></label>
@@ -3736,7 +3736,7 @@ class MDBK_Admin_Dashboard {
                 </div>
 
                 <div class="mdbk-form-row mdbk-form-row-duo">
-                    <div><label class="mdbk-form-label" for="mdbk-doc-name"><?php _e('Full Name', 'doctor-appointment'); ?> *</label><input type="text" name="doc_name" id="mdbk-doc-name" required></div>
+                    <div><label class="mdbk-form-label" for="mdbk-doc-name"><?php _e('Full Name', 'doctor-appointment'); ?> *</label><input type="text" name="doc_name" id="mdbk-doc-name" placeholder="<?php esc_attr_e('e.g. Dr. Karim Ahmed', 'doctor-appointment'); ?>" required></div>
                     <div>
                         <label class="mdbk-form-label" for="mdbk-doc-spec-trigger"><?php _e('Specialty', 'doctor-appointment'); ?></label>
                         <?php $spec_terms = get_terms(['taxonomy' => 'mdbk_department', 'hide_empty' => false, 'orderby' => 'meta_value_num', 'meta_key' => '_mdbk_specialty_order', 'order' => 'ASC']); ?>
@@ -3760,11 +3760,11 @@ class MDBK_Admin_Dashboard {
                 <div class="mdbk-form-row mdbk-form-row-duo">
                     <div>
                         <div class="mdbk-form-label-row"><label class="mdbk-form-label" for="mdbk-doc-email"><?php _e('Email', 'doctor-appointment'); ?> *</label><label class="mdbk-toggle mdbk-mini-toggle"><input type="checkbox" name="show_email" id="mdbk-show-email" value="1" checked><span class="mdbk-toggle-slider"></span><span class="mdbk-mini-toggle-text"><?php _e('Public', 'doctor-appointment'); ?></span></label></div>
-                        <input type="email" name="doc_email" id="mdbk-doc-email" required>
+                        <input type="email" name="doc_email" id="mdbk-doc-email" placeholder="<?php esc_attr_e('e.g. doctor@clinic.com', 'doctor-appointment'); ?>" required>
                     </div>
                     <div>
                         <div class="mdbk-form-label-row"><label class="mdbk-form-label" for="mdbk-doc-phone"><?php _e('Phone', 'doctor-appointment'); ?></label><label class="mdbk-toggle mdbk-mini-toggle"><input type="checkbox" name="show_phone" id="mdbk-show-phone" value="1" checked><span class="mdbk-toggle-slider"></span><span class="mdbk-mini-toggle-text"><?php _e('Public', 'doctor-appointment'); ?></span></label></div>
-                        <input type="text" name="doc_phone" id="mdbk-doc-phone">
+                        <input type="text" name="doc_phone" id="mdbk-doc-phone" placeholder="<?php esc_attr_e('e.g. 01700-000000', 'doctor-appointment'); ?>">
                     </div>
                 </div>
 
@@ -3776,7 +3776,7 @@ class MDBK_Admin_Dashboard {
                         </div>
                         <p class="mdbk-form-hint"><?php _e('Off: patients are booked serially by queue number — no time picker.', 'doctor-appointment'); ?></p>
                     </div>
-                    <div id="mdbk-doc-slot-duration-group"><label class="mdbk-form-label" for="mdbk-doc-slot-duration"><?php _e('Slot Duration (minutes)', 'doctor-appointment'); ?></label><input type="number" name="slot_duration" id="mdbk-doc-slot-duration" min="5" step="5" value="20"></div>
+                    <div id="mdbk-doc-slot-duration-group"><label class="mdbk-form-label" for="mdbk-doc-slot-duration"><?php _e('Slot Duration (minutes)', 'doctor-appointment'); ?></label><input type="number" name="slot_duration" id="mdbk-doc-slot-duration" min="5" step="5" value="20" placeholder="<?php esc_attr_e('e.g. 20', 'doctor-appointment'); ?>"></div>
                 </div>
 
                 <div class="mdbk-form-row">
@@ -4015,7 +4015,7 @@ class MDBK_Admin_Dashboard {
                     <div class="mdbk-form-row mdbk-form-row-duo">
                         <div>
                             <label class="mdbk-form-label" for="mdbk-invoice-amount"><?php _e('Consultation Fee (৳)', 'doctor-appointment'); ?></label>
-                            <input type="number" min="0" step="0.01" id="mdbk-invoice-amount">
+                            <input type="number" min="0" step="0.01" id="mdbk-invoice-amount" placeholder="<?php esc_attr_e('e.g. 800', 'doctor-appointment'); ?>">
                         </div>
                         <div>
                             <label class="mdbk-form-label"><?php _e('Status', 'doctor-appointment'); ?></label>
@@ -4118,14 +4118,14 @@ class MDBK_Admin_Dashboard {
             <div class="mdbk-modal-body">
                 <div class="mdbk-form-row">
                     <label class="mdbk-form-label" for="mdbk-patient-name"><?php _e('Full Name', 'doctor-appointment'); ?> *</label>
-                    <input type="text" name="patient_name" id="mdbk-patient-name" required>
+                    <input type="text" name="patient_name" id="mdbk-patient-name" placeholder="<?php esc_attr_e('e.g. Karim Ahmed', 'doctor-appointment'); ?>" required>
                 </div>
                 <div class="mdbk-form-row mdbk-form-row-duo">
-                    <div class="mdbk-patient-suggest-wrap"><label class="mdbk-form-label" for="mdbk-patient-phone"><?php _e('Phone', 'doctor-appointment'); ?></label><input type="text" name="patient_phone" id="mdbk-patient-phone" autocomplete="off"><div id="mdbk-patient-phone-suggest" class="mdbk-patient-suggest" style="display:none;"></div></div>
-                    <div><label class="mdbk-form-label" for="mdbk-patient-email"><?php _e('Email', 'doctor-appointment'); ?></label><input type="email" name="patient_email" id="mdbk-patient-email"></div>
+                    <div class="mdbk-patient-suggest-wrap"><label class="mdbk-form-label" for="mdbk-patient-phone"><?php _e('Phone', 'doctor-appointment'); ?></label><input type="text" name="patient_phone" id="mdbk-patient-phone" placeholder="<?php esc_attr_e('e.g. 01700-000000', 'doctor-appointment'); ?>" autocomplete="off"><div id="mdbk-patient-phone-suggest" class="mdbk-patient-suggest" style="display:none;"></div></div>
+                    <div><label class="mdbk-form-label" for="mdbk-patient-email"><?php _e('Email', 'doctor-appointment'); ?></label><input type="email" name="patient_email" id="mdbk-patient-email" placeholder="<?php esc_attr_e('e.g. patient@example.com', 'doctor-appointment'); ?>"></div>
                 </div>
                 <div class="mdbk-form-row mdbk-form-row-duo">
-                    <div><label class="mdbk-form-label" for="mdbk-patient-age"><?php _e('Age', 'doctor-appointment'); ?></label><input type="number" name="patient_age" id="mdbk-patient-age" min="0"></div>
+                    <div><label class="mdbk-form-label" for="mdbk-patient-age"><?php _e('Age', 'doctor-appointment'); ?></label><input type="number" name="patient_age" id="mdbk-patient-age" min="0" placeholder="<?php esc_attr_e('e.g. 32', 'doctor-appointment'); ?>"></div>
                     <div>
                         <label class="mdbk-form-label" for="mdbk-patient-gender-trigger"><?php _e('Gender', 'doctor-appointment'); ?></label>
                         <div class="mdbk-custom-select" id="mdbk-patient-gender-select">
@@ -4146,7 +4146,7 @@ class MDBK_Admin_Dashboard {
                 </div>
                 <div class="mdbk-form-row">
                     <label class="mdbk-form-label" for="mdbk-patient-address"><?php _e('Address', 'doctor-appointment'); ?></label>
-                    <textarea name="patient_address" id="mdbk-patient-address" rows="3"></textarea>
+                    <textarea name="patient_address" id="mdbk-patient-address" rows="3" placeholder="<?php esc_attr_e('e.g. House 12, Road 5, Dhaka', 'doctor-appointment'); ?>"></textarea>
                 </div>
             </div>
             <div class="mdbk-modal-foot">
@@ -4292,16 +4292,16 @@ class MDBK_Admin_Dashboard {
                 <div class="mdbk-card-section-admin">
                 <div class="mdbk-form-row">
                     <label class="mdbk-form-label" for="mdbk-app-patient"><?php _e('Patient Name', 'doctor-appointment'); ?> *</label>
-                    <input type="text" name="patient_name" id="mdbk-app-patient" required>
+                    <input type="text" name="patient_name" id="mdbk-app-patient" placeholder="<?php esc_attr_e('e.g. Karim Ahmed', 'doctor-appointment'); ?>" required>
                 </div>
 
                 <div class="mdbk-form-row mdbk-form-row-duo">
-                    <div class="mdbk-patient-suggest-wrap"><label class="mdbk-form-label" for="mdbk-app-phone"><?php _e('Phone', 'doctor-appointment'); ?></label><input type="text" name="patient_phone" id="mdbk-app-phone" autocomplete="off"><div id="mdbk-app-phone-suggest" class="mdbk-patient-suggest" style="display:none;"></div></div>
-                    <div><label class="mdbk-form-label" for="mdbk-app-email"><?php _e('Email', 'doctor-appointment'); ?></label><input type="email" name="patient_email" id="mdbk-app-email"></div>
+                    <div class="mdbk-patient-suggest-wrap"><label class="mdbk-form-label" for="mdbk-app-phone"><?php _e('Phone', 'doctor-appointment'); ?></label><input type="text" name="patient_phone" id="mdbk-app-phone" placeholder="<?php esc_attr_e('e.g. 01700-000000', 'doctor-appointment'); ?>" autocomplete="off"><div id="mdbk-app-phone-suggest" class="mdbk-patient-suggest" style="display:none;"></div></div>
+                    <div><label class="mdbk-form-label" for="mdbk-app-email"><?php _e('Email', 'doctor-appointment'); ?></label><input type="email" name="patient_email" id="mdbk-app-email" placeholder="<?php esc_attr_e('e.g. patient@example.com', 'doctor-appointment'); ?>"></div>
                 </div>
 
                 <div class="mdbk-form-row mdbk-form-row-duo">
-                    <div><label class="mdbk-form-label" for="mdbk-app-age"><?php _e('Age', 'doctor-appointment'); ?></label><input type="number" name="age" id="mdbk-app-age" min="0"></div>
+                    <div><label class="mdbk-form-label" for="mdbk-app-age"><?php _e('Age', 'doctor-appointment'); ?></label><input type="number" name="age" id="mdbk-app-age" min="0" placeholder="<?php esc_attr_e('e.g. 32', 'doctor-appointment'); ?>"></div>
                     <div>
                         <label class="mdbk-form-label" for="mdbk-app-gender-trigger"><?php _e('Gender', 'doctor-appointment'); ?></label>
                         <div class="mdbk-custom-select" id="mdbk-app-gender-select">
@@ -4403,7 +4403,7 @@ class MDBK_Admin_Dashboard {
                         </div>
                     </div>
                 </div>
-                <div class="mdbk-input-group"><label><?php _e('Name', 'doctor-appointment'); ?></label><input type="text" name="spec_name" id="mdbk-spec-name" class="mdbk-input" required></div>
+                <div class="mdbk-input-group"><label><?php _e('Name', 'doctor-appointment'); ?></label><input type="text" name="spec_name" id="mdbk-spec-name" class="mdbk-input" placeholder="<?php esc_attr_e('e.g. Cardiology', 'doctor-appointment'); ?>" required></div>
             </div>
             <div class="mdbk-modal-foot" style="justify-content:space-between;">
                 <label class="mdbk-toggle">
