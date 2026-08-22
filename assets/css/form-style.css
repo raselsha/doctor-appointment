@@ -767,6 +767,26 @@ button.mdbk-cal-nav-btn:hover {
     .mdbk-time-col {
         width: 100%;
     }
+    /* Base .mdbk-slot-picker rule (further down) is a single-column stack —
+       sized for the 120px-wide desktop sidebar above, where one slot per
+       row is already as wide as that column gets. Once .mdbk-time-col is
+       full mobile width (just above), that same single column turns into
+       a long scroll of near-empty rows; 2 columns uses the width mobile
+       actually has here. button.mdbk-slot-btn's own width:100% already
+       fills whichever column it lands in, grid or flex, so no other
+       change is needed for equal-width cells. */
+    #mdbk-modal-slot-picker {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+    }
+    /* Loading/empty states are the picker's only child when shown — left
+       to the grid's default placement they'd sit in just the first
+       column instead of centered under the full-width calendar above. */
+    #mdbk-modal-slot-picker .mdbk-time-placeholder,
+    #mdbk-modal-slot-picker .mdbk-slot-loading,
+    #mdbk-modal-slot-picker .mdbk-no-slots {
+        grid-column: 1 / -1;
+    }
 }
 
 /* Date/Time selected summary — replaces calendar+time columns inside the
