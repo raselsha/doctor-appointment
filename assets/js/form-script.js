@@ -278,8 +278,17 @@ document.addEventListener('DOMContentLoaded', function() {
             slots.forEach(function(slot) {
                 var btn = document.createElement('button');
                 btn.type = 'button';
-                btn.className = 'mdbk-slot-btn' + (slot.available ? '' : ' mdbk-slot-taken');
-                btn.textContent = formatTime12h(slot.time);
+                // slot.break (get_available_slots() in appointment-manager.php)
+                // — inside the doctor's own break window, distinct from a
+                // slot someone else already booked, so a patient sees WHY
+                // it's unavailable instead of it looking identical to "taken".
+                btn.className = 'mdbk-slot-btn' + (slot.break ? ' mdbk-slot-break' : (slot.available ? '' : ' mdbk-slot-taken'));
+                if (slot.break) {
+                    btn.textContent = 'Break';
+                    btn.title = formatTime12h(slot.time);
+                } else {
+                    btn.textContent = formatTime12h(slot.time);
+                }
                 if (!slot.available) {
                     btn.disabled = true;
                 } else {

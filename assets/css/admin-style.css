@@ -827,6 +827,10 @@ button.mdbk-slot-btn { padding: 6px 12px; border: 1.5px solid #e2e8f0; border-ra
 button.mdbk-slot-btn:hover:not(:disabled) { border-color: #0061d5; background: #0061d5; color: #fff; }
 button.mdbk-slot-btn.selected { border-color: #0061d5; background: #0061d5; color: #fff; }
 button.mdbk-slot-btn.mdbk-slot-taken { opacity: .5; cursor: not-allowed; pointer-events: none; background: #f8fafc; color: #94a3b8; }
+/* Doctor's own break window (get_available_slots()) — distinct amber
+   from the plain grey "taken" state above, so staff see WHY a slot is
+   unavailable instead of it looking like someone already booked it. */
+button.mdbk-slot-btn.mdbk-slot-break { cursor: not-allowed; pointer-events: none; background: #fffbeb; border-color: #fde68a; color: #b45309; font-style: italic; }
 .mdbk-slot-loading, .mdbk-no-slots { font-size: 13px; color: #64748b; padding: 6px 0; }
 
 /* Booking page's own date-filter nav (render_schedule_filters_bar()) —
@@ -1109,6 +1113,7 @@ button.mdbk-slot-btn.mdbk-slot-taken { opacity: .5; cursor: not-allowed; pointer
 /* Editable weekly-availability rows (Add/Edit modal) — day name, on/off
    toggle, and a from–to time range, all on one line. */
 .mdbk-day-grid { display: flex; flex-direction: column; gap: 4px; }
+.mdbk-break-time-row { margin-top: 14px; }
 .mdbk-day-row { display: grid; grid-template-columns: 88px 30px 1fr; align-items: center; gap: 10px; padding: 6px 0; }
 .mdbk-day-row + .mdbk-day-row { border-top: 1px solid #f3f4f6; }
 .mdbk-day-row.is-off { opacity: 0.5; }

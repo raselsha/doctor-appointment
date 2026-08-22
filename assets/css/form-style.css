@@ -884,6 +884,18 @@ button.mdbk-slot-btn.mdbk-slot-taken {
     color: #bbb;
 }
 
+/* Doctor's own break window (get_available_slots()) — distinct amber
+   from the plain grey "taken" state above, so a patient sees WHY a slot
+   is unavailable instead of it looking like someone already booked it. */
+button.mdbk-slot-btn.mdbk-slot-break {
+    cursor: not-allowed;
+    pointer-events: none;
+    border-color: #fde68a;
+    background: #fffbeb;
+    color: #b45309;
+    font-style: italic;
+}
+
 .mdbk-slot-loading,
 .mdbk-no-slots {
     font-size: 13px;

@@ -528,6 +528,28 @@ class MDBK_Appointment_Manager {
 
         $booked = self::get_booked_slot_times($doctor_id, $date, $exclude_id);
 
+        // One break window, doctor-wide (not per-day — see
+        // handle_doctor_save() in admin-dashboard.php) — applied inside
+        // whichever day's working hours are active above. Both start/end
+        // built the same explicit-timezone way as $start/$end above, so
+        // they compare correctly against $t regardless of server timezone.
+        // An invalid/inverted range (break_to <= break_from) can't
+        // exclude a real window and is treated as no break configured —
+        // handle_doctor_save() already refuses to save one, but this
+        // guards any value written before that validation existed too.
+        $break_from = get_post_meta($doctor_id, '_mdbk_break_from', true);
+        $break_to = get_post_meta($doctor_id, '_mdbk_break_to', true);
+        $break_start = $break_end = null;
+        if ($break_from && $break_to) {
+            try {
+                $bs = (new \DateTime($date . ' ' . $break_from, $tz))->getTimestamp();
+                $be = (new \DateTime($date . ' ' . $break_to, $tz))->getTimestamp();
+                if ($bs < $be) { $break_start = $bs; $break_end = $be; }
+            } catch (\Exception $e) {
+                // leave break_start/break_end null — no break applied
+            }
+        }
+
         // For today's date, a slot that has already passed the current
         // moment isn't a real option any more — drop it instead of just
         // marking it unavailable, so it's not shown at all. $start/$end/$t
@@ -541,9 +563,11 @@ class MDBK_Appointment_Manager {
         for ($t = $start; $t < $end; $t += $duration * 60) {
             if ($is_today && $t < $now) continue;
             $time_str = wp_date('H:i', $t, $tz);
+            $in_break = $break_start !== null && $t >= $break_start && $t < $break_end;
             $slots[]  = [
                 'time'      => $time_str,
-                'available' => !in_array($time_str, $booked, true),
+                'available' => !$in_break && !in_array($time_str, $booked, true),
+                'break'     => $in_break,
             ];
         }
         return $slots;

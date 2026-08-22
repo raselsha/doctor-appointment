@@ -982,6 +982,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (fromInput) fromInput.value = isActive ? (d.from || '') : '';
                 if (toInput) toInput.value = isActive ? (d.to || '') : '';
             });
+            var breakFrom = document.getElementById('mdbk-doc-break-from');
+            var breakTo = document.getElementById('mdbk-doc-break-to');
+            if (breakFrom) breakFrom.value = row.dataset.breakFrom || '';
+            if (breakTo) breakTo.value = row.dataset.breakTo || '';
 
             if (docExtraCal) { try { docExtraCal.setSelected(JSON.parse(row.dataset.extraDates) || []); } catch(e) { docExtraCal.reset(); } }
             if (docOffCal) { try { docOffCal.setSelected(JSON.parse(row.dataset.offDates) || []); } catch(e) { docOffCal.reset(); } }
@@ -999,6 +1003,10 @@ document.addEventListener('DOMContentLoaded', function() {
             if (slotEnabledToggle) { slotEnabledToggle.checked = true; updateSlotDurationVisibility(); }
             var addDocFee = document.getElementById('mdbk-doc-fee');
             if (addDocFee) addDocFee.value = '';
+            var addBreakFrom = document.getElementById('mdbk-doc-break-from');
+            var addBreakTo = document.getElementById('mdbk-doc-break-to');
+            if (addBreakFrom) addBreakFrom.value = '';
+            if (addBreakTo) addBreakTo.value = '';
             if (docExtraCal) docExtraCal.reset();
             if (docOffCal) docOffCal.reset();
             if (doctorSpecSelect) {
@@ -1503,8 +1511,17 @@ document.addEventListener('DOMContentLoaded', function() {
                 slots.forEach(function(slot) {
                     const btn = document.createElement('button');
                     btn.type = 'button';
-                    btn.className = 'mdbk-slot-btn' + (slot.available ? '' : ' mdbk-slot-taken');
-                    btn.textContent = mdbkFormatTimeDisplay(slot.time);
+                    // slot.break (get_available_slots() in appointment-manager.php)
+                    // — inside the doctor's own break window, distinct from a
+                    // slot someone else already booked, so staff see WHY it's
+                    // unavailable instead of it looking identical to "taken".
+                    btn.className = 'mdbk-slot-btn' + (slot.break ? ' mdbk-slot-break' : (slot.available ? '' : ' mdbk-slot-taken'));
+                    if (slot.break) {
+                        btn.textContent = 'Break';
+                        btn.title = mdbkFormatTimeDisplay(slot.time);
+                    } else {
+                        btn.textContent = mdbkFormatTimeDisplay(slot.time);
+                    }
                     if (!slot.available) {
                         btn.disabled = true;
                     } else {
