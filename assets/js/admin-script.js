@@ -1625,22 +1625,46 @@ document.addEventListener('DOMContentLoaded', function() {
         // first doctor — a receptionist booking several patients in a row
         // for the same doctor shouldn't have to reselect it every time.
         if (value) localStorage.setItem('mdbk_last_doctor_id', value);
+        // Keep Specialty in sync with whichever doctor is now selected —
+        // including when the doctor was picked directly rather than via
+        // the Specialty dropdown's own filtering below. Without this,
+        // Specialty and Doctor could point at two different specialties;
+        // next time the persisted doctor is restored, filtering the
+        // doctor list by that STALE specialty first could hide the very
+        // doctor being restored, silently falling back to some other one.
+        if (appSpecSelect && selectedOpt) {
+            const specId = selectedOpt.dataset.specialty || '';
+            const hiddenSpec = document.getElementById('mdbk-app-spec');
+            if (hiddenSpec && hiddenSpec.value !== specId) {
+                const specOpt = appSpecSelect.panel.querySelector('.mdbk-custom-select-option[data-value="' + specId + '"]');
+                if (specOpt) {
+                    appSpecSelect.setValue(specOpt.dataset.value, specOpt.textContent);
+                    filterDoctorsBySpecialty(specId, value);
+                }
+            }
+        }
     });
     const appStatusSelect = initCustomSelect('mdbk-app-status-select');
     const appSpecSelect = initCustomSelect('mdbk-app-spec-select');
     const appGenderSelect = initCustomSelect('mdbk-app-gender-select');
 
-    function filterDoctorsBySpecialty(specId) {
+    // preferredDoctorId: keep this doctor selected if it's still visible
+    // under the new filter (the doctor-onChange sync above re-filters
+    // by ITS OWN doctor's specialty and needs to keep that same doctor
+    // selected, not jump to whichever one happens to be listed first).
+    function filterDoctorsBySpecialty(specId, preferredDoctorId) {
         if (!appDoctorSelect) return;
         let firstVisible = null;
+        let preferredOpt = null;
         appDoctorSelect.panel.querySelectorAll('.mdbk-custom-select-option').forEach(function(opt) {
             const match = !specId || opt.dataset.specialty === specId;
             opt.style.display = match ? '' : 'none';
             if (match && !firstVisible) firstVisible = opt;
+            if (match && preferredDoctorId && opt.dataset.value === preferredDoctorId) preferredOpt = opt;
         });
-        // Reset to first visible doctor
-        if (firstVisible) {
-            appDoctorSelect.setValue(firstVisible.dataset.value, firstVisible.textContent);
+        const target = preferredOpt || firstVisible;
+        if (target) {
+            appDoctorSelect.setValue(target.dataset.value, target.textContent);
         } else {
             appDoctorSelect.setValue('', '');
         }
@@ -1651,7 +1675,6 @@ document.addEventListener('DOMContentLoaded', function() {
             const opt = e.target.closest('.mdbk-custom-select-option');
             if (!opt) return;
             filterDoctorsBySpecialty(opt.dataset.value);
-            localStorage.setItem('mdbk_last_specialty_id', opt.dataset.value || '');
         });
     }
 
@@ -1713,27 +1736,31 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // Restores whichever Specialty/Doctor were last used for a new booking
-    // (saved by appDoctorSelect/appSpecSelect above) instead of always
-    // resetting to "All Specialties" / the first doctor. Falls back to
-    // those old defaults if nothing's stored yet, or if a stored id no
-    // longer matches any option (e.g. it was deleted, or filtered out by
-    // the specialty just restored).
+    // Restores whichever Doctor was last used for a new booking (saved by
+    // appDoctorSelect's onChange above) instead of always resetting to
+    // the first doctor. Selects the doctor directly — searched across
+    // ALL doctors, not just whichever specialty happens to be filtered
+    // in right now — and lets that onChange's own Specialty-sync fill in
+    // the matching Specialty and re-filter the doctor list to it, so a
+    // stale filter can never hide the very doctor being restored. Falls
+    // back to the old "All Specialties" + first doctor if nothing's
+    // stored yet, or the stored doctor no longer exists (e.g. deleted).
     function applyLastUsedDoctorSpecialty() {
-        const lastSpecId = localStorage.getItem('mdbk_last_specialty_id') || '';
         const lastDoctorId = localStorage.getItem('mdbk_last_doctor_id') || '';
-        if (appSpecSelect) {
-            let specOpt = lastSpecId ? appSpecSelect.panel.querySelector('.mdbk-custom-select-option[data-value="' + lastSpecId + '"]') : null;
-            if (!specOpt) specOpt = appSpecSelect.panel.querySelector('.mdbk-custom-select-option[data-value=""]');
-            if (specOpt) {
-                appSpecSelect.setValue(specOpt.dataset.value, specOpt.textContent);
-                filterDoctorsBySpecialty(specOpt.dataset.value);
-            }
+        const doctorOpt = lastDoctorId && appDoctorSelect ? appDoctorSelect.panel.querySelector('.mdbk-custom-select-option[data-value="' + lastDoctorId + '"]') : null;
+        if (doctorOpt) {
+            appDoctorSelect.setValue(doctorOpt.dataset.value, doctorOpt.textContent);
+            return;
         }
-        if (appDoctorSelect) {
-            let doctorOpt = lastDoctorId ? appDoctorSelect.panel.querySelector('.mdbk-custom-select-option[data-value="' + lastDoctorId + '"]:not([style*="display: none"])') : null;
-            if (!doctorOpt) doctorOpt = appDoctorSelect.panel.querySelector('.mdbk-custom-select-option:not([style*="display: none"])');
-            if (doctorOpt) appDoctorSelect.setValue(doctorOpt.dataset.value, doctorOpt.textContent);
+        if (appSpecSelect) {
+            const allOpt = appSpecSelect.panel.querySelector('.mdbk-custom-select-option[data-value=""]');
+            if (allOpt) {
+                appSpecSelect.setValue(allOpt.dataset.value, allOpt.textContent);
+                filterDoctorsBySpecialty('');
+            }
+        } else if (appDoctorSelect) {
+            const firstOpt = appDoctorSelect.panel.querySelector('.mdbk-custom-select-option:not([style*="display: none"])');
+            if (firstOpt) appDoctorSelect.setValue(firstOpt.dataset.value, firstOpt.textContent);
         }
     }
 
