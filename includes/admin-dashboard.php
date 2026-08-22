@@ -2970,7 +2970,12 @@ class MDBK_Admin_Dashboard {
         } else {
             $row_state = '';
         }
-        $date_display = $date ? date_i18n('M j, Y', strtotime($date)) : '—';
+        // Site's own Settings > General > Date Format, not a hardcoded
+        // pattern — same convention render_patient_visit_history_table()
+        // and the invoice modal's date_display already follow, so this
+        // row's own Date chip doesn't show a different format than
+        // everywhere else a booking date is printed.
+        $date_display = $date ? date_i18n(get_option('date_format'), strtotime($date)) : '—';
         $time_display = $slot_time ? date_i18n('g:i A', strtotime($slot_time)) : '—';
         ob_start();
         ?>
