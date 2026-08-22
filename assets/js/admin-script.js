@@ -901,6 +901,25 @@ document.addEventListener('DOMContentLoaded', function() {
         return { setValue: setValue, wrapper: wrapper, panel: panel };
     }
 
+    // Case-insensitive option match — older seeded/imported records store
+    // gender as lowercase "female"/"male" while every option's own
+    // data-value is capitalized ("Female"/"Male"), so a plain
+    // [data-value="..."] selector silently finds nothing for those rows.
+    // That used to be a harmless display-only quirk (the field just fell
+    // back to its default label) until the Edit Patient form started
+    // WRITING that unmatched default back out on save — silently flipping
+    // a patient's real gender to whatever the fallback happened to be.
+    // Used everywhere a gender option is looked up from stored data.
+    function findGenderOption(select, value) {
+        if (!select || !value) return null;
+        const target = String(value).toLowerCase();
+        let match = null;
+        select.panel.querySelectorAll('.mdbk-custom-select-option').forEach(function(opt) {
+            if (!match && String(opt.dataset.value).toLowerCase() === target) match = opt;
+        });
+        return match;
+    }
+
     const doctorSpecSelect = initCustomSelect('mdbk-doc-spec-select');
     const patientGenderSelect = initCustomSelect('mdbk-patient-gender-select');
     const staffRoleSelect = initCustomSelect('mdbk-staff-role-select');
@@ -1118,7 +1137,7 @@ document.addEventListener('DOMContentLoaded', function() {
             var patientAge = document.getElementById('mdbk-patient-age');
             if (patientAge) patientAge.value = row.dataset.age || '';
             if (patientGenderSelect && row.dataset.gender) {
-                const opt = patientGenderSelect.panel.querySelector('.mdbk-custom-select-option[data-value="' + row.dataset.gender + '"]');
+                const opt = findGenderOption(patientGenderSelect, row.dataset.gender);
                 if (opt) patientGenderSelect.setValue(opt.dataset.value, opt.textContent);
             }
         }
@@ -1695,7 +1714,7 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('mdbk-app-email').value = row.dataset.email || '';
             document.getElementById('mdbk-app-age').value = row.dataset.age || '';
             if (appGenderSelect && row.dataset.gender) {
-                const genderOpt = appGenderSelect.panel.querySelector('.mdbk-custom-select-option[data-value="' + row.dataset.gender + '"]');
+                const genderOpt = findGenderOption(appGenderSelect, row.dataset.gender);
                 if (genderOpt) appGenderSelect.setValue(genderOpt.dataset.value, genderOpt.textContent);
             }
             // Suppressed for this whole block: setting specialty/doctor
@@ -1821,7 +1840,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (emailInput) emailInput.value = row.dataset.email || '';
             if (ageInput) ageInput.value = row.dataset.age || '';
             if (appGenderSelect && row.dataset.gender) {
-                const genderOpt = appGenderSelect.panel.querySelector('.mdbk-custom-select-option[data-value="' + row.dataset.gender + '"]');
+                const genderOpt = findGenderOption(appGenderSelect, row.dataset.gender);
                 if (genderOpt) appGenderSelect.setValue(genderOpt.dataset.value, genderOpt.textContent);
             }
             // Override openAddAppointmentModal()'s global last-used doctor
@@ -1920,7 +1939,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (emailInput) emailInput.value = item.dataset.email || '';
             if (ageInput) ageInput.value = item.dataset.age || '';
             if (appGenderSelect && item.dataset.gender) {
-                const genderOpt = appGenderSelect.panel.querySelector('.mdbk-custom-select-option[data-value="' + item.dataset.gender + '"]');
+                const genderOpt = findGenderOption(appGenderSelect, item.dataset.gender);
                 if (genderOpt) appGenderSelect.setValue(genderOpt.dataset.value, genderOpt.textContent);
             }
             hideSuggestions();

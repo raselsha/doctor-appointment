@@ -717,11 +717,43 @@ class MDBK_Admin_Dashboard {
         if ($patient_id) $post_data['ID'] = $patient_id;
         $id = $patient_id ? wp_update_post($post_data) : wp_insert_post($post_data);
         if ($id && !is_wp_error($id)) {
-            update_post_meta($id, '_mdbk_patient_phone', sanitize_text_field($_POST['patient_phone']));
-            update_post_meta($id, '_mdbk_patient_email', sanitize_email($_POST['patient_email']));
+            $p_phone = sanitize_text_field($_POST['patient_phone']);
+            $p_email = sanitize_email($_POST['patient_email']);
+            $p_age = isset($_POST['patient_age']) ? sanitize_text_field($_POST['patient_age']) : '';
+            $p_gender = isset($_POST['patient_gender']) ? sanitize_text_field($_POST['patient_gender']) : '';
+            update_post_meta($id, '_mdbk_patient_phone', $p_phone);
+            update_post_meta($id, '_mdbk_patient_email', $p_email);
             update_post_meta($id, '_mdbk_patient_address', sanitize_textarea_field($_POST['patient_address']));
-            update_post_meta($id, '_mdbk_patient_age', isset($_POST['patient_age']) ? sanitize_text_field($_POST['patient_age']) : '');
-            update_post_meta($id, '_mdbk_patient_gender', isset($_POST['patient_gender']) ? sanitize_text_field($_POST['patient_gender']) : '');
+            update_post_meta($id, '_mdbk_patient_age', $p_age);
+            update_post_meta($id, '_mdbk_patient_gender', $p_gender);
+
+            // Editing an EXISTING patient (not a brand-new one, which has
+            // no appointments yet) — cascade the corrected name/phone/
+            // email/age/gender onto every one of their bookings too. Each
+            // appointment keeps its own denormalized copy of these fields
+            // (see handle_appointment_save()) so the Bookings list/print/
+            // invoice never have to join back to the patient CPT on every
+            // render; without this, fixing a typo'd name here left it
+            // wrong on every booking already on file for that patient.
+            if ($patient_id) {
+                $appointment_ids = get_posts([
+                    'post_type'   => 'mdbk_appointment',
+                    'post_status' => \MDBK\MDBK_CPT::APPOINTMENT_STATUSES,
+                    'meta_key'    => '_mdbk_patient_id',
+                    'meta_value'  => $patient_id,
+                    'numberposts' => -1,
+                    'fields'      => 'ids',
+                ]);
+                foreach ($appointment_ids as $app_id) {
+                    wp_update_post(['ID' => $app_id, 'post_title' => 'Booking: ' . $post_data['post_title']]);
+                    update_post_meta($app_id, '_mdbk_patient_name', $post_data['post_title']);
+                    update_post_meta($app_id, '_mdbk_patient_phone', $p_phone);
+                    update_post_meta($app_id, '_mdbk_patient_email', $p_email);
+                    update_post_meta($app_id, '_mdbk_patient_age', $p_age);
+                    update_post_meta($app_id, '_mdbk_patient_gender', $p_gender);
+                }
+            }
+
             wp_redirect(admin_url('admin.php?page=mdbk-patients&success=1'));
             exit;
         }
