@@ -529,17 +529,25 @@
    in effect — same amber "on break" tone used for a booking slot inside
    one (admin-style.css/form-style.css's own .mdbk-slot-break), so the two
    read as the same concept across the plugin. Sits between the heading
-   and the patient list; see render_queue_list_body()'s $active_break. */
+   and the patient list; see render_queue_list_body()'s $active_break.
+   Shaped like one of .mdbk-queue-list-row's own state cards below (same
+   radius/border/padding language) rather than a full-bleed banner, so it
+   reads as part of the same list family instead of a separate strip —
+   kept as this card's own sibling rather than moved inside
+   .mdbk-queue-list-columns, though, since that container's rows are
+   reconciled/reordered in place by queue-view-script.js on every poll
+   (matched by data-appointment-id) and this element has none to match. */
 .mdbk-queue-break-notice {
     display: flex;
     align-items: center;
-    gap: 6px;
-    padding: 8px 16px;
+    gap: 8px;
+    margin: 12px 16px 0;
+    padding: 10px 14px;
     background: #fffbeb;
-    border-top: 1px solid #fde68a;
-    border-bottom: 1px solid #fde68a;
+    border: 1px solid #fde68a;
+    border-radius: 10px;
     color: #b45309;
-    font-size: 12px;
+    font-size: 13px;
     font-weight: 600;
     font-style: italic;
 }
