@@ -817,13 +817,17 @@ button.mdbk-mini-cal-nav-btn:hover { background: #f1f5f9; }
    and states (open/selected/taken) as the public booking form's own
    #mdbk-modal-slot-picker (form-style.css): a clickable button per
    available time, already-booked ones visibly disabled. Laid out as a
-   wrapping grid here rather than form-style.css's one-per-row stack —
-   this field sits in a notably wider column than that widget's narrow
-   sidebar, so one slot per line would waste most of the row. */
-#mdbk-app-slot-picker.mdbk-slot-picker { display: flex; flex-wrap: wrap; align-content: flex-start; gap: 6px; min-height: 20px; max-height: 260px; overflow-y: auto; padding-right: 4px; }
+   fixed 3-column grid here rather than form-style.css's one-per-row
+   stack — this field sits in a notably wider column than that widget's
+   narrow sidebar, so one slot per line would waste most of the row.
+   A real grid (not flex-wrap, which sized each button to its own text —
+   a short break name like "Asor" rendered narrower than "4:00 PM" next
+   to it, breaking the row out of even columns) keeps every cell, break
+   or plain time alike, the same width regardless of label length. */
+#mdbk-app-slot-picker.mdbk-slot-picker { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; min-height: 20px; max-height: 260px; overflow-y: auto; padding-right: 4px; }
 #mdbk-app-slot-picker.mdbk-slot-picker-disabled { opacity: .5; pointer-events: none; }
-#mdbk-app-slot-picker .mdbk-time-placeholder { width: 100%; text-align: center; font-size: 13px; color: #94a3b8; margin: 0; padding: 16px 8px; }
-button.mdbk-slot-btn { padding: 6px 12px; border: 1.5px solid #e2e8f0; border-radius: 8px; background: #fff; font-size: 12px; font-weight: 600; color: #475569; cursor: pointer; transition: all .15s ease; }
+#mdbk-app-slot-picker .mdbk-time-placeholder { grid-column: 1 / -1; text-align: center; font-size: 13px; color: #94a3b8; margin: 0; padding: 16px 8px; }
+button.mdbk-slot-btn { width: 100%; box-sizing: border-box; padding: 6px 12px; border: 1.5px solid #e2e8f0; border-radius: 8px; background: #fff; font-size: 12px; font-weight: 600; color: #475569; cursor: pointer; transition: all .15s ease; }
 button.mdbk-slot-btn:hover:not(:disabled) { border-color: #0061d5; background: #0061d5; color: #fff; }
 button.mdbk-slot-btn.selected { border-color: #0061d5; background: #0061d5; color: #fff; }
 button.mdbk-slot-btn.mdbk-slot-taken { opacity: .5; cursor: not-allowed; pointer-events: none; background: #f8fafc; color: #94a3b8; }
@@ -832,6 +836,7 @@ button.mdbk-slot-btn.mdbk-slot-taken { opacity: .5; cursor: not-allowed; pointer
    unavailable instead of it looking like someone already booked it. */
 button.mdbk-slot-btn.mdbk-slot-break { cursor: not-allowed; pointer-events: none; background: #fffbeb; border-color: #fde68a; color: #b45309; font-style: italic; }
 .mdbk-slot-loading, .mdbk-no-slots { font-size: 13px; color: #64748b; padding: 6px 0; }
+#mdbk-app-slot-picker .mdbk-slot-loading, #mdbk-app-slot-picker .mdbk-no-slots { grid-column: 1 / -1; }
 
 /* Booking page's own date-filter nav (render_schedule_filters_bar()) —
    same modern popover calendar as the booking modal's Date field, minus
