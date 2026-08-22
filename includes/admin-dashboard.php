@@ -3047,7 +3047,7 @@ class MDBK_Admin_Dashboard {
     // slot-based grid for alignment) but for patient-level fields
     // (phone/email/address, no per-visit queue/time/status), plus a
     // derived "total visits" count instead of a stored field.
-    private function render_patient_directory_row($p, $visit_count = 0) {
+    private function render_patient_directory_row($p, $visit_count = 0, $last_doctor_id = 0) {
         $phone = get_post_meta($p->ID, '_mdbk_patient_phone', true);
         $email = get_post_meta($p->ID, '_mdbk_patient_email', true);
         $address = get_post_meta($p->ID, '_mdbk_patient_address', true);
@@ -3057,7 +3057,7 @@ class MDBK_Admin_Dashboard {
         $gender_key = $gender ? strtolower($gender) : 'unknown';
         ob_start();
         ?>
-        <div class="mdbk-patient-row mdbk-patient-row-directory" data-id="<?php echo esc_attr($p->ID); ?>" data-name="<?php echo esc_attr($p->post_title); ?>" data-phone="<?php echo esc_attr($phone); ?>" data-email="<?php echo esc_attr($email); ?>" data-address="<?php echo esc_attr($address); ?>" data-age="<?php echo esc_attr($age); ?>" data-gender="<?php echo esc_attr($gender); ?>">
+        <div class="mdbk-patient-row mdbk-patient-row-directory" data-id="<?php echo esc_attr($p->ID); ?>" data-name="<?php echo esc_attr($p->post_title); ?>" data-phone="<?php echo esc_attr($phone); ?>" data-email="<?php echo esc_attr($email); ?>" data-address="<?php echo esc_attr($address); ?>" data-age="<?php echo esc_attr($age); ?>" data-gender="<?php echo esc_attr($gender); ?>" data-last-doctor-id="<?php echo esc_attr($last_doctor_id ?: ''); ?>">
             <span class="mdbk-patient-row-ticket-slot"><span class="mdbk-patient-row-ticket mdbk-patient-row-pid" title="<?php esc_attr_e('Patient ID', 'doctor-appointment'); ?>">P<?php echo esc_html($p->ID); ?></span></span>
             <a href="#" class="mdbk-patient-row-name mdbk-view-patient" data-id="<?php echo esc_attr($p->ID); ?>" title="<?php esc_attr_e('View patient', 'doctor-appointment'); ?>"><?php echo esc_html($p->post_title); ?></a>
             <span class="mdbk-patient-row-chip-slot"><?php if ($phone): ?><span class="mdbk-patient-row-chip mdbk-chip-phone"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.12.9.34 1.79.66 2.64a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.44-1.44a2 2 0 0 1 2.11-.45c.85.32 1.74.54 2.64.66A2 2 0 0 1 22 16.92z"></path></svg> <?php echo esc_html($phone); ?></span><?php endif; ?></span>
@@ -3130,6 +3130,13 @@ class MDBK_Admin_Dashboard {
         // page's ids (not all $patients) now that there's pagination, so
         // the query stays cheap regardless of how many total patients match.
         $visit_counts = $this->get_visit_counts_for_patients(wp_list_pluck($page_patients, 'ID'));
+        // Same page-scoped-query reasoning as $visit_counts above — lets
+        // the Patient Directory's "Book" button (render_patient_directory_row())
+        // preselect whichever doctor this SPECIFIC patient saw last time,
+        // instead of only the globally last-used doctor (admin-script.js's
+        // own localStorage persistence, which stays the fallback when a
+        // patient has no appointment history yet).
+        $last_doctors = $this->get_last_doctor_for_patients(wp_list_pluck($page_patients, 'ID'));
         ob_start();
         if (empty($patients)) : ?>
             <div class="mdbk-card"><table class="mdbk-table"><tbody><tr><td style="text-align:center; padding:40px; opacity:0.6;"><?php echo $has_active_filters ? esc_html__('No patients match your search.', 'doctor-appointment') : esc_html__('No patients yet.', 'doctor-appointment'); ?></td></tr></tbody></table></div>
@@ -3146,7 +3153,7 @@ class MDBK_Admin_Dashboard {
                     <span></span>
                 </div>
                 <div class="mdbk-patient-list mdbk-directory-list">
-                <?php foreach ($page_patients as $p) echo $this->render_patient_directory_row($p, isset($visit_counts[$p->ID]) ? $visit_counts[$p->ID] : 0); ?>
+                <?php foreach ($page_patients as $p) echo $this->render_patient_directory_row($p, isset($visit_counts[$p->ID]) ? $visit_counts[$p->ID] : 0, isset($last_doctors[$p->ID]) ? $last_doctors[$p->ID] : 0); ?>
                 </div>
             </div>
             <?php echo $this->render_pagination_html('mdbk-patients-page-btn', $paged, $total_pages); ?>
@@ -3216,6 +3223,45 @@ class MDBK_Admin_Dashboard {
         $counts = [];
         foreach ($rows as $row) $counts[(int) $row->patient_id] = (int) $row->cnt;
         return $counts;
+    }
+
+    /**
+     * Which doctor each of these patients most recently had an
+     * appointment WITH — one row per appointment (ordered newest first
+     * per patient), so the first row PHP sees for a given patient_id is
+     * always its latest. Powers the Patient Directory's "Book" button
+     * (render_patient_directory_row()): preselecting the doctor a
+     * returning patient actually saw last time, not just whichever
+     * doctor was last used for ANY booking (admin-script.js's own
+     * localStorage-based default, which this simply overrides when
+     * a specific patient has appointment history).
+     */
+    private function get_last_doctor_for_patients($patient_ids) {
+        global $wpdb;
+        $patient_ids = array_filter(array_map('intval', $patient_ids));
+        if (empty($patient_ids)) return [];
+
+        $statuses = \MDBK\MDBK_CPT::APPOINTMENT_STATUSES;
+        $status_placeholders = implode(',', array_fill(0, count($statuses), '%s'));
+        $id_placeholders = implode(',', array_fill(0, count($patient_ids), '%d'));
+
+        $sql = "SELECT pm_patient.meta_value AS patient_id, pm_doctor.meta_value AS doctor_id
+                FROM {$wpdb->posts} p
+                INNER JOIN {$wpdb->postmeta} pm_patient ON pm_patient.post_id = p.ID AND pm_patient.meta_key = '_mdbk_patient_id'
+                INNER JOIN {$wpdb->postmeta} pm_doctor ON pm_doctor.post_id = p.ID AND pm_doctor.meta_key = '_mdbk_doctor_id'
+                LEFT JOIN {$wpdb->postmeta} pm_date ON pm_date.post_id = p.ID AND pm_date.meta_key = '_mdbk_appointment_date'
+                WHERE pm_patient.meta_value IN ($id_placeholders)
+                  AND p.post_type = 'mdbk_appointment'
+                  AND p.post_status IN ($status_placeholders)
+                ORDER BY pm_patient.meta_value, pm_date.meta_value DESC, p.post_date DESC";
+        $rows = $wpdb->get_results($wpdb->prepare($sql, array_merge($patient_ids, $statuses)));
+
+        $last_doctor = [];
+        foreach ($rows as $row) {
+            $pid = (int) $row->patient_id;
+            if (!isset($last_doctor[$pid])) $last_doctor[$pid] = (int) $row->doctor_id;
+        }
+        return $last_doctor;
     }
 
     /**

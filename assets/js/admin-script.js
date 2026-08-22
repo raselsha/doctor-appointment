@@ -1805,10 +1805,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Patient Directory's "Book" button — opens this SAME modal in place
     // (no page navigation to the Booking page), prefilled from the
     // clicked row's own data-name/phone/email/age/gender (already on
-    // .mdbk-patient-row-directory for the View/Edit flows). Doctor/
-    // Specialty are deliberately left at whatever openAddAppointmentModal()
-    // just restored (the last-used ones) rather than reset per-patient — a
-    // patient isn't tied to one doctor, only Date/Time need picking fresh.
+    // .mdbk-patient-row-directory for the View/Edit flows).
     document.querySelectorAll('.mdbk-book-appointment').forEach(function(btn) {
         btn.addEventListener('click', function(e) {
             e.preventDefault();
@@ -1826,6 +1823,19 @@ document.addEventListener('DOMContentLoaded', function() {
             if (appGenderSelect && row.dataset.gender) {
                 const genderOpt = appGenderSelect.panel.querySelector('.mdbk-custom-select-option[data-value="' + row.dataset.gender + '"]');
                 if (genderOpt) appGenderSelect.setValue(genderOpt.dataset.value, genderOpt.textContent);
+            }
+            // Override openAddAppointmentModal()'s global last-used doctor
+            // with the doctor THIS patient actually saw last time (server-
+            // computed in get_last_doctor_for_patients() — admin-dashboard.php),
+            // when they have one — a returning patient should land back on
+            // their own doctor, not just whoever was booked most recently
+            // for anyone. Falls through to the global default already
+            // applied above if this patient has no appointment history, or
+            // their past doctor no longer exists. Specialty is kept in
+            // sync automatically by appDoctorSelect's own onChange.
+            if (appDoctorSelect && row.dataset.lastDoctorId) {
+                const doctorOpt = appDoctorSelect.panel.querySelector('.mdbk-custom-select-option[data-value="' + row.dataset.lastDoctorId + '"]');
+                if (doctorOpt) appDoctorSelect.setValue(doctorOpt.dataset.value, doctorOpt.textContent);
             }
         });
     });
