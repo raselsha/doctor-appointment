@@ -4061,7 +4061,7 @@ class MDBK_Admin_Dashboard {
                     <input type="text" name="patient_name" id="mdbk-patient-name" required>
                 </div>
                 <div class="mdbk-form-row mdbk-form-row-duo">
-                    <div><label class="mdbk-form-label" for="mdbk-patient-phone"><?php _e('Phone', 'doctor-appointment'); ?></label><input type="text" name="patient_phone" id="mdbk-patient-phone"></div>
+                    <div class="mdbk-patient-suggest-wrap"><label class="mdbk-form-label" for="mdbk-patient-phone"><?php _e('Phone', 'doctor-appointment'); ?></label><input type="text" name="patient_phone" id="mdbk-patient-phone" autocomplete="off"><div id="mdbk-patient-phone-suggest" class="mdbk-patient-suggest" style="display:none;"></div></div>
                     <div><label class="mdbk-form-label" for="mdbk-patient-email"><?php _e('Email', 'doctor-appointment'); ?></label><input type="email" name="patient_email" id="mdbk-patient-email"></div>
                 </div>
                 <div class="mdbk-form-row mdbk-form-row-duo">
@@ -4124,12 +4124,18 @@ class MDBK_Admin_Dashboard {
         ]);
         ob_start();
         foreach ($patients as $p) {
-            $p_phone  = get_post_meta($p->ID, '_mdbk_patient_phone', true);
-            $p_email  = get_post_meta($p->ID, '_mdbk_patient_email', true);
-            $p_age    = get_post_meta($p->ID, '_mdbk_patient_age', true);
-            $p_gender = get_post_meta($p->ID, '_mdbk_patient_gender', true);
+            $p_phone   = get_post_meta($p->ID, '_mdbk_patient_phone', true);
+            $p_email   = get_post_meta($p->ID, '_mdbk_patient_email', true);
+            $p_age     = get_post_meta($p->ID, '_mdbk_patient_age', true);
+            $p_gender  = get_post_meta($p->ID, '_mdbk_patient_gender', true);
+            // id/address: unused by the Booking modal's own suggestion click
+            // (New Booking modal admin-script.js) but needed by the "+ Add
+            // Patient" form's — picking a suggestion there switches it to
+            // editing that existing record (see its own phone-suggest IIFE)
+            // instead of letting Save create a same-phone duplicate.
+            $p_address = get_post_meta($p->ID, '_mdbk_patient_address', true);
             ?>
-            <div class="mdbk-patient-suggest-item" data-name="<?php echo esc_attr($p->post_title); ?>" data-phone="<?php echo esc_attr($p_phone); ?>" data-email="<?php echo esc_attr($p_email); ?>" data-age="<?php echo esc_attr($p_age); ?>" data-gender="<?php echo esc_attr($p_gender); ?>">
+            <div class="mdbk-patient-suggest-item" data-id="<?php echo esc_attr($p->ID); ?>" data-name="<?php echo esc_attr($p->post_title); ?>" data-phone="<?php echo esc_attr($p_phone); ?>" data-email="<?php echo esc_attr($p_email); ?>" data-age="<?php echo esc_attr($p_age); ?>" data-gender="<?php echo esc_attr($p_gender); ?>" data-address="<?php echo esc_attr($p_address); ?>">
                 <span class="mdbk-patient-suggest-name"><?php echo esc_html($p->post_title); ?></span>
                 <span class="mdbk-patient-suggest-meta"><?php echo esc_html($p_phone); ?><?php echo $p_email ? ' &middot; ' . esc_html($p_email) : ''; ?></span>
             </div>

@@ -1160,6 +1160,89 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    // "+ Add Patient" form's own live phone-number lookup — same
+    // ajax_search_patient_phone() the New Booking modal's phone-suggest
+    // above already uses, but a different consequence on click: Booking's
+    // find_or_create_patient() dedupes by (phone + name) at Save time no
+    // matter what the form shows, so that suggestion is pure convenience.
+    // This form has no such server-side check — handle_patient_save()
+    // always creates a brand-new mdbk_patient when patient_id is empty —
+    // so picking a suggestion here sets patient_id and flips the modal to
+    // Edit that existing record instead, the only thing that actually
+    // stops Save from creating a second, duplicate-phone patient.
+    (function() {
+        const phoneInput = document.getElementById('mdbk-patient-phone');
+        const suggestBox = document.getElementById('mdbk-patient-phone-suggest');
+        if (!phoneInput || !suggestBox || typeof mdbk_admin_obj === 'undefined') return;
+        const idInput = document.getElementById('mdbk-patient-id');
+        const title = document.getElementById('mdbk-patient-modal-title');
+        const nameInput = document.getElementById('mdbk-patient-name');
+        const emailInput = document.getElementById('mdbk-patient-email');
+        const ageInput = document.getElementById('mdbk-patient-age');
+        const addressInput = document.getElementById('mdbk-patient-address');
+        let debounceTimer;
+        let requestToken = 0;
+
+        function hideSuggestions() {
+            suggestBox.style.display = 'none';
+            suggestBox.innerHTML = '';
+        }
+
+        function runSearch() {
+            const phone = phoneInput.value.trim();
+            // Only while genuinely adding a NEW patient — editing an
+            // existing one already has its own patient_id, and a phone
+            // search here would just be that same record matching itself.
+            if ((idInput && idInput.value) || phone.length < 3) { hideSuggestions(); return; }
+            const token = ++requestToken;
+            const body = new URLSearchParams();
+            body.set('action', 'mdbk_search_patient_phone');
+            body.set('nonce', mdbk_admin_obj.nonce);
+            body.set('phone', phone);
+            fetch(mdbk_admin_obj.ajax_url, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body.toString() })
+                .then((r) => r.json())
+                .then((res) => {
+                    if (token !== requestToken) return;
+                    if (!res || !res.success || !res.data.results_html) { hideSuggestions(); return; }
+                    suggestBox.innerHTML = res.data.results_html;
+                    suggestBox.style.display = 'block';
+                })
+                .catch(() => {});
+        }
+
+        phoneInput.addEventListener('input', function() {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(runSearch, 300);
+        });
+
+        suggestBox.addEventListener('click', function(e) {
+            const item = e.target.closest('.mdbk-patient-suggest-item');
+            if (!item) return;
+            if (idInput) idInput.value = item.dataset.id || '';
+            if (title) title.textContent = 'Edit Patient';
+            if (nameInput) nameInput.value = item.dataset.name || '';
+            phoneInput.value = item.dataset.phone || '';
+            if (emailInput) emailInput.value = item.dataset.email || '';
+            if (ageInput) ageInput.value = item.dataset.age || '';
+            if (addressInput) addressInput.value = item.dataset.address || '';
+            if (patientGenderSelect && item.dataset.gender) {
+                const genderOpt = findGenderOption(patientGenderSelect, item.dataset.gender);
+                if (genderOpt) patientGenderSelect.setValue(genderOpt.dataset.value, genderOpt.textContent);
+            }
+            hideSuggestions();
+        });
+
+        document.addEventListener('click', function(e) {
+            if (e.target !== phoneInput && !suggestBox.contains(e.target)) hideSuggestions();
+        });
+        // Clears any dropdown left open from a previous visit to this
+        // modal before it opens again (form.reset() itself doesn't touch
+        // this, since it isn't a form field).
+        document.addEventListener('click', function(e) {
+            if (e.target.closest('.mdbk-add-patient, .mdbk-edit-patient')) hideSuggestions();
+        });
+    })();
+
     // Read-only "View Patient" popup (contact details + full visit
     // history) — content is fetched fresh on every open via
     // ajax_view_patient(), not a form, so this doesn't go through
