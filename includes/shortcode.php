@@ -1051,6 +1051,30 @@ class MDBK_Shortcode {
         // things that script already knew to reconcile.
         $doctor_is_visiting = !empty($patients) && $patients[0]->post_status === 'mdbk_serving';
 
+        // "On break" persists from the break's own start time until the
+        // doctor actually resumes serving someone — not strictly bound to
+        // the break's own end time, since a break can run long and a
+        // patient watching this screen shouldn't see the notice silently
+        // vanish while the doctor is still away. Distinct from
+        // get_available_slots()'s own break-flagging (appointment-manager.php),
+        // a fixed from/to window used only for booking-slot availability,
+        // never live status. When more than one configured break has
+        // already started (doctor never resumed between them), the
+        // latest-starting one wins as the current one.
+        $active_break = null;
+        if (!$doctor_is_visiting) {
+            $breaks = get_post_meta($doctor_id, '_mdbk_breaks', true);
+            if (is_array($breaks)) {
+                $now = current_time('H:i');
+                foreach ($breaks as $b) {
+                    if (empty($b['from']) || $now < $b['from']) continue;
+                    if (!$active_break || $b['from'] > $active_break['from']) {
+                        $active_break = $b;
+                    }
+                }
+            }
+        }
+
         ob_start();
         ?>
         <div class="mdbk-queue-list-card">
@@ -1066,6 +1090,13 @@ class MDBK_Shortcode {
             </div>
             <span class="mdbk-queue-list-count"><?php echo count($patients); ?> <?php _e('patients', 'doctor-appointment'); ?></span>
         </div>
+
+        <?php if ($active_break) : ?>
+            <div class="mdbk-queue-break-notice">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                <span><?php echo esc_html(sprintf(__('On break — %s. Back shortly.', 'doctor-appointment'), $active_break['name'])); ?></span>
+            </div>
+        <?php endif; ?>
 
         <div class="mdbk-queue-list-columns">
             <?php if (!empty($patients)) : ?>

@@ -125,6 +125,25 @@ document.addEventListener('DOMContentLoaded', function() {
                 var newUpdatedEl = tmp.querySelector('.mdbk-queue-updated');
                 if (updatedEl && newUpdatedEl) updatedEl.textContent = newUpdatedEl.textContent;
 
+                // "On break" notice — same reasoning as the pulse dot above:
+                // it lives outside .mdbk-queue-list-columns/-count, so it
+                // needs its own explicit sync. Unlike the dot (an existing
+                // element whose class just toggles), this one can appear or
+                // disappear entirely as $active_break starts/ends, so all
+                // three cases (add/update/remove) are handled here.
+                var noticeEl = bodyEl.querySelector('.mdbk-queue-break-notice');
+                var newNoticeEl = tmp.querySelector('.mdbk-queue-break-notice');
+                if (newNoticeEl) {
+                    if (noticeEl) {
+                        if (noticeEl.innerHTML !== newNoticeEl.innerHTML) noticeEl.innerHTML = newNoticeEl.innerHTML;
+                    } else {
+                        var headingEl = bodyEl.querySelector('.mdbk-queue-list-heading');
+                        if (headingEl) headingEl.insertAdjacentElement('afterend', newNoticeEl);
+                    }
+                } else if (noticeEl) {
+                    noticeEl.remove();
+                }
+
                 // In all-doctors grid mode, a doctor's card is hidden while
                 // their count is 0 (see the [data-patient-count="0"] CSS
                 // rule) — updating this attribute on every poll is what
