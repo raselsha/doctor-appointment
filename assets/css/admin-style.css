@@ -2034,5 +2034,23 @@ body.mdbk-doctor-chrome .mdbk-admin-wrapper {
        card squeezed into its first quarter with the rest of the row
        sitting empty. */
     .mdbk-dashboard-doctor-grid { grid-template-columns: 1fr; }
+    /* Every 2-up modal form row (Specialty/Doctor, Phone/Email, Age/
+       Gender, Date/Slot Time, ...) stacks to one column on mobile — at
+       phone width, halving it left the Slot Time grid's own 3 equal
+       columns (see #mdbk-app-slot-picker below) too narrow for "4:00 PM"
+       to fit on one line, wrapping every button to two and breaking the
+       grid's row height/alignment. */
+    .mdbk-form-row-duo { grid-template-columns: 1fr; }
+    /* Age is a plain number input (no +/- stepper like Consultation Fee
+       has, whose own spin buttons are already hidden above) — Chrome's
+       native mobile spinner renders with its own grey background box
+       that doesn't match this form's flat, borderless input styling
+       anywhere else. */
+    #mdbk-app-age::-webkit-inner-spin-button,
+    #mdbk-app-age::-webkit-outer-spin-button,
+    #mdbk-patient-age::-webkit-inner-spin-button,
+    #mdbk-patient-age::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+    #mdbk-app-age,
+    #mdbk-patient-age { -moz-appearance: textfield; }
 }
 
