@@ -1061,13 +1061,38 @@ class MDBK_Shortcode {
         // never live status. When more than one configured break has
         // already started (doctor never resumed between them), the
         // latest-starting one wins as the current one.
+        //
+        // A break is only "pending" up to the doctor's own most recent
+        // progress THROUGH THE QUEUE'S OWN ORDER — not up to whatever
+        // wall-clock moment a patient happened to get marked done.
+        // Comparing against each finished patient's own booked slot_time
+        // (not post_modified/"now") is what tells apart two very
+        // different gaps: the patient who was already being seen *before*
+        // this break started merely finishing a little late (their slot
+        // is before break.from — doesn't count), versus the doctor
+        // actually having moved on to and finished someone whose slot
+        // falls at/after the break (does count). Without this, the very
+        // next gap between patients — even the one right after the
+        // pre-break patient wraps up — would resurrect the same break's
+        // notice the instant a bare "now >= break.from" check saw it.
         $active_break = null;
         if (!$doctor_is_visiting) {
             $breaks = get_post_meta($doctor_id, '_mdbk_breaks', true);
-            if (is_array($breaks)) {
+            if (is_array($breaks) && !empty($breaks)) {
+                global $wpdb;
+                $last_progress_slot = $wpdb->get_var($wpdb->prepare(
+                    "SELECT MAX(pt.meta_value) FROM {$wpdb->posts} p
+                     INNER JOIN {$wpdb->postmeta} pd ON pd.post_id = p.ID AND pd.meta_key = '_mdbk_doctor_id' AND pd.meta_value = %d
+                     INNER JOIN {$wpdb->postmeta} pdate ON pdate.post_id = p.ID AND pdate.meta_key = '_mdbk_appointment_date' AND pdate.meta_value = %s
+                     INNER JOIN {$wpdb->postmeta} pt ON pt.post_id = p.ID AND pt.meta_key = '_mdbk_slot_time'
+                     WHERE p.post_type = 'mdbk_appointment' AND p.post_status IN ('mdbk_completed', 'mdbk_no_show')",
+                    $doctor_id, $date
+                ));
+
                 $now = current_time('H:i');
                 foreach ($breaks as $b) {
                     if (empty($b['from']) || $now < $b['from']) continue;
+                    if ($last_progress_slot !== null && $last_progress_slot >= $b['from']) continue;
                     if (!$active_break || $b['from'] > $active_break['from']) {
                         $active_break = $b;
                     }
