@@ -1454,6 +1454,29 @@ button.mdbk-slot-btn.mdbk-slot-break { cursor: not-allowed; pointer-events: none
 .mdbk-my-queue-row.mdbk-row-state-serving { border-bottom-color: #a7f3d0; }
 .mdbk-my-queue-row.mdbk-row-state-waiting-checked-in { border-bottom-color: #fed7aa; }
 
+/* Break marker — sits inline in Today's Queue, right before the first
+   patient whose own slot falls at/after it (render_doctor_queue_rows_with_breaks()
+   in admin-dashboard.php), so staff see where a break falls in the
+   day's real bookings instead of it being invisible outside the
+   doctor's own Edit form. Same solid amber fill as the public Live
+   Queue's own break notice (queue-style.css) for one consistent "break"
+   language across the plugin, in this row list's own flex-column shape
+   (.mdbk-patient-list) rather than that page's grid-based row cards. */
+.mdbk-break-marker-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 8px 23px;
+    padding: 10px 14px;
+    background: #f59e0b;
+    border: 1px solid #d97706;
+    border-radius: 10px;
+    color: #fff;
+    font-size: 13px;
+    font-weight: 700;
+}
+.mdbk-break-marker-row svg { flex-shrink: 0; }
+
 /* Front-desk staff's all-doctors "Patients" view — each doctor's rows
    collapsed under their own <details> section (see
    render_patient_list_html() in admin-dashboard.php) instead of one long

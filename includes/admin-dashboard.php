@@ -337,10 +337,7 @@ class MDBK_Admin_Dashboard {
             $is_visiting = isset($serving_doctor_ids[$doctor_id]);
         }
 
-        $list_html = '';
-        foreach ($apps as $a) {
-            $list_html .= $this->render_my_queue_patient_row($a, $is_visiting ? [$doctor_id => true] : []);
-        }
+        $list_html = $this->render_doctor_queue_rows_with_breaks($apps, $doctor_id, $is_visiting ? [$doctor_id => true] : [], $is_today);
         ob_start();
         $this->render_today_queue_table($apps, false);
         $print_table_html = ob_get_clean();
@@ -2799,6 +2796,106 @@ class MDBK_Admin_Dashboard {
     }
 
     /**
+     * One doctor's Today's Queue rows, with a break marker (see
+     * render_queue_list_body() in shortcode.php for the same concept on
+     * the public Live Queue) inserted at the point in the list where it
+     * actually falls — right before the first patient whose own booked
+     * slot_time is at/after that break's start, so staff scanning the
+     * queue see where a break sits relative to real bookings instead of
+     * it being invisible outside the doctor's own Edit form. Only for
+     * today's own queue ($is_today_group) — breaks are a fixed daily
+     * pattern, not tied to any one date, so a marker against a mixed
+     * multi-date "Upcoming" list wouldn't mean anything. Unlike the
+     * public page's notice, this one isn't gated on "is it happening
+     * right now" — it's a schedule reference staff can see any time they
+     * load this page, not a live status.
+     */
+    private function render_doctor_queue_rows_with_breaks($apps, $doc_id, $serving_doctor_ids, $is_today_group) {
+        $breaks = ($is_today_group && $doc_id) ? get_post_meta($doc_id, '_mdbk_breaks', true) : null;
+        if (!is_array($breaks)) $breaks = [];
+        $breaks = array_values(array_filter($breaks, function($b) { return !empty($b['from']) && !empty($b['to']); }));
+
+        if (empty($breaks) || empty($apps)) {
+            $html = '';
+            foreach ($apps as $a) {
+                $html .= $this->render_my_queue_patient_row($a, $serving_doctor_ids);
+            }
+            return $html;
+        }
+
+        // $apps itself is NOT in slot_time order here -- get_today_queue_apps()
+        // sorts it by queue priority (serving, then checked-in-waiting,
+        // then plain waiting, ...) so whoever's actually next in line
+        // leads the list regardless of their booked time. So each
+        // break's insertion point is worked out separately, against a
+        // slot_time-sorted COPY, then that one specific row is matched
+        // by ID in the real display loop below -- a single forward-moving
+        // pointer assuming $apps arrives in time order would misplace
+        // every marker the moment any row's queue-priority rank differs
+        // from its time-of-day rank.
+        usort($breaks, function($a, $b) { return strcmp($a['from'], $b['from']); });
+
+        $by_slot = $apps;
+        usort($by_slot, function($a, $b) {
+            return strcmp(get_post_meta($a->ID, '_mdbk_slot_time', true), get_post_meta($b->ID, '_mdbk_slot_time', true));
+        });
+
+        // before_id[appointment ID] = breaks to render right before that
+        // row; $trailing = breaks starting after every patient booked
+        // today (e.g. one near closing with nobody scheduled that late
+        // yet) -- still shown, just tacked on at the very end instead of
+        // silently dropped.
+        $before_id = [];
+        $trailing = [];
+        foreach ($breaks as $b) {
+            $anchor_id = null;
+            foreach ($by_slot as $a) {
+                $slot_time = get_post_meta($a->ID, '_mdbk_slot_time', true);
+                // "at or after" -- a patient somehow booked exactly on a
+                // break's start (get_available_slots() blocks new
+                // bookings there, but a pre-existing/edited one could
+                // still land on it) still gets the marker ahead of them.
+                if ($slot_time && $slot_time >= $b['from']) { $anchor_id = $a->ID; break; }
+            }
+            if ($anchor_id !== null) {
+                $before_id[$anchor_id][] = $b;
+            } else {
+                $trailing[] = $b;
+            }
+        }
+
+        $html = '';
+        foreach ($apps as $a) {
+            if (!empty($before_id[$a->ID])) {
+                foreach ($before_id[$a->ID] as $b) {
+                    $html .= $this->render_break_marker_row($b);
+                }
+            }
+            $html .= $this->render_my_queue_patient_row($a, $serving_doctor_ids);
+        }
+        foreach ($trailing as $b) {
+            $html .= $this->render_break_marker_row($b);
+        }
+        return $html;
+    }
+
+    private function render_break_marker_row($break) {
+        ob_start();
+        ?>
+        <div class="mdbk-break-marker-row">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+            <span><?php echo esc_html(sprintf(
+                __('%1$s — %2$s to %3$s', 'doctor-appointment'),
+                $break['name'],
+                date_i18n(get_option('time_format'), strtotime($break['from'])),
+                date_i18n(get_option('time_format'), strtotime($break['to']))
+            )); ?></span>
+        </div>
+        <?php
+        return ob_get_clean();
+    }
+
+    /**
      * Renders a list of appointments as patient rows — either a flat list
      * (one doctor's own view) or, for front-desk staff's all-doctors
      * view, collapsed under a per-doctor <details> section (see the
@@ -2815,11 +2912,12 @@ class MDBK_Admin_Dashboard {
      */
     private function render_patient_list_html($apps, $group_by_doctor, $serving_doctor_ids = [], $is_today_group = true) {
         if (!$group_by_doctor) {
-            $html = '';
-            foreach ($apps as $a) {
-                $html .= $this->render_my_queue_patient_row($a, $serving_doctor_ids);
-            }
-            return $html;
+            // Single-doctor view (see this function's own docblock) — every
+            // row here already belongs to the one doctor $doctor_id was
+            // filtered to, so their ID is read off the first appointment
+            // rather than needing its own parameter.
+            $flat_doc_id = !empty($apps) ? intval(get_post_meta($apps[0]->ID, '_mdbk_doctor_id', true)) : 0;
+            return $this->render_doctor_queue_rows_with_breaks($apps, $flat_doc_id, $serving_doctor_ids, $is_today_group);
         }
 
         $groups = [];
@@ -2898,9 +2996,7 @@ class MDBK_Admin_Dashboard {
             $html .= '<span class="mdbk-availability-chevron"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></span>';
             $html .= '</span></summary>';
             $html .= '<div class="mdbk-patient-list mdbk-doctor-group-list">';
-            foreach ($doc_apps as $a) {
-                $html .= $this->render_my_queue_patient_row($a, $serving_doctor_ids);
-            }
+            $html .= $this->render_doctor_queue_rows_with_breaks($doc_apps, $doc_id, $serving_doctor_ids, $is_today_group);
             $html .= '</div>';
             $html .= '<div class="mdbk-doctor-group-print-table" style="display:none;">';
             ob_start();
