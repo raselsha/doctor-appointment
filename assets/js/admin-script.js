@@ -2752,80 +2752,226 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
-    // Today's Queue header countdown — the doctor-wide breaks
-    // (admin-dashboard.php's $today_breaks_for_js, JSON on this element's
-    // own data-breaks) ticked down against the server's own clock
-    // (data-server-now, a Unix timestamp at render time) rather than the
-    // visitor's — this stays accurate even if their system clock is
-    // wrong, by tracking elapsed wall-clock time since load instead of
-    // re-reading Date.now() as if it were "now" on its own. Shows
-    // whichever break is soonest: counting down once it's within 15
-    // minutes out, then a plain "on break" while inside its own
-    // from/to window, then hidden again once that window ends — this
-    // is a heads-up for staff glancing at the header, not a duplicate
-    // of render_doctor_queue_rows_with_breaks()'s own permanent inline
-    // marker further down the same page, which stays regardless of time.
+    // Per-doctor break countdown pills (.mdbk-break-countdown, rendered
+    // into each doctor's own queue heading by
+    // admin-dashboard.php's render_break_countdown_el()) — the single
+    // place a break shows up in this view. An earlier version also
+    // inserted a permanent marker row into the queue list itself at the
+    // point a break fell chronologically, but that landed buried among
+    // the patient rows and was hard to spot; this pill (always above
+    // the whole list, in the heading) is what staff actually look at.
+    //
+    // One shared ticker walks whatever pills are in the DOM on each
+    // pass rather than binding to the ones that existed at load, so a
+    // doctor group re-rendered by the AJAX refresh keeps counting with
+    // no re-init. Each pill shows its own doctor's soonest break:
+    // counting down once it's within 10 minutes out, then holding as
+    // "on break now" while inside its from/to window, then hidden again
+    // until the next break of the day comes into range.
     (function() {
-        const el = document.getElementById('mdbk-break-countdown');
-        if (!el) return;
-        let breaks = [];
-        try { breaks = JSON.parse(el.dataset.breaks || '[]'); } catch (e) {}
-        if (!breaks.length) return;
+        const LEAD_SECONDS = 10 * 60;
+        // Two sizes: the icon travels with whichever text it's currently
+        // sitting next to (see .mdbk-break-countdown-time's own comment
+        // in admin-style.css) — small next to the plain "on break now"
+        // text, bigger inside the enlarged countdown-digits chunk.
+        const CLOCK_ICON_SMALL = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>';
+        const CLOCK_ICON_BIG = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>';
 
-        const serverNowSeconds = parseInt(el.dataset.serverNowSeconds, 10);
-        const loadedAtMs = Date.now();
-        const distinctDoctors = new Set(breaks.map(function(b) { return b.doctor; })).size > 1;
+        // Server wall-clock baseline, taken once from whichever pill is
+        // seen first (they're all rendered in the same request, so they
+        // all carry the same reading). Only ELAPSED browser time is
+        // added to it — Date.now() is never treated as "now" on its
+        // own, so a staff PC with a wrong system clock still counts
+        // down to the right minute. See the PHP side's own comment on
+        // data-server-now-seconds for why this isn't a timestamp.
+        let base = null;
+        let firstPass = true;
 
         function toSeconds(hm) {
-            const parts = hm.split(':');
+            const parts = String(hm).split(':');
             return parseInt(parts[0], 10) * 3600 + parseInt(parts[1], 10) * 60;
         }
-        function nowSecondsOfDay() {
-            // Plain elapsed-time addition, deliberately not a
-            // reconstructed Date/timestamp — see the PHP side's own
-            // comment on data-server-now-seconds for why.
-            const elapsed = Math.floor((Date.now() - loadedAtMs) / 1000);
-            return (serverNowSeconds + elapsed) % 86400;
-        }
         function pad2(n) { return (n < 10 ? '0' : '') + n; }
-        function formatCountdown(totalSeconds) {
-            const m = Math.floor(totalSeconds / 60);
-            const s = totalSeconds % 60;
-            return pad2(m) + ':' + pad2(s);
+        function nowSecondsOfDay() {
+            if (!base) return -1;
+            return (base.server + (Date.now() - base.at) / 1000) % 86400;
         }
 
-        const CLOCK_ICON = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>';
+        // The moment the server's reading was true, in browser-clock ms.
+        //
+        // Deliberately NOT Date.now(): this admin page takes seconds to
+        // parse its HTML and run its scripts, so by the time this line
+        // executes the server's stamp is already several seconds stale —
+        // and treating "now" as the anchor silently counts that gap as
+        // zero elapsed time, leaving the countdown permanently that far
+        // behind (measured ~4.4s on a full Today's Queue). Navigation
+        // Timing's responseStart is when the first byte of THAT SAME
+        // response reached the browser, which is within a few hundred ms
+        // of when PHP read the clock, so anchoring there leaves only
+        // render-to-flush plus network transit as the error.
+        //
+        // Which end of the response to anchor to depends on where in it
+        // the reading was taken: #mdbk-server-clock is printed last, so
+        // it left the server at responseEnd, while a pill's stamp is
+        // taken partway through and is closest to responseStart.
+        //
+        // Only valid for the markup this navigation delivered — a pill
+        // that arrived later via AJAX carries its own fresh stamp and
+        // must anchor to now instead, hence the firstPass gate.
+        function anchorMs(atResponseEnd) {
+            if (!firstPass) return Date.now();
+            try {
+                const nav = performance.getEntriesByType('navigation')[0];
+                const mark = atResponseEnd ? nav && nav.responseEnd : nav && nav.responseStart;
+                if (mark > 0 && typeof performance.timeOrigin === 'number') {
+                    return performance.timeOrigin + mark;
+                }
+            } catch (e) {}
+            return Date.now();
+        }
 
-        function tick() {
-            const now = nowSecondsOfDay();
-            let best = null; // { type: 'active'|'countdown', b, secondsLeft }
+        // Rebuilds the pill's two-part markup (plain name + enlarged
+        // countdown-digits chunk, or just plain text once "on break now"
+        // has no digits left to enlarge) only when the mode actually
+        // changes — every other tick just updates existing text nodes,
+        // same as before, so a pill sitting in "counting down" for
+        // several minutes isn't tearing down and rebuilding its DOM
+        // every second for no reason.
+        function ensureMode(el, mode) {
+            if (el.dataset.mdbkMode === mode) return;
+            el.dataset.mdbkMode = mode;
+            el.innerHTML = '';
+            const nameEl = document.createElement('span');
+            nameEl.className = 'mdbk-break-countdown-name';
+            if (mode === 'countdown') {
+                el.appendChild(nameEl);
+                const timeEl = document.createElement('span');
+                timeEl.className = 'mdbk-break-countdown-time';
+                timeEl.insertAdjacentHTML('beforeend', CLOCK_ICON_BIG);
+                const timeVal = document.createElement('span');
+                timeVal.className = 'mdbk-break-countdown-time-value';
+                timeEl.appendChild(timeVal);
+                el.appendChild(timeEl);
+            } else {
+                el.insertAdjacentHTML('beforeend', CLOCK_ICON_SMALL);
+                el.appendChild(nameEl);
+            }
+        }
+
+        // Text goes in via textContent, never innerHTML — break names
+        // are free text the doctor typed into their own Edit form.
+        function setPill(el, name, time) {
+            el.style.display = 'flex';
+            ensureMode(el, time === null ? 'active' : 'countdown');
+            const nameEl = el.querySelector('.mdbk-break-countdown-name');
+            if (nameEl.textContent !== name) nameEl.textContent = name;
+            if (time !== null) {
+                const timeVal = el.querySelector('.mdbk-break-countdown-time-value');
+                if (timeVal.textContent !== time) timeVal.textContent = time;
+            }
+            fitPill(el);
+        }
+
+        // Measures the actual gap this pill has to work with — between
+        // whatever sits to its left (the doctor name/count) and whatever
+        // sits to its right (the action buttons/toggle) in the same
+        // header — and constrains it to that, rather than guessing at a
+        // handful of fixed breakpoints. A doctor name's length and how
+        // many buttons render on the right both vary per header, so a
+        // static CSS max-width either overlapped one of them at some
+        // widths or wasted space at others; measuring the header's own
+        // siblings gets it right for every header on every screen size
+        // without needing a breakpoint added every time either side's
+        // content changes.
+        //
+        // All of it or none of it — not truncated. At this text size
+        // (matched to the heading's own 18px, see .mdbk-break-countdown)
+        // an ellipsis after just a couple of characters isn't useful
+        // information, just clutter, so a gap too tight for the whole
+        // label hides the pill rather than showing a mangled fragment of
+        // it. Either way the header's own height never moves, since this
+        // stays position:absolute throughout.
+        function fitPill(el) {
+            const left = el.previousElementSibling;
+            const right = el.nextElementSibling;
+            if (!left || !right) return;
+            const gap = right.getBoundingClientRect().left - left.getBoundingClientRect().right - 24;
+            el.style.maxWidth = 'none';
+            const natural = el.scrollWidth;
+            if (gap < natural) {
+                el.style.display = 'none';
+                return;
+            }
+            el.style.maxWidth = Math.min(gap, 360) + 'px';
+        }
+
+        function renderPill(el, now) {
+            let breaks = el._mdbkBreaks;
+            if (!breaks) {
+                try { breaks = JSON.parse(el.dataset.breaks || '[]'); } catch (e) { breaks = []; }
+                el._mdbkBreaks = breaks;
+            }
+            let active = null;
+            let soonest = null;
             breaks.forEach(function(b) {
                 const from = toSeconds(b.from);
                 const to = toSeconds(b.to);
                 if (now >= from && now < to) {
-                    if (!best || best.type !== 'active') best = { type: 'active', b: b };
-                } else if (now < from && (from - now) <= 15 * 60) {
-                    if (best && best.type === 'active') return;
-                    if (!best || (from - now) < best.secondsLeft) best = { type: 'countdown', b: b, secondsLeft: from - now };
+                    if (!active) active = b;
+                } else if (now < from && (from - now) <= LEAD_SECONDS) {
+                    if (!soonest || (from - now) < soonest.left) soonest = { b: b, left: from - now };
                 }
             });
-
-            if (!best) {
-                el.style.display = 'none';
-                return;
-            }
-            const label = distinctDoctors ? (best.b.doctor + ' — ' + best.b.name) : best.b.name;
-            el.style.display = 'flex';
-            el.classList.toggle('mdbk-break-countdown-active', best.type === 'active');
-            if (best.type === 'active') {
-                el.innerHTML = CLOCK_ICON + '<span>' + label + ' — on break now</span>';
+            if (active) {
+                setPill(el, active.name + ' — on break now', null);
+            } else if (soonest) {
+                // Rounded UP, so the pill reads 00:01 for the whole of
+                // the last second rather than sitting on 00:00 before
+                // the break has actually started.
+                const left = Math.ceil(soonest.left);
+                setPill(el, soonest.b.name, pad2(Math.floor(left / 60)) + ':' + pad2(left % 60));
             } else {
-                el.innerHTML = CLOCK_ICON + '<span>' + label + ' in ' + formatCountdown(best.secondsLeft) + '</span>';
+                el.style.display = 'none';
             }
         }
 
+        function tick() {
+            const pills = document.querySelectorAll('.mdbk-break-countdown');
+            if (!base) {
+                // #mdbk-server-clock (print_server_clock()) is read at
+                // the very end of the response and so is the closest
+                // thing to "the clock as the page left the server";
+                // a pill's own stamp is the fallback for markup that
+                // arrived without it, e.g. via AJAX.
+                const clockEl = firstPass ? document.getElementById('mdbk-server-clock') : null;
+                const stamp = clockEl ? parseFloat(clockEl.dataset.nowSeconds) : NaN;
+                if (!isNaN(stamp)) {
+                    base = { server: stamp, at: anchorMs(true) };
+                } else {
+                    for (let i = 0; i < pills.length; i++) {
+                        const s = parseFloat(pills[i].dataset.serverNowSeconds);
+                        if (!isNaN(s)) { base = { server: s, at: anchorMs(false) }; break; }
+                    }
+                }
+            }
+            firstPass = false;
+            const now = nowSecondsOfDay();
+            if (now < 0) return;
+            pills.forEach(function(el) { renderPill(el, now); });
+        }
+
+        // Self-scheduling rather than setInterval(1000): a fixed
+        // interval starts wherever the page happened to finish loading
+        // and stays offset from the real second boundary for good, so
+        // "00:01 -> on break now" could land up to a second late even
+        // with a perfect baseline. Re-aiming at the next whole second of
+        // SERVER time each pass keeps every flip on the boundary.
         tick();
-        setInterval(tick, 1000);
+        (function schedule() {
+            const now = nowSecondsOfDay();
+            const delay = now < 0 ? 1000 : Math.max(50, Math.round((Math.floor(now) + 1 - now) * 1000) + 20);
+            setTimeout(function() { tick(); schedule(); }, delay);
+        })();
     })();
 
     // ---- Doctors grid: search, specialty filter, pagination, grid/list view ----

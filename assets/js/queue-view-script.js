@@ -125,24 +125,21 @@ document.addEventListener('DOMContentLoaded', function() {
                 var newUpdatedEl = tmp.querySelector('.mdbk-queue-updated');
                 if (updatedEl && newUpdatedEl) updatedEl.textContent = newUpdatedEl.textContent;
 
-                // "On break" notice — same reasoning as the pulse dot above:
-                // it lives outside .mdbk-queue-list-columns/-count, so it
-                // needs its own explicit sync. Unlike the dot (an existing
-                // element whose class just toggles), this one can appear or
-                // disappear entirely as $active_break starts/ends, so all
-                // three cases (add/update/remove) are handled here.
-                var noticeEl = bodyEl.querySelector('.mdbk-queue-break-notice');
-                var newNoticeEl = tmp.querySelector('.mdbk-queue-break-notice');
-                if (newNoticeEl) {
-                    if (noticeEl) {
-                        if (noticeEl.innerHTML !== newNoticeEl.innerHTML) noticeEl.innerHTML = newNoticeEl.innerHTML;
-                    } else {
-                        var headingEl = bodyEl.querySelector('.mdbk-queue-list-heading');
-                        if (headingEl) headingEl.insertAdjacentElement('afterend', newNoticeEl);
-                    }
-                } else if (noticeEl) {
-                    noticeEl.remove();
+                // "On break" notice — the poll no longer decides whether
+                // this is showing; syncBreakNotices() below owns that, so
+                // the notice lands on the exact second the break window
+                // opens and closes instead of up to a whole poll interval
+                // late. All the poll has to do is keep the card's own
+                // break list current, in case the doctor's breaks were
+                // edited while this screen sat open.
+                var newCardEl = tmp.querySelector('.mdbk-queue-list-card');
+                var cardEl = bodyEl.querySelector('.mdbk-queue-list-card') ||
+                    (bodyEl.classList && bodyEl.classList.contains('mdbk-queue-list-card') ? bodyEl : null);
+                if (newCardEl && cardEl && newCardEl.dataset.breaks !== cardEl.dataset.breaks) {
+                    cardEl.dataset.breaks = newCardEl.dataset.breaks;
+                    delete cardEl._mdbkBreaks;
                 }
+                syncBreakNotices();
 
                 // In all-doctors grid mode, a doctor's card is hidden while
                 // their count is 0 (see the [data-patient-count="0"] CSS
@@ -161,4 +158,107 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     setInterval(refreshAll, 12000);
+
+    // ---- "On break" notice ----
+    //
+    // Driven off each card's own data-breaks and the server's clock
+    // rather than off the 12-second poll. The break window is a fixed
+    // fact known at render time, so there is nothing to ask the server
+    // about: ticking it here puts the notice up and takes it down on
+    // the exact second, and costs no extra requests — raising the poll
+    // rate instead would have multiplied the load from every
+    // waiting-room screen and phone on the page and still been late.
+    //
+    // The one thing the client can't know by itself is whether the
+    // doctor is mid-visit right now, which would contradict an "on
+    // break" notice — that's read off the pulse dot the poll already
+    // keeps in sync, so it clears within a poll of the doctor resuming.
+    // That one is a human action rather than a clock boundary, so a few
+    // seconds either way doesn't read as wrong.
+    var CLOCK_SVG = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>';
+    var serverBase = null;
+
+    function initServerBase() {
+        var stamp = parseFloat(mdbk_queue_view_obj.now);
+        if (isNaN(stamp)) return;
+        // Anchored to when the response's first byte arrived, not to
+        // whenever this script got to run — the gap between the two is
+        // page parse + asset load, and counting it as zero elapsed time
+        // would leave the notice permanently that far behind.
+        var anchor = Date.now();
+        try {
+            var nav = performance.getEntriesByType('navigation')[0];
+            if (nav && nav.responseStart > 0 && typeof performance.timeOrigin === 'number') {
+                anchor = performance.timeOrigin + nav.responseStart;
+            }
+        } catch (e) {}
+        serverBase = { server: stamp, at: anchor };
+    }
+
+    function nowSecondsOfDay() {
+        if (!serverBase) return -1;
+        return (serverBase.server + (Date.now() - serverBase.at) / 1000) % 86400;
+    }
+
+    function toSeconds(hm) {
+        var parts = String(hm).split(':');
+        return parseInt(parts[0], 10) * 3600 + parseInt(parts[1], 10) * 60;
+    }
+
+    function syncBreakNotices() {
+        var now = nowSecondsOfDay();
+        if (now < 0) return;
+        document.querySelectorAll('.mdbk-queue-list-card').forEach(function(card) {
+            var breaks = card._mdbkBreaks;
+            if (!breaks) {
+                try { breaks = JSON.parse(card.dataset.breaks || '[]'); } catch (e) { breaks = []; }
+                card._mdbkBreaks = breaks;
+            }
+            var dot = card.querySelector('.mdbk-live-pulse-dot');
+            var visiting = dot && dot.classList.contains('mdbk-live-pulse-active');
+            var active = null;
+            if (!visiting) {
+                breaks.forEach(function(b) {
+                    var from = toSeconds(b.from);
+                    var to = toSeconds(b.to);
+                    // Overlapping windows shouldn't happen, but if two
+                    // are somehow in range the later-starting one is the
+                    // more current fact.
+                    if (now >= from && now < to && (!active || from > toSeconds(active.from))) active = b;
+                });
+            }
+
+            var noticeEl = card.querySelector('.mdbk-queue-break-notice');
+            if (!active) {
+                if (noticeEl) noticeEl.remove();
+                return;
+            }
+            var text = String(mdbk_queue_view_obj.on_break || 'On break — %s.').replace('%s', active.name);
+            if (!noticeEl) {
+                var heading = card.querySelector('.mdbk-queue-list-heading');
+                if (!heading) return;
+                noticeEl = document.createElement('div');
+                noticeEl.className = 'mdbk-queue-break-notice';
+                noticeEl.insertAdjacentHTML('beforeend', CLOCK_SVG);
+                noticeEl.appendChild(document.createElement('span'));
+                heading.insertAdjacentElement('afterend', noticeEl);
+            }
+            // textContent, never innerHTML — the break name is free text
+            // the doctor typed into their own Edit form.
+            var span = noticeEl.querySelector('span');
+            if (span && span.textContent !== text) span.textContent = text;
+        });
+    }
+
+    // Re-aimed at the next whole second of SERVER time each pass rather
+    // than a fixed setInterval, which would start wherever the page
+    // happened to finish loading and stay offset from the real boundary
+    // for good.
+    initServerBase();
+    syncBreakNotices();
+    (function schedule() {
+        var now = nowSecondsOfDay();
+        var delay = now < 0 ? 1000 : Math.max(50, Math.round((Math.floor(now) + 1 - now) * 1000) + 20);
+        setTimeout(function() { syncBreakNotices(); schedule(); }, delay);
+    })();
 });

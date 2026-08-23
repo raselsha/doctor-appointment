@@ -355,6 +355,11 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
+    /* Containing block for the absolutely-centred .mdbk-break-countdown.
+       Deliberately NOT an inline style: the scroll-wrap variant below
+       overrides this with position:sticky, and its `top` offset would
+       otherwise apply as a plain relative shift and push the header down. */
+    position: relative;
 }
 
 .mdbk-card-header h3 {
@@ -1454,39 +1459,34 @@ button.mdbk-slot-btn.mdbk-slot-break { cursor: not-allowed; pointer-events: none
 .mdbk-my-queue-row.mdbk-row-state-serving { border-bottom-color: #a7f3d0; }
 .mdbk-my-queue-row.mdbk-row-state-waiting-checked-in { border-bottom-color: #fed7aa; }
 
-/* Break marker — sits inline in Today's Queue, right before the first
-   patient whose own slot falls at/after it (render_doctor_queue_rows_with_breaks()
-   in admin-dashboard.php), so staff see where a break falls in the
-   day's real bookings instead of it being invisible outside the
-   doctor's own Edit form. A quiet, "disabled"-style grey (same
-   background/border/text as button.mdbk-slot-taken's own muted look
-   elsewhere in this file) rather than a loud solid fill — this sits in
-   a list staff scan constantly, so it needs to read as a plain
-   schedule fact, not compete for attention with an actual alert. */
-.mdbk-break-marker-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin: 8px 23px;
-    padding: 10px 14px;
-    background: #f8fafc;
-    border: 1px solid #e2e8f0;
-    border-radius: 10px;
-    color: #64748b;
-    font-size: 13px;
-    font-weight: 600;
-}
-.mdbk-break-marker-row svg { flex-shrink: 0; }
-
-/* Today's Queue header countdown (admin-script.js) — centered against
-   the whole .mdbk-card-header via absolute positioning, not flex order,
-   so it lands at the true midpoint regardless of how wide the h3 title
-   or the toggle buttons on the right happen to be. Two states: counting
-   down to a break starting within 15 minutes (quiet grey, matching
-   .mdbk-break-marker-row's own "disabled" tone), or that break actually
-   in progress right now (.mdbk-break-countdown-active — a little more
-   present, since this one really is worth a glance, but still nowhere
-   near the old solid-fill loudness). */
+/* One doctor's break countdown (admin-script.js), centered against
+   whichever heading is that doctor's own — their .mdbk-doctor-group-header
+   in the grouped view, or the .mdbk-card-header in the single-doctor
+   one. Absolute positioning, not flex order, so it lands at the true
+   midpoint regardless of how wide the name on the left or the buttons
+   on the right happen to be — and, just as importantly, so it can NEVER
+   push the heading taller: an absolutely positioned element is out of
+   normal flow entirely, so however long its text gets, the header's own
+   height is still set purely by the title and the button cluster next
+   to it.
+   max-width here is just a safe pre-JS default — admin-script.js's
+   fitPill() measures this pill's actual left/right neighbors on every
+   header (a doctor name's length and how many action buttons render
+   both vary per header and per screen width) and sets a precise inline
+   max-width from that, hiding the pill entirely (all of it, or none of
+   it — never a truncated fragment; see fitPill()'s own comment) on the
+   rare header too narrow to fit it without touching either side.
+   Plain text on purpose, not a colored chip — a pill this size read as
+   heavier than the fact deserved for something staff glance at
+   constantly. The color distinction moved to the public Live Queue's
+   own "on break" notice instead (.mdbk-queue-break-notice in
+   queue-style.css), which patients look at far less often and can
+   afford to stand out more.
+   The break's NAME stays this same small size as the rest of the admin
+   UI's incidental text — it's read once and then ignored. Only the
+   actual countdown digits (.mdbk-break-countdown-time below) are
+   enlarged, since that's the one part worth a glance from across the
+   room without having to lean in. */
 .mdbk-break-countdown {
     position: absolute;
     left: 50%;
@@ -1494,21 +1494,29 @@ button.mdbk-slot-btn.mdbk-slot-break { cursor: not-allowed; pointer-events: none
     transform: translate(-50%, -50%);
     align-items: center;
     gap: 6px;
-    padding: 6px 14px;
-    border-radius: 20px;
-    background: #f1f5f9;
-    border: 1px solid #e2e8f0;
-    color: #64748b;
+    color: #1e293b;
     font-size: 12px;
     font-weight: 600;
     white-space: nowrap;
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 .mdbk-break-countdown svg { flex-shrink: 0; }
-.mdbk-break-countdown.mdbk-break-countdown-active {
-    background: #fef3c7;
-    border-color: #fde68a;
-    color: #92400e;
+/* The icon travels with whichever text is actually the "big" one at
+   the moment — living inside this wrapper (with the ticking mm:ss)
+   while a break is still ahead, rather than being a fixed prefix on
+   the whole pill regardless of state. Once the break starts there's no
+   longer a number to count, so render_break_countdown_el()'s "on break
+   now" text goes back to the plain small style above, icon and all. */
+.mdbk-break-countdown-time {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 18px;
+    font-weight: 700;
 }
+.mdbk-break-countdown-time svg { flex-shrink: 0; }
 
 /* Front-desk staff's all-doctors "Patients" view — each doctor's rows
    collapsed under their own <details> section (see
@@ -1529,6 +1537,9 @@ button.mdbk-slot-btn.mdbk-slot-break { cursor: not-allowed; pointer-events: none
     cursor: pointer;
     user-select: none;
     list-style: none;
+    /* Containing block for this doctor's own centred
+       .mdbk-break-countdown pill. */
+    position: relative;
 }
 .mdbk-doctor-group-header::-webkit-details-marker { display: none; }
 .mdbk-doctor-group-name { font-size: 13px; font-weight: 700; color: #1e293b; }

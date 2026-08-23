@@ -921,6 +921,15 @@ class MDBK_Shortcode {
         wp_localize_script('mdbk-queue-view-script', 'mdbk_queue_view_obj', [
             'ajax_url' => admin_url('admin-ajax.php'),
             'nonce'    => wp_create_nonce('mdbk_view_queue'),
+            // The "on break" notice is driven off each card's own
+            // data-breaks rather than waiting for the next poll to
+            // carry it (see render_queue_list_body()), so its wording
+            // has to be available client-side too. %s = break name.
+            'on_break' => __('On break — %s. Back shortly.', 'doctor-appointment'),
+            // Seconds since midnight in the site's timezone, to the
+            // millisecond — deliberately not a Unix timestamp; see
+            // MDBK_Admin_Dashboard::render_break_countdown_el() for why.
+            'now'      => self::server_now_seconds(),
         ]);
 
         if ($doctor_id) {
@@ -1051,48 +1060,43 @@ class MDBK_Shortcode {
         // things that script already knew to reconcile.
         $doctor_is_visiting = !empty($patients) && $patients[0]->post_status === 'mdbk_serving';
 
-        // "On break" persists from the break's own start time until the
-        // doctor actually resumes serving someone — not strictly bound to
-        // the break's own end time, since a break can run long and a
-        // patient watching this screen shouldn't see the notice silently
-        // vanish while the doctor is still away. Distinct from
-        // get_available_slots()'s own break-flagging (appointment-manager.php),
-        // a fixed from/to window used only for booking-slot availability,
-        // never live status. When more than one configured break has
-        // already started (doctor never resumed between them), the
-        // latest-starting one wins as the current one.
+        // "On break" runs from the break's own start time to its own end
+        // time, and nothing else — the same window the admin side's own
+        // countdown pill uses (render_break_countdown_el() in
+        // admin-dashboard.php), so a patient watching this screen and
+        // the staff watching the queue never disagree about whether a
+        // break is still on. Also the same window get_available_slots()
+        // blocks bookings in (appointment-manager.php), so what a
+        // patient is told and what they can book stay one and the same
+        // fact.
         //
-        // A break is only "pending" up to the doctor's own most recent
-        // progress THROUGH THE QUEUE'S OWN ORDER — not up to whatever
-        // wall-clock moment a patient happened to get marked done.
-        // Comparing against each finished patient's own booked slot_time
-        // (not post_modified/"now") is what tells apart two very
-        // different gaps: the patient who was already being seen *before*
-        // this break started merely finishing a little late (their slot
-        // is before break.from — doesn't count), versus the doctor
-        // actually having moved on to and finished someone whose slot
-        // falls at/after the break (does count). Without this, the very
-        // next gap between patients — even the one right after the
-        // pre-break patient wraps up — would resurrect the same break's
-        // notice the instant a bare "now >= break.from" check saw it.
+        // This deliberately replaced an earlier "persist past the end
+        // time until the doctor demonstrably resumes" rule, which keyed
+        // off the latest slot_time among today's completed/no-show
+        // appointments for this doctor. Staff work the queue out of
+        // booked order all the time (checked-in patients get seen ahead
+        // of their slot), so marking, say, a 2:20 PM patient done at
+        // 12:45 pushed that watermark past every break left in the day
+        // and silently killed their notices for good. Bounding the
+        // notice by the break's own end time makes that guard
+        // unnecessary anyway: a finished break can no longer outlive its
+        // window, so there is nothing left for it to resurrect.
+        //
+        // The one live-state gate that remains is $doctor_is_visiting —
+        // if someone is being seen *right now*, "on break" would
+        // contradict the pulsing dot immediately next to it, and it
+        // doubles as the natural "doctor came back early" clear.
         $active_break = null;
         if (!$doctor_is_visiting) {
             $breaks = get_post_meta($doctor_id, '_mdbk_breaks', true);
-            if (is_array($breaks) && !empty($breaks)) {
-                global $wpdb;
-                $last_progress_slot = $wpdb->get_var($wpdb->prepare(
-                    "SELECT MAX(pt.meta_value) FROM {$wpdb->posts} p
-                     INNER JOIN {$wpdb->postmeta} pd ON pd.post_id = p.ID AND pd.meta_key = '_mdbk_doctor_id' AND pd.meta_value = %d
-                     INNER JOIN {$wpdb->postmeta} pdate ON pdate.post_id = p.ID AND pdate.meta_key = '_mdbk_appointment_date' AND pdate.meta_value = %s
-                     INNER JOIN {$wpdb->postmeta} pt ON pt.post_id = p.ID AND pt.meta_key = '_mdbk_slot_time'
-                     WHERE p.post_type = 'mdbk_appointment' AND p.post_status IN ('mdbk_completed', 'mdbk_no_show')",
-                    $doctor_id, $date
-                ));
-
+            if (is_array($breaks)) {
                 $now = current_time('H:i');
                 foreach ($breaks as $b) {
-                    if (empty($b['from']) || $now < $b['from']) continue;
-                    if ($last_progress_slot !== null && $last_progress_slot >= $b['from']) continue;
+                    if (empty($b['from']) || empty($b['to'])) continue;
+                    if ($now < $b['from'] || $now >= $b['to']) continue;
+                    // Overlapping windows shouldn't happen, but if two
+                    // are somehow in range at once the later-starting
+                    // one is the more current fact.
                     if (!$active_break || $b['from'] > $active_break['from']) {
                         $active_break = $b;
                     }
@@ -1100,9 +1104,24 @@ class MDBK_Shortcode {
             }
         }
 
+        // Handed to queue-view-script.js so it can flip the notice on
+        // and off at the exact second the window opens and closes,
+        // instead of it landing up to a whole poll interval late. Every
+        // configured break goes over, not just the one in range now —
+        // a waiting-room screen stays open all day and has to reach the
+        // next break by itself.
+        $breaks_for_js = [];
+        $all_breaks = get_post_meta($doctor_id, '_mdbk_breaks', true);
+        if (is_array($all_breaks)) {
+            foreach ($all_breaks as $b) {
+                if (empty($b['from']) || empty($b['to'])) continue;
+                $breaks_for_js[] = ['name' => $b['name'], 'from' => $b['from'], 'to' => $b['to']];
+            }
+        }
+
         ob_start();
         ?>
-        <div class="mdbk-queue-list-card">
+        <div class="mdbk-queue-list-card" data-breaks="<?php echo esc_attr(wp_json_encode($breaks_for_js)); ?>">
         <div class="mdbk-queue-list-heading">
             <div class="mdbk-queue-list-heading-main">
                 <div class="mdbk-queue-doctor-name-row">
@@ -1170,6 +1189,29 @@ class MDBK_Shortcode {
         return ['html' => ob_get_clean(), 'count' => count($patients)];
     }
 
+
+    /**
+     * The site's wall clock as seconds since midnight, to the
+     * millisecond — the baseline queue-view-script.js counts forward
+     * from so the "on break" notice flips on the real second rather
+     * than on the visitor's own (possibly wrong) system clock.
+     *
+     * Not a Unix timestamp on purpose: current_time('timestamp')
+     * already has the site's GMT offset baked in, so handing it to JS's
+     * `new Date(ms)` — which expects true UTC and then re-applies the
+     * browser's own timezone — double-applies the offset. "How far into
+     * today is it" is all the client actually needs.
+     */
+    private static function server_now_seconds() {
+        $now = new \DateTimeImmutable('now', wp_timezone());
+        return round(
+            intval($now->format('H')) * 3600
+            + intval($now->format('i')) * 60
+            + intval($now->format('s'))
+            + intval($now->format('u')) / 1000000,
+            3
+        );
+    }
 
     /**
      * Truncate a patient name to "First L." for public/kiosk display.
