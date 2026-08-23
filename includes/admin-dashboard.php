@@ -1072,7 +1072,7 @@ class MDBK_Admin_Dashboard {
         ?>
         <div id="mdbk-admin-dashboard"><div class="mdbk-admin-wrapper"><?php $this->render_sidebar('global-settings'); ?>
             <div class="mdbk-main-content mdbk-main-content-fixed-header">
-                <div class="mdbk-header"><h1><?php _e('Global Settings', 'doctor-appointment'); ?></h1></div>
+                <div class="mdbk-header"><div class="mdbk-header-left"><h1><?php _e('Settings', 'doctor-appointment'); ?></h1></div></div>
                 <div class="mdbk-global-settings-scroll-wrap">
                 <?php if (isset($_GET['success'])) : ?>
                     <p style="color:#16A34A; font-weight:600; margin-top:0;"><?php _e('Settings saved.', 'doctor-appointment'); ?></p>
@@ -1544,7 +1544,7 @@ class MDBK_Admin_Dashboard {
         ?>
         <div id="mdbk-admin-dashboard"><div class="mdbk-admin-wrapper"><?php $this->render_sidebar('doctors'); ?>
             <div class="mdbk-main-content">
-                <div class="mdbk-header"><h1><?php _e('Doctor Directory', 'doctor-appointment'); ?></h1></div>
+                <div class="mdbk-header"><div class="mdbk-header-left"><h1><?php _e('Doctor Directory', 'doctor-appointment'); ?></h1><p><?php echo esc_html(sprintf(_n('%d doctor', '%d doctors', $total, 'doctor-appointment'), $total)); ?></p></div></div>
 
                 <div class="mdbk-staff-filters-bar">
                     <a href="#" class="mdbk-btn-add mdbk-add-doctor"><?php _e('+ Add New Doctor', 'doctor-appointment'); ?></a>
@@ -3685,7 +3685,7 @@ class MDBK_Admin_Dashboard {
         ?>
         <div id="mdbk-admin-dashboard"><div class="mdbk-admin-wrapper"><?php $this->render_sidebar('specialties'); ?>
             <div class="mdbk-main-content">
-                <div class="mdbk-header"><h1><?php _e('Medical Specialties', 'doctor-appointment'); ?></h1><div style="display:flex; gap:10px;"><button type="button" class="mdbk-btn-outline" id="mdbk-open-specialty-reorder"><?php _e('Reorder', 'doctor-appointment'); ?></button><a href="#" class="mdbk-btn-add mdbk-add-specialty"><?php _e('+ Add Specialty', 'doctor-appointment'); ?></a></div></div>
+                <div class="mdbk-header"><div class="mdbk-header-left"><h1><?php _e('Medical Specialties', 'doctor-appointment'); ?></h1><p><?php echo esc_html(sprintf(_n('%d specialty', '%d specialties', count($terms), 'doctor-appointment'), count($terms))); ?></p></div><div style="display:flex; gap:10px;"><button type="button" class="mdbk-btn-outline" id="mdbk-open-specialty-reorder"><?php _e('Reorder', 'doctor-appointment'); ?></button><a href="#" class="mdbk-btn-add mdbk-add-specialty"><?php _e('+ Add Specialty', 'doctor-appointment'); ?></a></div></div>
                 <div class="mdbk-specialty-grid">
                     <?php foreach ($terms as $t) : $this->render_specialty_card($t); endforeach; ?>
                     <?php // Trailing "add new" card — reuses the exact same
@@ -3717,8 +3717,6 @@ class MDBK_Admin_Dashboard {
         <div class="mdbk-sidebar" id="mdbk-sidebar"><div class="mdbk-sidebar-logo"><?php echo esc_html($clinic_name); ?><?php if ($clinic_contact) : ?><div class="mdbk-sidebar-clinic-contact"><?php echo esc_html($clinic_contact); ?></div><?php endif; ?></div><ul class="mdbk-sidebar-menu">
             <?php if (current_user_can(MDBK_CAP_ADMIN)) : ?>
             <li class="mdbk-menu-item <?php echo $active_page == 'dashboard' ? 'active' : ''; ?>" onclick="window.location.href='<?php echo esc_url(admin_url('admin.php?page=mdbk-dashboard')); ?>'"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg><?php _e('Dashboard', 'doctor-appointment'); ?></li>
-            <li class="mdbk-menu-item <?php echo $active_page == 'doctors' ? 'active' : ''; ?>" onclick="window.location.href='<?php echo esc_url(admin_url('admin.php?page=mdbk-doctors')); ?>'"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.5 21a8.5 8.5 0 0 0-17 0"></path><circle cx="12" cy="7.5" r="4.5"></circle></svg><?php _e('Doctors', 'doctor-appointment'); ?></li>
-            <li class="mdbk-menu-item <?php echo $active_page == 'staff' ? 'active' : ''; ?>" onclick="window.location.href='<?php echo esc_url(admin_url('admin.php?page=mdbk-staff')); ?>'"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg><?php _e('Staff', 'doctor-appointment'); ?></li>
             <?php endif; ?>
             <?php // Booking — the main operational page for both a doctor
             // (their own patients only, auto-scoped) and front-desk staff
@@ -3735,6 +3733,10 @@ class MDBK_Admin_Dashboard {
             <?php if (current_user_can(MDBK_CAP_QUEUE)) : ?>
             <li class="mdbk-menu-item <?php echo $active_page == 'patients' ? 'active' : ''; ?>" onclick="window.location.href='<?php echo esc_url(admin_url('admin.php?page=mdbk-patients')); ?>'"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg><?php _e('Patients', 'doctor-appointment'); ?></li>
             <?php endif; ?>
+            <?php if (current_user_can(MDBK_CAP_ADMIN)) : ?>
+            <li class="mdbk-menu-item <?php echo $active_page == 'doctors' ? 'active' : ''; ?>" onclick="window.location.href='<?php echo esc_url(admin_url('admin.php?page=mdbk-doctors')); ?>'"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.5 21a8.5 8.5 0 0 0-17 0"></path><circle cx="12" cy="7.5" r="4.5"></circle></svg><?php _e('Doctors', 'doctor-appointment'); ?></li>
+            <li class="mdbk-menu-item <?php echo $active_page == 'staff' ? 'active' : ''; ?>" onclick="window.location.href='<?php echo esc_url(admin_url('admin.php?page=mdbk-staff')); ?>'"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg><?php _e('Staff', 'doctor-appointment'); ?></li>
+            <?php endif; ?>
             <?php // Profile + Change Password — a doctor's own clinical
             // profile, or front-desk staff's plain account info (see
             // render_profile_page()'s staff branch), same as the doctor
@@ -3745,7 +3747,7 @@ class MDBK_Admin_Dashboard {
             <?php endif; ?>
             <?php if (current_user_can(MDBK_CAP_ADMIN)) : ?>
             <li class="mdbk-menu-item <?php echo $active_page == 'specialties' ? 'active' : ''; ?>" onclick="window.location.href='<?php echo esc_url(admin_url('admin.php?page=mdbk-specialties')); ?>'"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41L13.42 20.58a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path><line x1="7" y1="7" x2="7.01" y2="7"></line></svg><?php _e('Specialties', 'doctor-appointment'); ?></li>
-            <li class="mdbk-menu-item <?php echo $active_page == 'global-settings' ? 'active' : ''; ?>" onclick="window.location.href='<?php echo esc_url(admin_url('admin.php?page=mdbk-global-settings')); ?>'"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg><?php _e('Global Settings', 'doctor-appointment'); ?></li>
+            <li class="mdbk-menu-item <?php echo $active_page == 'global-settings' ? 'active' : ''; ?>" onclick="window.location.href='<?php echo esc_url(admin_url('admin.php?page=mdbk-global-settings')); ?>'"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg><?php _e('Settings', 'doctor-appointment'); ?></li>
             <li class="mdbk-menu-item <?php echo $active_page == 'license' ? 'active' : ''; ?>" onclick="window.location.href='<?php echo esc_url(admin_url('admin.php?page=mdbk-license')); ?>'"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="7.5" cy="15.5" r="5.5"></circle><path d="M21 2l-9.6 9.6"></path><path d="M15.5 7.5L18 10"></path><path d="M18.5 4.5L21 7"></path></svg><?php _e('License', 'doctor-appointment'); ?></li>
             <?php endif; ?>
         </ul>
@@ -3877,22 +3879,19 @@ class MDBK_Admin_Dashboard {
                 <div class="mdbk-form-row mdbk-form-row-duo">
                     <div>
                         <div class="mdbk-form-label-row">
-                            <label class="mdbk-form-label"><?php _e('Time Slot Booking', 'doctor-appointment'); ?></label>
+                            <label class="mdbk-form-label" for="mdbk-doc-slot-duration"><?php _e('Slot Duration (minutes)', 'doctor-appointment'); ?></label>
                             <label class="mdbk-toggle mdbk-mini-toggle"><input type="checkbox" name="slot_enabled" id="mdbk-doc-slot-enabled" value="1" checked><span class="mdbk-toggle-slider"></span><span class="mdbk-mini-toggle-text"><?php _e('Enabled', 'doctor-appointment'); ?></span></label>
                         </div>
-                        <p class="mdbk-form-hint"><?php _e('Off: patients are booked serially by queue number — no time picker.', 'doctor-appointment'); ?></p>
+                        <div id="mdbk-doc-slot-duration-group"><input type="number" name="slot_duration" id="mdbk-doc-slot-duration" min="5" step="5" value="20" placeholder="<?php esc_attr_e('e.g. 20', 'doctor-appointment'); ?>"></div>
                     </div>
-                    <div id="mdbk-doc-slot-duration-group"><label class="mdbk-form-label" for="mdbk-doc-slot-duration"><?php _e('Slot Duration (minutes)', 'doctor-appointment'); ?></label><input type="number" name="slot_duration" id="mdbk-doc-slot-duration" min="5" step="5" value="20" placeholder="<?php esc_attr_e('e.g. 20', 'doctor-appointment'); ?>"></div>
-                </div>
-
-                <div class="mdbk-form-row">
-                    <label class="mdbk-form-label" for="mdbk-doc-fee"><?php _e('Consultation Fee (৳)', 'doctor-appointment'); ?></label>
-                    <div class="mdbk-stepper">
-                        <button type="button" class="mdbk-stepper-btn mdbk-stepper-minus" tabindex="-1" aria-label="<?php esc_attr_e('Decrease', 'doctor-appointment'); ?>">&minus;</button>
-                        <input type="number" name="doc_fee" id="mdbk-doc-fee" min="0" step="0.01" data-step="50" placeholder="<?php esc_attr_e('e.g. 800', 'doctor-appointment'); ?>">
-                        <button type="button" class="mdbk-stepper-btn mdbk-stepper-plus" tabindex="-1" aria-label="<?php esc_attr_e('Increase', 'doctor-appointment'); ?>">&plus;</button>
+                    <div>
+                        <label class="mdbk-form-label" for="mdbk-doc-fee"><?php _e('Consultation Fee (৳)', 'doctor-appointment'); ?></label>
+                        <div class="mdbk-stepper">
+                            <button type="button" class="mdbk-stepper-btn mdbk-stepper-minus" tabindex="-1" aria-label="<?php esc_attr_e('Decrease', 'doctor-appointment'); ?>">&minus;</button>
+                            <input type="number" name="doc_fee" id="mdbk-doc-fee" min="0" step="0.01" data-step="50" placeholder="<?php esc_attr_e('e.g. 800', 'doctor-appointment'); ?>">
+                            <button type="button" class="mdbk-stepper-btn mdbk-stepper-plus" tabindex="-1" aria-label="<?php esc_attr_e('Increase', 'doctor-appointment'); ?>">&plus;</button>
+                        </div>
                     </div>
-                    <p class="mdbk-form-hint"><?php _e('Used as the default amount on this doctor\'s invoices — can still be changed on any individual invoice.', 'doctor-appointment'); ?></p>
                 </div>
 
                 <div class="mdbk-form-row">
@@ -3939,7 +3938,7 @@ class MDBK_Admin_Dashboard {
                             <input type="time" class="mdbk-break-from">
                             <span class="mdbk-break-row-sep">&ndash;</span>
                             <input type="time" class="mdbk-break-to">
-                            <button type="button" class="mdbk-action-btn mdbk-action-btn-red mdbk-remove-break-row" title="<?php esc_attr_e('Remove', 'doctor-appointment'); ?>"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>
+                            <button type="button" class="mdbk-icon-btn mdbk-icon-btn-clear mdbk-icon-btn-xs mdbk-remove-break-row" title="<?php esc_attr_e('Remove', 'doctor-appointment'); ?>"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>
                         </div>
                     </template>
                 </details>

@@ -701,6 +701,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // matches it exactly.
     const CALENDAR_ICON = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="3"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>';
     const CALENDAR_MONTH_ICON = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="3"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line><circle cx="12" cy="15" r="2"></circle></svg>';
+    const BREAK_ICON = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>';
 
     function setDoctorPhotoPreview(url) {
         const preview = document.getElementById('mdbk-doc-photo-preview');
@@ -1174,6 +1175,23 @@ document.addEventListener('DOMContentLoaded', function() {
             '</details>';
         }
 
+        let breaks = [];
+        try { breaks = JSON.parse(card.dataset.breaks) || []; } catch (e) {}
+        // Same "only show it if there's anything to show" rule as
+        // Monthly Availability above — most doctors won't have any
+        // breaks configured, and an empty section here would just be
+        // clutter above the fields that always have something in them.
+        let breaksHtml = '';
+        if (breaks.length) {
+            breaksHtml = '<details class="mdbk-availability-section"><summary class="mdbk-availability-header">' + BREAK_ICON + '<h4>Break Times</h4><span class="mdbk-availability-chevron"></span></summary>' +
+                '<div class="mdbk-view-schedule-list">' +
+                    breaks.map(function(b) {
+                        return '<div class="mdbk-view-day-row"><span class="mdbk-view-day-name">' + escHtml(b.name || '') + '</span><span class="mdbk-view-day-hours">' + escHtml(mdbkFormatTimeDisplay(b.from)) + ' – ' + escHtml(mdbkFormatTimeDisplay(b.to)) + '</span></div>';
+                    }).join('') +
+                '</div>' +
+            '</details>';
+        }
+
         body.innerHTML =
             '<div class="mdbk-view-top-row">' +
                 '<div class="mdbk-view-hero">' +
@@ -1193,6 +1211,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     scheduleRows +
                 '</div>' +
             '</details>' +
+            breaksHtml +
             monthlyHtml;
     });
 
