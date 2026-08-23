@@ -2363,6 +2363,28 @@ class MDBK_Admin_Dashboard {
         // get_serving_doctor_ids()'s comment.
         $serving_doctor_ids = $this->get_serving_doctor_ids($today_apps);
 
+        // Every configured break for every doctor with a patient in
+        // today's own queue (unfiltered $today_apps, same reasoning as
+        // $serving_doctor_ids above — a search/status filter narrowing
+        // the visible rows must never hide a doctor's break from the
+        // countdown too) — handed to admin-script.js as JSON so it can
+        // count down to whichever one is soonest without a page reload.
+        // See the header countdown element below and its own comment.
+        $today_break_doctor_ids = array_values(array_unique(array_map(function($a) {
+            return intval(get_post_meta($a->ID, '_mdbk_doctor_id', true));
+        }, $today_apps)));
+        $today_breaks_for_js = [];
+        foreach ($today_break_doctor_ids as $did) {
+            if (!$did) continue;
+            $doc_breaks = get_post_meta($did, '_mdbk_breaks', true);
+            if (!is_array($doc_breaks)) continue;
+            $doc_name = get_the_title($did);
+            foreach ($doc_breaks as $b) {
+                if (empty($b['from']) || empty($b['to'])) continue;
+                $today_breaks_for_js[] = ['doctor' => $doc_name, 'name' => $b['name'], 'from' => $b['from'], 'to' => $b['to']];
+            }
+        }
+
         // "Expand All" / "Collapse All" only makes sense once there's
         // actually per-doctor grouping to toggle.
         $group_toggle_buttons = '<div class="mdbk-group-toggle-btns">'
@@ -2371,8 +2393,29 @@ class MDBK_Admin_Dashboard {
             . '</div>';
         ?>
         <div class="mdbk-card" style="margin-bottom:20px;">
-            <div class="mdbk-card-header">
+            <div class="mdbk-card-header" style="position:relative;">
                 <h3><?php _e("Today's Queue", 'doctor-appointment'); ?></h3>
+                <?php
+                // current_time('timestamp') deliberately NOT used here —
+                // it already has the site's GMT offset baked in, so
+                // handing it to JS's `new Date(ms)` (which expects a true
+                // UTC timestamp and re-applies the *browser's* own
+                // timezone on top) double-applies the offset. Passing the
+                // site's wall-clock time as plain seconds-since-midnight
+                // instead sidesteps timestamp/timezone math entirely —
+                // admin-script.js only ever needs "how far into today is
+                // it", never a real calendar date.
+                $now_parts = explode(':', current_time('H:i:s'));
+                $today_seconds_now = intval($now_parts[0]) * 3600 + intval($now_parts[1]) * 60 + intval($now_parts[2]);
+                ?>
+                <?php // Absolutely positioned/centered against the header
+                // itself (not just "the middle child of a space-between
+                // flex row", which only lands near-center when the h3
+                // and the buttons on the right happen to be similar
+                // widths) — admin-script.js's own countdown logic fills
+                // this in and toggles it visible only when a break is
+                // actually due soon or already in progress. ?>
+                <div id="mdbk-break-countdown" class="mdbk-break-countdown" style="display:none;" data-breaks="<?php echo esc_attr(wp_json_encode($today_breaks_for_js)); ?>" data-server-now-seconds="<?php echo esc_attr($today_seconds_now); ?>"></div>
                 <?php if ($group_by_doctor) : ?>
                     <?php echo $group_toggle_buttons; ?>
                 <?php elseif ($doctor_id) :

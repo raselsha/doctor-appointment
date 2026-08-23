@@ -1458,24 +1458,57 @@ button.mdbk-slot-btn.mdbk-slot-break { cursor: not-allowed; pointer-events: none
    patient whose own slot falls at/after it (render_doctor_queue_rows_with_breaks()
    in admin-dashboard.php), so staff see where a break falls in the
    day's real bookings instead of it being invisible outside the
-   doctor's own Edit form. Same solid amber fill as the public Live
-   Queue's own break notice (queue-style.css) for one consistent "break"
-   language across the plugin, in this row list's own flex-column shape
-   (.mdbk-patient-list) rather than that page's grid-based row cards. */
+   doctor's own Edit form. A quiet, "disabled"-style grey (same
+   background/border/text as button.mdbk-slot-taken's own muted look
+   elsewhere in this file) rather than a loud solid fill — this sits in
+   a list staff scan constantly, so it needs to read as a plain
+   schedule fact, not compete for attention with an actual alert. */
 .mdbk-break-marker-row {
     display: flex;
     align-items: center;
     gap: 8px;
     margin: 8px 23px;
     padding: 10px 14px;
-    background: #f59e0b;
-    border: 1px solid #d97706;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
     border-radius: 10px;
-    color: #fff;
+    color: #64748b;
     font-size: 13px;
-    font-weight: 700;
+    font-weight: 600;
 }
 .mdbk-break-marker-row svg { flex-shrink: 0; }
+
+/* Today's Queue header countdown (admin-script.js) — centered against
+   the whole .mdbk-card-header via absolute positioning, not flex order,
+   so it lands at the true midpoint regardless of how wide the h3 title
+   or the toggle buttons on the right happen to be. Two states: counting
+   down to a break starting within 15 minutes (quiet grey, matching
+   .mdbk-break-marker-row's own "disabled" tone), or that break actually
+   in progress right now (.mdbk-break-countdown-active — a little more
+   present, since this one really is worth a glance, but still nowhere
+   near the old solid-fill loudness). */
+.mdbk-break-countdown {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    border-radius: 20px;
+    background: #f1f5f9;
+    border: 1px solid #e2e8f0;
+    color: #64748b;
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+.mdbk-break-countdown svg { flex-shrink: 0; }
+.mdbk-break-countdown.mdbk-break-countdown-active {
+    background: #fef3c7;
+    border-color: #fde68a;
+    color: #92400e;
+}
 
 /* Front-desk staff's all-doctors "Patients" view — each doctor's rows
    collapsed under their own <details> section (see

@@ -2752,6 +2752,82 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
+    // Today's Queue header countdown — the doctor-wide breaks
+    // (admin-dashboard.php's $today_breaks_for_js, JSON on this element's
+    // own data-breaks) ticked down against the server's own clock
+    // (data-server-now, a Unix timestamp at render time) rather than the
+    // visitor's — this stays accurate even if their system clock is
+    // wrong, by tracking elapsed wall-clock time since load instead of
+    // re-reading Date.now() as if it were "now" on its own. Shows
+    // whichever break is soonest: counting down once it's within 15
+    // minutes out, then a plain "on break" while inside its own
+    // from/to window, then hidden again once that window ends — this
+    // is a heads-up for staff glancing at the header, not a duplicate
+    // of render_doctor_queue_rows_with_breaks()'s own permanent inline
+    // marker further down the same page, which stays regardless of time.
+    (function() {
+        const el = document.getElementById('mdbk-break-countdown');
+        if (!el) return;
+        let breaks = [];
+        try { breaks = JSON.parse(el.dataset.breaks || '[]'); } catch (e) {}
+        if (!breaks.length) return;
+
+        const serverNowSeconds = parseInt(el.dataset.serverNowSeconds, 10);
+        const loadedAtMs = Date.now();
+        const distinctDoctors = new Set(breaks.map(function(b) { return b.doctor; })).size > 1;
+
+        function toSeconds(hm) {
+            const parts = hm.split(':');
+            return parseInt(parts[0], 10) * 3600 + parseInt(parts[1], 10) * 60;
+        }
+        function nowSecondsOfDay() {
+            // Plain elapsed-time addition, deliberately not a
+            // reconstructed Date/timestamp — see the PHP side's own
+            // comment on data-server-now-seconds for why.
+            const elapsed = Math.floor((Date.now() - loadedAtMs) / 1000);
+            return (serverNowSeconds + elapsed) % 86400;
+        }
+        function pad2(n) { return (n < 10 ? '0' : '') + n; }
+        function formatCountdown(totalSeconds) {
+            const m = Math.floor(totalSeconds / 60);
+            const s = totalSeconds % 60;
+            return pad2(m) + ':' + pad2(s);
+        }
+
+        const CLOCK_ICON = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>';
+
+        function tick() {
+            const now = nowSecondsOfDay();
+            let best = null; // { type: 'active'|'countdown', b, secondsLeft }
+            breaks.forEach(function(b) {
+                const from = toSeconds(b.from);
+                const to = toSeconds(b.to);
+                if (now >= from && now < to) {
+                    if (!best || best.type !== 'active') best = { type: 'active', b: b };
+                } else if (now < from && (from - now) <= 15 * 60) {
+                    if (best && best.type === 'active') return;
+                    if (!best || (from - now) < best.secondsLeft) best = { type: 'countdown', b: b, secondsLeft: from - now };
+                }
+            });
+
+            if (!best) {
+                el.style.display = 'none';
+                return;
+            }
+            const label = distinctDoctors ? (best.b.doctor + ' — ' + best.b.name) : best.b.name;
+            el.style.display = 'flex';
+            el.classList.toggle('mdbk-break-countdown-active', best.type === 'active');
+            if (best.type === 'active') {
+                el.innerHTML = CLOCK_ICON + '<span>' + label + ' — on break now</span>';
+            } else {
+                el.innerHTML = CLOCK_ICON + '<span>' + label + ' in ' + formatCountdown(best.secondsLeft) + '</span>';
+            }
+        }
+
+        tick();
+        setInterval(tick, 1000);
+    })();
+
     // ---- Doctors grid: search, specialty filter, pagination, grid/list view ----
     const doctorGrid = document.getElementById('mdbk-admin-doctor-grid');
     if (doctorGrid) {

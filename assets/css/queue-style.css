@@ -535,24 +535,24 @@
    card's own sibling rather than moved inside .mdbk-queue-list-columns,
    though, since that container's rows are reconciled/reordered in
    place by queue-view-script.js on every poll (matched by
-   data-appointment-id) and this element has none to match. A solid
-   fill (not the pale tint .mdbk-slot-break uses for a single booking
-   slot elsewhere in the plugin) — the doctor being away affects the
-   WHOLE queue, so it needs to outrank every row state below it
-   (including .mdbk-serving's own green) as the most attention-grabbing
-   color on the card. */
+   data-appointment-id) and this element has none to match. A quiet,
+   "disabled"-style grey (matching .mdbk-queue-list-row.mdbk-not-present's
+   own muted look below) rather than a loud solid fill — this is a
+   screen meant to sit on a wall and be glanced at repeatedly, so a
+   vivid attention-grabbing color got tiring fast instead of reading
+   as calm status information. */
 .mdbk-queue-break-notice {
     display: flex;
     align-items: center;
     gap: 8px;
     margin: 12px 16px 0;
     padding: 10px 14px;
-    background: #f59e0b;
-    border: 1px solid #d97706;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
     border-radius: 10px;
-    color: #fff;
+    color: #64748b;
     font-size: 14px;
-    font-weight: 700;
+    font-weight: 600;
 }
 .mdbk-queue-break-notice svg { flex-shrink: 0; }
 
