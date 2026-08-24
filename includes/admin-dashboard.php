@@ -943,7 +943,14 @@ class MDBK_Admin_Dashboard {
 
     public function handle_appointment_save() {
         if (!isset($_POST['mdbk_save_appointment'])) return;
-        if (!current_user_can(MDBK_CAP_QUEUE)) wp_die(__('You do not have permission to do this.', 'doctor-appointment'));
+        // Staff/admin, or a pure doctor account creating a NEW booking
+        // under their own name (the "+ New Booking" button on their own
+        // single-doctor Booking header) — editing an existing one stays
+        // MDBK_CAP_ADMIN-only regardless, via the separate check further
+        // down this same method.
+        $is_queue_staff = current_user_can(MDBK_CAP_QUEUE);
+        $own_doctor_id = (!$is_queue_staff && current_user_can(MDBK_CAP_DOCTOR)) ? \MDBK\MDBK_Appointment_Manager::get_doctor_id_for_user(get_current_user_id()) : 0;
+        if (!$is_queue_staff && !$own_doctor_id) wp_die(__('You do not have permission to do this.', 'doctor-appointment'));
         check_admin_referer('mdbk_save_appointment');
 
         $app_id = !empty($_POST['app_id']) ? intval($_POST['app_id']) : 0;
@@ -958,7 +965,11 @@ class MDBK_Admin_Dashboard {
                 'email'     => isset($_POST['patient_email']) ? $_POST['patient_email'] : '',
                 'age'       => isset($_POST['age']) ? $_POST['age'] : '',
                 'gender'    => isset($_POST['gender']) ? $_POST['gender'] : '',
-                'doctor'    => $_POST['doctor_id'],
+                // A doctor-only submitter always books under their own
+                // name — never trust the posted doctor_id for them, same
+                // rule handle_schedule_export()/ajax_refresh_doctor_group()
+                // already enforce for their own doctor_id/filter_doctor.
+                'doctor'    => $own_doctor_id ?: $_POST['doctor_id'],
                 'date'      => $_POST['app_date'],
                 'slot_time' => isset($_POST['slot_time']) ? $_POST['slot_time'] : '',
             ];
@@ -2199,9 +2210,12 @@ class MDBK_Admin_Dashboard {
             <div class="mdbk-main-content<?php echo $is_today_view ? ' mdbk-main-content-fixed-header' : ''; ?>">
                 <div class="mdbk-header"><div class="mdbk-header-left"><h1><?php _e('Booking', 'doctor-appointment'); ?></h1><p><?php echo $filter_date ? esc_html(date_i18n('l, F j, Y', strtotime($filter_date))) : esc_html__('All dates', 'doctor-appointment'); ?> <span id="mdbk-schedule-count" class="mdbk-total-count">&middot; <?php echo esc_html(sprintf(_n('%d patient', '%d patients', count($apps), 'doctor-appointment'), count($apps))); ?></span></p></div>
                 <div class="mdbk-header-right">
-                    <?php if (!$is_doctor_only): ?>
+                    <?php // A doctor account books under their own name via
+                    // this same modal (render_appointment_modal_html() below,
+                    // told which doctor it's for) — used to be staff/admin
+                    // only, with no way for a doctor to add a walk-in patient
+                    // to their own queue at all. ?>
                     <a href="#" class="mdbk-btn-add mdbk-add-appointment"><?php _e('+ New Booking', 'doctor-appointment'); ?></a>
-                    <?php endif; ?>
                 </div>
                 </div>
 
@@ -2225,7 +2239,7 @@ class MDBK_Admin_Dashboard {
                 </details>
                 <div id="mdbk-schedule-results"><?php echo $this->render_schedule_results_html($filter_date, $filter_doctor, $filter_status, $search, $apps, $is_today_view); ?></div>
                 <?php endif; ?>
-            </div></div><?php $this->render_appointment_modal_html(); $this->render_patient_view_modal_html(); $this->render_invoice_modal_html(); ?></div>
+            </div></div><?php $this->render_appointment_modal_html($is_doctor_only ? $own_doctor_id : 0); $this->render_patient_view_modal_html(); $this->render_invoice_modal_html(); ?></div>
         <?php
     }
 
@@ -2514,7 +2528,7 @@ class MDBK_Admin_Dashboard {
             . '<button type="button" class="mdbk-icon-btn mdbk-collapse-all" title="' . esc_attr__('Collapse All', 'doctor-appointment') . '"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="17 11 12 6 7 11"></polyline><polyline points="17 18 12 13 7 18"></polyline></svg></button>'
             . '</div>';
         ?>
-        <div class="mdbk-card" style="margin-bottom:20px;" data-doctor-id="<?php echo esc_attr($doctor_id); ?>" data-doctor-name="<?php echo $doctor_id ? esc_attr(get_the_title($doctor_id)) : ''; ?>">
+        <div class="mdbk-card" id="mdbk-today-queue-card" style="margin-bottom:20px;" data-doctor-id="<?php echo esc_attr($doctor_id); ?>" data-doctor-name="<?php echo $doctor_id ? esc_attr(get_the_title($doctor_id)) : ''; ?>">
             <div class="mdbk-card-header">
                 <h3><?php _e("Today's Queue", 'doctor-appointment'); ?></h3>
                 <?php if ($group_by_doctor) : ?>
@@ -4497,8 +4511,26 @@ class MDBK_Admin_Dashboard {
         wp_send_json_success(['results_html' => ob_get_clean()]);
     }
 
-    private function render_appointment_modal_html() {
+    /**
+     * $own_doctor_id: non-zero when this is being rendered for a pure
+     * doctor account's own single-doctor Booking header — "which
+     * doctor" isn't a real choice for them the way it is for staff, so
+     * that whole row is hidden and $all_doctors below is narrowed to
+     * just their own post, which — via the exact same markup every
+     * other case already uses — leaves the Doctor <select> holding
+     * their own ID as its only, pre-selected option. The underlying
+     * <select> stays in the DOM either way (never removed), just its
+     * row wrapper hidden: the slot-picker's own JS (admin-script.js)
+     * reads a doctor id straight off that element on every date pick,
+     * and null-ing it out instead of hiding it would silently break
+     * that lookup instead of just fixing it to one doctor.
+     */
+    private function render_appointment_modal_html($own_doctor_id = 0) {
         $all_doctors = get_posts(['post_type' => 'mdbk_doctor', 'numberposts' => -1, 'orderby' => 'menu_order', 'order' => 'ASC']);
+        if ($own_doctor_id) {
+            $own_doctor_post = get_post($own_doctor_id);
+            $all_doctors = ($own_doctor_post && $own_doctor_post->post_type === 'mdbk_doctor') ? [$own_doctor_post] : [];
+        }
 
         // hide_empty (WP's own published-post count per term) — a specialty
         // with zero doctors assigned isn't a real choice here either; it
@@ -4517,7 +4549,7 @@ class MDBK_Admin_Dashboard {
             <form id="mdbk-appointment-form" method="POST"><?php wp_nonce_field('mdbk_save_appointment'); ?><input type="hidden" name="app_id" id="mdbk-app-id">
             <div class="mdbk-modal-body">
                 <div class="mdbk-card-section-admin">
-                <div class="mdbk-form-row mdbk-form-row-duo">
+                <div class="mdbk-form-row mdbk-form-row-duo"<?php echo $own_doctor_id ? ' style="display:none;"' : ''; ?>>
                     <div>
                         <label class="mdbk-form-label" for="mdbk-app-spec-trigger"><?php _e('Specialty', 'doctor-appointment'); ?></label>
                         <div class="mdbk-custom-select" id="mdbk-app-spec-select">

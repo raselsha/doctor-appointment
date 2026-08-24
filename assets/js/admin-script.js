@@ -2495,6 +2495,32 @@ document.addEventListener('DOMContentLoaded', function() {
         mdbkDownloadHtmlAsImage(titleText, table.innerHTML, titleText.replace(/[^a-z0-9]+/gi, '-').toLowerCase() + '-today.png');
     });
 
+    // Today's Queue auto-refresh — periodically re-clicks every visible
+    // Refresh button inside the Today's Queue card (one per doctor group
+    // in the staff/admin grouped view, or the single one in a doctor
+    // account's own forced view), so new bookings/check-ins/serial
+    // changes show up without a manual reload. A whole-page
+    // setInterval(runSearch, ...) used to do this and was removed (see
+    // that function's own comment) because replacing the ENTIRE results
+    // markup on a timer reset every doctor group's open/closed state and
+    // the page's scroll position out from under whoever was reading it.
+    // Reusing each button's own click handler instead keeps that same
+    // "touch only this one doctor's rows" behavior a manual click
+    // already has — this just presses the button on a timer rather than
+    // introducing a second, cruder refresh path alongside it.
+    (function() {
+        const card = document.getElementById('mdbk-today-queue-card');
+        if (!card) return;
+        setInterval(function() {
+            // Skip while the tab isn't visible — no one's watching it
+            // update, so there's nothing to gain from the extra requests.
+            if (document.hidden) return;
+            card.querySelectorAll('.mdbk-refresh-group, .mdbk-refresh-today-card').forEach(function(btn) {
+                if (!btn.disabled) btn.click();
+            });
+        }, 15000);
+    })();
+
     function setSpecialtyIconPreview(url) {
         const preview = document.getElementById('mdbk-spec-icon-preview');
         const removeBtn = document.getElementById('mdbk-spec-icon-remove');
