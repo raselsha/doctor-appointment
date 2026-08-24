@@ -566,16 +566,49 @@
 .mdbk-admin-doctor-card.is-inactive { opacity: 0.55; filter: grayscale(0.5); }
 .mdbk-admin-doctor-card.is-inactive:hover { opacity: 0.8; }
 
-.mdbk-admin-doctor-card-avatar { width: 56px; height: 56px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 700; background: #eef1f5; color: #0061d5; grid-row: 1; grid-column: 1; overflow: hidden; flex-shrink: 0; }
+.mdbk-admin-doctor-card-avatar { width: 56px; height: 56px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 700; background: #eef1f5; color: #0061d5; grid-row: 2; grid-column: 1; overflow: hidden; flex-shrink: 0; }
 .mdbk-admin-doctor-card-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.mdbk-admin-doctor-card-body { display: flex; flex-direction: column; gap: 3px; min-width: 0; grid-row: 1; grid-column: 2; }
+.mdbk-admin-doctor-card-body { display: flex; flex-direction: column; gap: 3px; min-width: 0; grid-row: 2; grid-column: 2; }
 .mdbk-admin-doctor-card-name { font-size: 15px; font-weight: 600; color: #1e293b; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mdbk-admin-doctor-card-specialty { display: inline-flex; align-items: center; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; padding: 2px 8px; border-radius: 999px; width: fit-content; }
 .mdbk-admin-doctor-card-contact { display: flex; flex-direction: column; gap: 2px; font-size: 12px; color: #64748b; margin-top: 2px; }
 .mdbk-admin-doctor-card-contact span { display: flex; align-items: center; gap: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mdbk-admin-doctor-card-contact svg { flex-shrink: 0; color: #9ca3af; width: 12px; height: 12px; }
 
-.mdbk-admin-doctor-card-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-top: 8px; border-top: 1px solid #f0f2f5; grid-row: 2; grid-column: 1 / -1; margin-top: 2px; }
+/* Live Queue toggle / break countdown / Refresh-Print-Export-Image —
+   the same cluster of actions the Booking page's per-doctor group
+   header carries (see render_doctor_card()'s own comment for why they're
+   reinterpreted here rather than copied verbatim). Its own explicit grid
+   row (spanning both of the card's columns), ahead of the avatar/body
+   row below it. Stacked (toggle+icons row, then the break pill on its
+   own line below) rather than one shared row — this card is far
+   narrower than the Booking header the pill's shared styling was built
+   for, and there usually isn't room for all of it on one line.
+   padding-right reserves space for .mdbk-doctor-drag-handle, an
+   absolutely-positioned sibling further down that overlaps this same
+   top-right corner. */
+.mdbk-admin-doctor-card-topbar { grid-row: 1; grid-column: 1 / -1; padding: 0 32px 10px 0; margin-bottom: 2px; border-bottom: 1px solid #f0f2f5; }
+.mdbk-admin-doctor-card-topbar-row { display: flex; align-items: center; gap: 8px; min-height: 24px; }
+.mdbk-admin-doctor-card-topbar-actions { display: flex; gap: 4px; margin-left: auto; }
+/* Overrides .mdbk-break-countdown's own absolute-centered layout
+   (admin-style.css, built for the Booking header's single wide row) —
+   here it's the lone thing on its own line, so it just needs to sit in
+   normal flow and wrap within the card's own width like any other text,
+   never needing to measure a gap between neighbors or hide for lack of
+   one (fitPill() in admin-script.js already no-ops when either sibling
+   is missing, which is exactly the case once this row has none). */
+.mdbk-admin-doctor-card-topbar .mdbk-break-countdown { position: static; transform: none; left: auto; top: auto; justify-content: center; margin-top: 6px; max-width: 100%; white-space: normal; }
+/* Print/Download-Image read this table's own HTML as their source (see
+   admin-script.js's mdbk-print-doctor-card/mdbk-download-doctor-card-image
+   handlers) — never shown on screen itself. */
+.mdbk-admin-doctor-card-print-table { display: none; }
+/* Same static/centered override as the Doctors panel card above, and
+   for the same reason — render_profile_page()'s own single-column view
+   has no wide header row for the shared class's absolute-centered
+   layout to center against. */
+.mdbk-profile-view .mdbk-break-countdown { position: static; transform: none; left: auto; top: auto; justify-content: center; margin: 4px 0 12px; max-width: 100%; white-space: normal; }
+
+.mdbk-admin-doctor-card-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-top: 8px; border-top: 1px solid #f0f2f5; grid-row: 3; grid-column: 1 / -1; margin-top: 2px; }
 .mdbk-admin-doctor-active-toggle { gap: 6px; }
 .mdbk-admin-doctor-active-text { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; color: #9ca3af; }
 .mdbk-admin-doctor-active-toggle input:checked ~ .mdbk-admin-doctor-active-text { color: #16a34a; }
@@ -1114,7 +1147,9 @@ button.mdbk-slot-btn.mdbk-slot-break { cursor: not-allowed; pointer-events: none
    spins its icon while the AJAX request is in flight, same signal a native
    pull-to-refresh gives, so a slow request doesn't look like the click did
    nothing. */
-.mdbk-refresh-group svg.mdbk-spin { animation: mdbk-spin 0.7s linear infinite; }
+.mdbk-refresh-group svg.mdbk-spin,
+.mdbk-refresh-doctor-card svg.mdbk-spin,
+.mdbk-refresh-today-card svg.mdbk-spin { animation: mdbk-spin 0.7s linear infinite; }
 @keyframes mdbk-spin {
     from { transform: rotate(0deg); }
     to   { transform: rotate(360deg); }
@@ -1558,6 +1593,20 @@ button.mdbk-slot-btn.mdbk-slot-break { cursor: not-allowed; pointer-events: none
    the chevron now sits at the end of this cluster instead). */
 .mdbk-doctor-group-actions { display: flex; align-items: center; gap: 10px; margin-left: auto; }
 .mdbk-doctor-group-actions .mdbk-icon-btn { width: 30px; height: 30px; }
+/* Today's Queue single-doctor header (render_schedule_today_view()) —
+   the Live Queue toggle there is a direct .mdbk-card-header child, not
+   nested inside a .mdbk-doctor-group-actions wrapper like the grouped
+   view's own copy above, so it needs its own margin-left:auto to group
+   itself with .mdbk-today-card-actions after it at the header's right
+   edge (.mdbk-card-header's own justify-content:space-between only
+   pushes the FIRST and LAST children apart — with three children now
+   instead of two, the toggle would otherwise float in the middle
+   between the title and the action icons). Scoped to this one context
+   (child combinator) so it doesn't reach the grouped view's own toggle,
+   which already has a working position via its own wrapper. */
+.mdbk-card-header > .mdbk-doctor-live-queue-toggle { margin: 0 12px 0 auto; }
+.mdbk-today-card-actions { display: flex; align-items: center; gap: 10px; }
+.mdbk-today-card-print-table { display: none; }
 /* Coarse-pointer/no-hover devices (touchscreens) get a further bump on top
    of the base 30px/10px gap above — same reasoning as the doctor card's
    own drag handle: a touch target needs more room than a mouse cursor

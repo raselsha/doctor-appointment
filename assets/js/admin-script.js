@@ -2313,6 +2313,73 @@ document.addEventListener('DOMContentLoaded', function() {
         mdbkDownloadHtmlAsImage(titleText, table.innerHTML, titleText.replace(/[^a-z0-9]+/gi, '-').toLowerCase() + '-patients.png');
     });
 
+    // Doctors panel card's own Print/Download Image — same
+    // mdbkBuildPrintBody()/mdbkDownloadHtmlAsImage() helpers as the
+    // Booking page's per-doctor-group buttons above, just reading from
+    // this card's own .mdbk-admin-doctor-card-print-table (a profile
+    // summary, not a patient list) instead.
+    document.addEventListener('click', function(e) {
+        const btn = e.target.closest('.mdbk-print-doctor-card');
+        if (!btn) return;
+        const card = btn.closest('.mdbk-admin-doctor-card');
+        if (!card) return;
+        const table = card.querySelector('.mdbk-admin-doctor-card-print-table');
+        if (!table) return;
+        const titleText = card.dataset.name || 'Doctor';
+        const win = window.open('', '_blank', 'width=700,height=600');
+        if (!win) return;
+        win.document.write(
+            '<html><head><title>' + titleText + '</title><style>' + MDBK_PRINT_STYLES + '</style></head><body>' +
+            mdbkBuildPrintBody(titleText, table.innerHTML) +
+            '</body></html>'
+        );
+        win.document.close();
+        win.focus();
+        win.print();
+    });
+    document.addEventListener('click', function(e) {
+        const btn = e.target.closest('.mdbk-download-doctor-card-image');
+        if (!btn) return;
+        const card = btn.closest('.mdbk-admin-doctor-card');
+        if (!card) return;
+        const table = card.querySelector('.mdbk-admin-doctor-card-print-table');
+        if (!table) return;
+        const titleText = card.dataset.name || 'Doctor';
+        mdbkDownloadHtmlAsImage(titleText, table.innerHTML, titleText.replace(/[^a-z0-9]+/gi, '-').toLowerCase() + '-profile.png');
+    });
+    // Refresh — re-fetches and swaps in just this one card's markup
+    // (ajax_refresh_doctor_card() in admin-dashboard.php), same
+    // touch-only-what-was-clicked idea as the Booking page's own
+    // per-doctor-group Refresh below. outerHTML (not an inner swap) is
+    // safe here since, unlike that page's <details> groups, this card
+    // has no open/closed state of its own to lose.
+    document.addEventListener('click', function(e) {
+        const btn = e.target.closest('.mdbk-refresh-doctor-card');
+        if (!btn || typeof mdbk_admin_obj === 'undefined') return;
+        const card = btn.closest('.mdbk-admin-doctor-card');
+        if (!card || btn.disabled) return;
+        const icon = btn.querySelector('svg');
+        btn.disabled = true;
+        if (icon) icon.classList.add('mdbk-spin');
+        const body = new URLSearchParams();
+        body.set('action', 'mdbk_refresh_doctor_card');
+        body.set('nonce', mdbk_admin_obj.nonce);
+        body.set('doctor_id', card.dataset.id || '0');
+        fetch(mdbk_admin_obj.ajax_url, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body.toString() })
+            .then(function(r) { return r.json(); })
+            .then(function(res) {
+                if (!res || !res.success || !res.data || typeof res.data.html !== 'string') return;
+                const tmp = document.createElement('div');
+                tmp.innerHTML = res.data.html.trim();
+                const fresh = tmp.firstElementChild;
+                if (fresh) card.replaceWith(fresh);
+            })
+            .finally(function() {
+                if (icon) icon.classList.remove('mdbk-spin');
+                btn.disabled = false;
+            });
+    });
+
     // Per-doctor-group manual Refresh — replaces the earlier
     // setInterval(runSearch, 12000) whole-page auto-refresh (see the
     // schedule search IIFE above), which wholesale-replaced
@@ -2361,6 +2428,71 @@ document.addEventListener('DOMContentLoaded', function() {
                 btn.disabled = false;
                 if (icon) icon.classList.remove('mdbk-spin');
             });
+    });
+
+    // Single-doctor Today's Queue header's own Refresh/Print/Download
+    // Image — same trio as the grouped view's per-doctor Refresh above,
+    // reusing that exact mdbk_refresh_doctor_group AJAX action (it only
+    // ever needed doctor_id + is_today, both fixed/known here) and the
+    // same mdbkBuildPrintBody()/mdbkDownloadHtmlAsImage() print helpers,
+    // just scoped to .mdbk-card instead of .mdbk-doctor-group since a
+    // pure doctor account's forced single-doctor view has no <details>
+    // wrapper for those original handlers to find.
+    document.addEventListener('click', function(e) {
+        const btn = e.target.closest('.mdbk-refresh-today-card');
+        if (!btn || typeof mdbk_admin_obj === 'undefined') return;
+        const card = btn.closest('.mdbk-card');
+        if (!card || btn.disabled) return;
+        const icon = btn.querySelector('svg');
+        btn.disabled = true;
+        if (icon) icon.classList.add('mdbk-spin');
+        const body = new URLSearchParams();
+        body.set('action', 'mdbk_refresh_doctor_group');
+        body.set('nonce', mdbk_admin_obj.nonce);
+        body.set('doctor_id', card.dataset.doctorId || '0');
+        body.set('is_today', '1');
+        fetch(mdbk_admin_obj.ajax_url, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body.toString() })
+            .then(function(r) { return r.json(); })
+            .then(function(res) {
+                if (!res || !res.success) return;
+                const listEl = card.querySelector('#mdbk-today-queue-list');
+                const tableEl = card.querySelector('.mdbk-today-card-print-table');
+                if (listEl) listEl.innerHTML = res.data.list_html;
+                if (tableEl) tableEl.innerHTML = res.data.print_table_html;
+            })
+            .finally(function() {
+                btn.disabled = false;
+                if (icon) icon.classList.remove('mdbk-spin');
+            });
+    });
+    document.addEventListener('click', function(e) {
+        const btn = e.target.closest('.mdbk-print-today-card');
+        if (!btn) return;
+        const card = btn.closest('.mdbk-card');
+        if (!card) return;
+        const table = card.querySelector('.mdbk-today-card-print-table');
+        if (!table) return;
+        const titleText = card.dataset.doctorName || "Today's Queue";
+        const win = window.open('', '_blank', 'width=900,height=700');
+        if (!win) return;
+        win.document.write(
+            '<html><head><title>' + titleText + '</title><style>' + MDBK_PRINT_STYLES + '</style></head><body>' +
+            mdbkBuildPrintBody(titleText, table.innerHTML) +
+            '</body></html>'
+        );
+        win.document.close();
+        win.focus();
+        win.print();
+    });
+    document.addEventListener('click', function(e) {
+        const btn = e.target.closest('.mdbk-download-today-card-image');
+        if (!btn) return;
+        const card = btn.closest('.mdbk-card');
+        if (!card) return;
+        const table = card.querySelector('.mdbk-today-card-print-table');
+        if (!table) return;
+        const titleText = card.dataset.doctorName || "Today's Queue";
+        mdbkDownloadHtmlAsImage(titleText, table.innerHTML, titleText.replace(/[^a-z0-9]+/gi, '-').toLowerCase() + '-today.png');
     });
 
     function setSpecialtyIconPreview(url) {
@@ -2910,7 +3042,19 @@ document.addEventListener('DOMContentLoaded', function() {
         // label hides the pill rather than showing a mangled fragment of
         // it. Either way the header's own height never moves, since this
         // stays position:absolute throughout.
+        //
+        // Only meaningful for that position:absolute case — the doctor
+        // card's own dedicated break-pill line and the Profile page's
+        // copy (admin-style.css, both override this class back to
+        // position:static) have no horizontally-adjacent siblings to
+        // measure a gap against in the first place: previousElementSibling/
+        // nextElementSibling there are stacked ABOVE and BELOW it, not
+        // beside it, so measuring "gap" between them would just be
+        // meaningless (and, in practice, reliably negative — hiding a
+        // pill that had every bit of room it needed). Those contexts
+        // size themselves through ordinary CSS text wrapping instead.
         function fitPill(el) {
+            if (getComputedStyle(el).position !== 'absolute') return;
             const left = el.previousElementSibling;
             const right = el.nextElementSibling;
             if (!left || !right) return;

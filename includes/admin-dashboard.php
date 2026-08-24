@@ -33,6 +33,7 @@ class MDBK_Admin_Dashboard {
         add_action('wp_ajax_mdbk_toggle_skip', [$this, 'ajax_toggle_skip']);
         add_action('wp_ajax_mdbk_start_visiting', [$this, 'ajax_start_visiting']);
         add_action('wp_ajax_mdbk_refresh_doctor_group', [$this, 'ajax_refresh_doctor_group']);
+        add_action('wp_ajax_mdbk_refresh_doctor_card', [$this, 'ajax_refresh_doctor_card']);
         add_filter('login_redirect', [$this, 'doctor_login_redirect'], 10, 3);
         add_filter('edit_profile_url', [$this, 'redirect_profile_url'], 10, 3);
         add_filter('admin_body_class', [$this, 'admin_body_class']);
@@ -335,11 +336,25 @@ class MDBK_Admin_Dashboard {
      */
     public function ajax_refresh_doctor_group() {
         check_ajax_referer('mdbk_admin_nonce', 'nonce');
-        if (!current_user_can(MDBK_CAP_QUEUE)) {
+        // Staff/admin refreshing any doctor's group in the grouped view,
+        // or a pure doctor account refreshing their own single-doctor
+        // Today's Queue header (render_schedule_today_view()'s own
+        // Refresh button, added later, reuses this same endpoint) — this
+        // used to recognize only the first group, so that button silently
+        // no-opped (wp_send_json_error() with no thrown exception for
+        // admin-script.js's own fetch to catch) for every doctor login.
+        $is_queue_staff = current_user_can(MDBK_CAP_QUEUE);
+        $own_doctor_id = (!$is_queue_staff && current_user_can(MDBK_CAP_DOCTOR)) ? \MDBK\MDBK_Appointment_Manager::get_doctor_id_for_user(get_current_user_id()) : 0;
+        if (!$is_queue_staff && !$own_doctor_id) {
             wp_send_json_error(['message' => __('Unauthorized.', 'doctor-appointment')]);
         }
 
-        $doctor_id = isset($_POST['doctor_id']) ? intval($_POST['doctor_id']) : 0;
+        // A doctor-only account can only ever refresh their OWN group —
+        // never trust the posted doctor_id for them, same rule
+        // handle_schedule_export() now enforces on its own filter_doctor.
+        $doctor_id = $is_queue_staff
+            ? (isset($_POST['doctor_id']) ? intval($_POST['doctor_id']) : 0)
+            : $own_doctor_id;
         $is_today = isset($_POST['is_today']) && $_POST['is_today'] === '1';
         $search = isset($_POST['s']) ? sanitize_text_field($_POST['s']) : '';
         $filter_status = isset($_POST['filter_status']) ? sanitize_text_field($_POST['filter_status']) : '';
@@ -377,6 +392,27 @@ class MDBK_Admin_Dashboard {
             'print_table_html' => $print_table_html,
             'is_visiting'      => $is_visiting,
         ]);
+    }
+
+    /**
+     * The Doctors panel card's own Refresh button — re-renders one
+     * doctor's card server-side and hands the fresh HTML back so
+     * admin-script.js can swap it in place, the same "touch only what was
+     * clicked" idea as ajax_refresh_doctor_group() above.
+     */
+    public function ajax_refresh_doctor_card() {
+        check_ajax_referer('mdbk_admin_nonce', 'nonce');
+        if (!current_user_can(MDBK_CAP_ADMIN)) {
+            wp_send_json_error(['message' => __('Unauthorized.', 'doctor-appointment')]);
+        }
+
+        $doctor_id = isset($_POST['doctor_id']) ? intval($_POST['doctor_id']) : 0;
+        $doctor = $doctor_id ? get_post($doctor_id) : null;
+        if (!$doctor || $doctor->post_type !== 'mdbk_doctor') {
+            wp_send_json_error(['message' => __('Doctor not found.', 'doctor-appointment')]);
+        }
+
+        wp_send_json_success(['html' => $this->render_doctor_card($doctor)]);
     }
 
     /**
@@ -1683,9 +1719,76 @@ class MDBK_Admin_Dashboard {
         $thumb = get_the_post_thumbnail_url($d->ID, 'thumbnail');
         $thumb_id = get_post_thumbnail_id($d->ID);
         $colors = self::specialty_colors($spec_id);
+        $is_admin_viewer = current_user_can(MDBK_CAP_ADMIN);
+        $live_queue_enabled = \MDBK\MDBK_Appointment_Manager::is_doctor_live_queue_enabled($d->ID);
+        // Same "all bookings, not just today" export this doctor's own
+        // Booking-page header link uses via the "All Dates" opt-out
+        // (filter_date='') — a profile card isn't date-scoped the way
+        // that page is, so defaulting to today (parse_schedule_filters()'
+        // own behavior for a plain, dateless URL) would export nothing
+        // most of the time.
+        $csv_url = wp_nonce_url(add_query_arg(['page' => 'mdbk-schedule', 'filter_date' => '', 'filter_doctor' => $d->ID, 'mdbk_export' => 'csv'], admin_url('admin.php')), 'mdbk_export_csv');
         ob_start();
         ?>
         <div class="mdbk-admin-doctor-card<?php echo $active ? '' : ' is-inactive'; ?>" data-id="<?php echo esc_attr($d->ID); ?>" data-name="<?php echo esc_attr($d->post_title); ?>" data-email="<?php echo esc_attr($email); ?>" data-phone="<?php echo esc_attr($phone); ?>" data-bio="<?php echo esc_attr($bio); ?>" data-show-phone="<?php echo esc_attr($show_phone ? $show_phone : 'yes'); ?>" data-show-email="<?php echo esc_attr($show_email ? $show_email : 'yes'); ?>" data-schedule='<?php echo esc_attr(json_encode($schedule)); ?>' data-slot-duration="<?php echo esc_attr($slot_duration ? $slot_duration : 20); ?>" data-slot-enabled="<?php echo esc_attr($slot_enabled === 'no' ? 'no' : 'yes'); ?>" data-extra-dates='<?php echo esc_attr(json_encode(is_array($extra_dates) ? $extra_dates : [])); ?>' data-off-dates='<?php echo esc_attr(json_encode(is_array($off_dates) ? $off_dates : [])); ?>' data-specialty="<?php echo esc_attr($spec_id); ?>" data-thumbnail="<?php echo esc_url($thumb ?: ''); ?>" data-thumbnail-id="<?php echo esc_attr($thumb_id ?: 0); ?>" data-fee="<?php echo esc_attr($fee ?: ''); ?>" data-breaks='<?php echo esc_attr(json_encode($breaks)); ?>'>
+            <?php // Same set of actions the Booking page's per-doctor group
+            // header carries (Live Queue toggle, Refresh, Print, Export
+            // CSV, Download Image) — reinterpreted for a profile card
+            // instead of a queue list: Refresh re-fetches this one card,
+            // Print/Image work off this card's own info table below
+            // (.mdbk-admin-doctor-card-print-table) instead of a patient
+            // table, and Export CSV reuses that exact same per-doctor
+            // link, just scoped to every date instead of one filtered day.
+            // Management actions stay admin-only, same as the Active
+            // toggle/Delete button further down — this card is also a
+            // doctor's own read-only "Profile" view (see this function's
+            // own docblock), and a doctor has no business re-exporting or
+            // refreshing their own listing. The break countdown is the
+            // one piece that stays visible to whoever can see the card at
+            // all, doctor included — it's their own live status, not a
+            // management action. ?>
+            <?php if ($is_admin_viewer || !empty($breaks)) : ?>
+            <div class="mdbk-admin-doctor-card-topbar">
+                <?php // Toggle + action icons share one row (space-between);
+                // the break pill gets its own full-width line below rather
+                // than sharing this one — this card is far narrower than the
+                // Booking header the pill's absolute-centered layout was
+                // designed for, and there usually isn't room for a doctor
+                // name-length break label alongside a toggle AND four icons
+                // on a single line. A dedicated line means it never has to
+                // compete with them for space and so never has a reason to
+                // hide (see .mdbk-admin-doctor-card-topbar .mdbk-break-countdown
+                // in admin-style.css, which drops the shared class's
+                // absolute-positioning for a plain static, wrapping one here). ?>
+                <?php if ($is_admin_viewer) : ?>
+                <div class="mdbk-admin-doctor-card-topbar-row">
+                    <label class="mdbk-toggle mdbk-mini-toggle mdbk-doctor-live-queue-toggle" title="<?php esc_attr_e('Live Queue display for this doctor', 'doctor-appointment'); ?>">
+                        <input type="checkbox" class="mdbk-doctor-live-queue-checkbox" data-doctor-id="<?php echo esc_attr($d->ID); ?>" <?php checked($live_queue_enabled); ?>>
+                        <span class="mdbk-toggle-slider"></span><span class="mdbk-mini-toggle-text"><?php _e('Live Queue', 'doctor-appointment'); ?></span>
+                    </label>
+                    <span class="mdbk-admin-doctor-card-topbar-actions">
+                        <button type="button" class="mdbk-icon-btn mdbk-icon-btn-xs mdbk-refresh-doctor-card" data-id="<?php echo esc_attr($d->ID); ?>" title="<?php esc_attr_e('Refresh', 'doctor-appointment'); ?>"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg></button>
+                        <button type="button" class="mdbk-icon-btn mdbk-icon-btn-xs mdbk-print-doctor-card" title="<?php esc_attr_e('Print', 'doctor-appointment'); ?>"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg></button>
+                        <a href="<?php echo esc_url($csv_url); ?>" class="mdbk-icon-btn mdbk-icon-btn-xs" title="<?php esc_attr_e('Export CSV', 'doctor-appointment'); ?>"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg></a>
+                        <button type="button" class="mdbk-icon-btn mdbk-icon-btn-xs mdbk-download-doctor-card-image" title="<?php esc_attr_e('Download as Image', 'doctor-appointment'); ?>"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg></button>
+                    </span>
+                </div>
+                <?php endif; ?>
+                <?php echo $this->render_break_countdown_el($d->ID); ?>
+            </div>
+            <?php if ($is_admin_viewer) : ?>
+            <div class="mdbk-admin-doctor-card-print-table" style="display:none;">
+                <table>
+                    <tr><th><?php _e('Specialty', 'doctor-appointment'); ?></th><td><?php echo esc_html($spec_name); ?></td></tr>
+                    <tr><th><?php _e('Email', 'doctor-appointment'); ?></th><td><?php echo esc_html($email ?: '—'); ?></td></tr>
+                    <tr><th><?php _e('Phone', 'doctor-appointment'); ?></th><td><?php echo esc_html($phone ?: '—'); ?></td></tr>
+                    <tr><th><?php _e('Slot Duration', 'doctor-appointment'); ?></th><td><?php echo esc_html(($slot_duration ?: 20) . ' ' . __('min', 'doctor-appointment')); ?></td></tr>
+                    <tr><th><?php _e('Consultation Fee', 'doctor-appointment'); ?></th><td><?php echo $fee !== '' ? esc_html('৳' . $fee) : '—'; ?></td></tr>
+                    <tr><th><?php _e('Status', 'doctor-appointment'); ?></th><td><?php echo $active ? esc_html__('Active', 'doctor-appointment') : esc_html__('Inactive', 'doctor-appointment'); ?></td></tr>
+                </table>
+            </div>
+            <?php endif; ?>
+            <?php endif; ?>
             <?php if (current_user_can(MDBK_CAP_ADMIN)) : ?>
             <span class="mdbk-doctor-drag-handle" title="<?php esc_attr_e('Drag to reorder', 'doctor-appointment'); ?>"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><circle cx="8" cy="6" r="1.6"></circle><circle cx="16" cy="6" r="1.6"></circle><circle cx="8" cy="12" r="1.6"></circle><circle cx="16" cy="12" r="1.6"></circle><circle cx="8" cy="18" r="1.6"></circle><circle cx="16" cy="18" r="1.6"></circle></svg></span>
             <?php endif; ?>
@@ -1976,10 +2079,23 @@ class MDBK_Admin_Dashboard {
      */
     public function handle_schedule_export() {
         if (!isset($_GET['page']) || $_GET['page'] !== 'mdbk-schedule' || !isset($_GET['mdbk_export'])) return;
-        if (!current_user_can(MDBK_CAP_QUEUE)) wp_die(__('You do not have permission to do this.', 'doctor-appointment'));
+        // Same two ways in as render_schedule_page() itself: staff/admin
+        // with the plugin-wide MDBK_CAP_QUEUE, or a pure doctor account
+        // exporting their own queue (MDBK_CAP_DOCTOR only) — the Export
+        // CSV link on that account's own single-doctor Booking header
+        // (render_schedule_today_view()) used to 403 here, since this
+        // check only ever recognized the first group.
+        $is_queue_staff = current_user_can(MDBK_CAP_QUEUE);
+        $own_doctor_id = (!$is_queue_staff && current_user_can(MDBK_CAP_DOCTOR)) ? \MDBK\MDBK_Appointment_Manager::get_doctor_id_for_user(get_current_user_id()) : 0;
+        if (!$is_queue_staff && !$own_doctor_id) wp_die(__('You do not have permission to do this.', 'doctor-appointment'));
         check_admin_referer('mdbk_export_csv');
 
         list($filter_date, $filter_doctor, $filter_status) = $this->parse_schedule_filters();
+        // A doctor-only account exports their own queue only, always —
+        // same rule render_schedule_page() enforces on the on-screen
+        // view, regardless of whatever filter_doctor a hand-edited URL
+        // asks for.
+        if (!$is_queue_staff) $filter_doctor = $own_doctor_id;
         $apps = $this->get_filtered_appointments($filter_date, $filter_doctor, $filter_status);
 
         nocache_headers();
@@ -2398,7 +2514,7 @@ class MDBK_Admin_Dashboard {
             . '<button type="button" class="mdbk-icon-btn mdbk-collapse-all" title="' . esc_attr__('Collapse All', 'doctor-appointment') . '"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="17 11 12 6 7 11"></polyline><polyline points="17 18 12 13 7 18"></polyline></svg></button>'
             . '</div>';
         ?>
-        <div class="mdbk-card" style="margin-bottom:20px;">
+        <div class="mdbk-card" style="margin-bottom:20px;" data-doctor-id="<?php echo esc_attr($doctor_id); ?>" data-doctor-name="<?php echo $doctor_id ? esc_attr(get_the_title($doctor_id)) : ''; ?>">
             <div class="mdbk-card-header">
                 <h3><?php _e("Today's Queue", 'doctor-appointment'); ?></h3>
                 <?php if ($group_by_doctor) : ?>
@@ -2427,8 +2543,33 @@ class MDBK_Admin_Dashboard {
                         <input type="checkbox" class="mdbk-doctor-live-queue-checkbox" data-doctor-id="<?php echo esc_attr($doctor_id); ?>" <?php checked($live_queue_enabled); ?>>
                         <span class="mdbk-toggle-slider"></span><span class="mdbk-mini-toggle-text"><?php _e('Live Queue', 'doctor-appointment'); ?></span>
                     </label>
+                    <?php // Same Refresh/Print/Export CSV/Download Image cluster
+                    // the grouped view's own per-doctor <summary> carries (see
+                    // render_patient_list_html()) — a pure doctor account is
+                    // forced into exactly this single-doctor branch with no
+                    // grouped header to get them from, so without this they
+                    // never had a way to print/export/refresh their OWN queue
+                    // at all, only staff viewing every doctor at once did.
+                    // New classes rather than the grouped view's
+                    // .mdbk-refresh-group/etc. — those look for a
+                    // .mdbk-doctor-group wrapper (the <details> element) that
+                    // doesn't exist here; ajax_refresh_doctor_group() itself
+                    // is still reused as-is, it only ever needed doctor_id +
+                    // is_today, both already true here. ?>
+                    <span class="mdbk-today-card-actions">
+                        <button type="button" class="mdbk-icon-btn mdbk-refresh-today-card" title="<?php esc_attr_e('Refresh', 'doctor-appointment'); ?>"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg></button>
+                        <button type="button" class="mdbk-icon-btn mdbk-print-today-card" title="<?php esc_attr_e('Print', 'doctor-appointment'); ?>"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg></button>
+                        <?php $today_export_url = wp_nonce_url(add_query_arg(['page' => 'mdbk-schedule', 'filter_date' => current_time('Y-m-d'), 'filter_doctor' => $doctor_id, 'mdbk_export' => 'csv'], admin_url('admin.php')), 'mdbk_export_csv'); ?>
+                        <a href="<?php echo esc_url($today_export_url); ?>" class="mdbk-icon-btn" title="<?php esc_attr_e('Export CSV', 'doctor-appointment'); ?>"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg></a>
+                        <button type="button" class="mdbk-icon-btn mdbk-download-today-card-image" title="<?php esc_attr_e('Download as Image', 'doctor-appointment'); ?>"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg></button>
+                    </span>
                 <?php endif; ?>
             </div>
+            <?php if ($doctor_id) : ?>
+            <div class="mdbk-today-card-print-table" style="display:none;">
+                <?php $this->render_today_queue_table($today_apps_display, false); ?>
+            </div>
+            <?php endif; ?>
             <?php if ($today_apps_display): ?>
             <div class="mdbk-patient-list" id="mdbk-today-queue-list" data-view-doctor-id="<?php echo esc_attr($doctor_id); ?>">
                 <?php echo $this->render_patient_list_html($today_apps_display, $group_by_doctor, $serving_doctor_ids, true); ?>
@@ -2565,6 +2706,16 @@ class MDBK_Admin_Dashboard {
                                 <div class="mdbk-view-field"><label><?php _e('Slot Duration', 'doctor-appointment'); ?></label><span><?php echo esc_html($slot_duration); ?> <?php _e('min', 'doctor-appointment'); ?></span></div>
                             </div>
                         </div>
+                        <?php // A doctor's own live break status — the one piece
+                        // of the Booking page header worth surfacing here (see
+                        // render_doctor_card()'s own comment on why the rest of
+                        // that header's actions don't belong on a profile view).
+                        // This page has its own separate markup rather than
+                        // reusing render_doctor_card() (a real WP_Post's schedule
+                        // needs the day-label/current-week context this branch
+                        // already built above it), so it needs its own copy of
+                        // this call. ?>
+                        <?php echo $this->render_break_countdown_el($doctor_id); ?>
                         <div class="mdbk-view-field mdbk-view-field-full"><label><?php _e('Bio', 'doctor-appointment'); ?></label><span><?php echo esc_html($bio ?: '—'); ?></span></div>
                         <details class="mdbk-availability-section" open>
                             <summary class="mdbk-availability-header"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="3"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg><h4><?php _e('Weekly Availability', 'doctor-appointment'); ?></h4><span class="mdbk-availability-chevron"></span></summary>
@@ -2579,6 +2730,30 @@ class MDBK_Admin_Dashboard {
                                 <?php endforeach; ?>
                             </div>
                         </details>
+                        <?php // Same "only if there's anything to show" rule as
+                        // Monthly Availability just below — a permanent list of
+                        // this doctor's configured breaks, distinct from the
+                        // live countdown pill above (which only appears within
+                        // 10 minutes of one and says nothing the rest of the
+                        // day). Matches the Edit modal's own "Break Times"
+                        // section (same icon, same section ordering right
+                        // after Weekly Availability) and the admin "View"
+                        // popup's copy (admin-script.js) — this page just
+                        // needed its own, being server-rendered rather than
+                        // built from a data-breaks attribute. ?>
+                        <?php if ($breaks): ?>
+                        <details class="mdbk-availability-section">
+                            <summary class="mdbk-availability-header"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg><h4><?php _e('Break Times', 'doctor-appointment'); ?></h4><span class="mdbk-availability-chevron"></span></summary>
+                            <div class="mdbk-view-schedule-list">
+                                <?php foreach ($breaks as $b): if (empty($b['from']) || empty($b['to'])) continue; ?>
+                                <div class="mdbk-view-day-row">
+                                    <span class="mdbk-view-day-name"><?php echo esc_html($b['name'] ?? ''); ?></span>
+                                    <span class="mdbk-view-day-hours"><?php echo esc_html(date_i18n(get_option('time_format'), strtotime($b['from'])) . ' – ' . date_i18n(get_option('time_format'), strtotime($b['to']))); ?></span>
+                                </div>
+                                <?php endforeach; ?>
+                            </div>
+                        </details>
+                        <?php endif; ?>
                         <?php if ($extra_dates || $off_dates): ?>
                         <details class="mdbk-availability-section">
                             <summary class="mdbk-availability-header"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="3"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line><circle cx="12" cy="15" r="2"></circle></svg><h4><?php _e('Monthly Availability', 'doctor-appointment'); ?></h4><span class="mdbk-availability-chevron"></span></summary>
@@ -3763,7 +3938,20 @@ class MDBK_Admin_Dashboard {
             <?php _e('Back to WordPress', 'doctor-appointment'); ?>
         </a>
         <?php endif; ?>
-        <div class="mdbk-sidebar-footer"><div class="mdbk-user-avatar"></div><div class="mdbk-user-info"><div style="font-weight: 700; font-size: 13px;"><?php echo esc_html(wp_get_current_user()->display_name); ?></div><div style="font-size: 11px; opacity: 0.6;"><?php _e('Medical Center', 'doctor-appointment'); ?></div></div></div>
+        <?php
+        // A doctor account's own name (not their WP display name, which
+        // for most of these accounts just defaults to the login username
+        // — see e.g. "mdkudrat" — no one had set a friendlier one) —
+        // falls back to the WP display name for staff/admin, who have no
+        // linked doctor profile to name themselves after. The username
+        // moves down to the subtitle line, in place of the old static
+        // "Medical Center" text that never reflected anything about who
+        // was actually logged in.
+        $footer_user = wp_get_current_user();
+        $footer_doctor_id = \MDBK\MDBK_Appointment_Manager::get_doctor_id_for_user($footer_user->ID);
+        $footer_name = $footer_doctor_id ? get_the_title($footer_doctor_id) : $footer_user->display_name;
+        ?>
+        <div class="mdbk-sidebar-footer"><div class="mdbk-user-avatar"></div><div class="mdbk-user-info"><div style="font-weight: 700; font-size: 13px;"><?php echo esc_html($footer_name); ?></div><div style="font-size: 11px; opacity: 0.6;"><?php echo esc_html($footer_user->user_login); ?></div></div></div>
         <?php
         // Sends a logged-out visitor to the MedBook theme's own themed Login
         // page (page-templates/login.php) instead of wp-login.php's default
