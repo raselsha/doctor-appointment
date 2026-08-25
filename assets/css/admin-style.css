@@ -1594,18 +1594,11 @@ button.mdbk-slot-btn.mdbk-slot-break { cursor: not-allowed; pointer-events: none
 .mdbk-doctor-group-actions { display: flex; align-items: center; gap: 10px; margin-left: auto; }
 .mdbk-doctor-group-actions .mdbk-icon-btn { width: 30px; height: 30px; }
 /* Today's Queue single-doctor header (render_schedule_today_view()) —
-   the Live Queue toggle there is a direct .mdbk-card-header child, not
-   nested inside a .mdbk-doctor-group-actions wrapper like the grouped
-   view's own copy above, so it needs its own margin-left:auto to group
-   itself with .mdbk-today-card-actions after it at the header's right
-   edge (.mdbk-card-header's own justify-content:space-between only
-   pushes the FIRST and LAST children apart — with three children now
-   instead of two, the toggle would otherwise float in the middle
-   between the title and the action icons). Scoped to this one context
-   (child combinator) so it doesn't reach the grouped view's own toggle,
-   which already has a working position via its own wrapper. */
-.mdbk-card-header > .mdbk-doctor-live-queue-toggle { margin: 0 12px 0 auto; }
-.mdbk-today-card-actions { display: flex; align-items: center; gap: 10px; }
+   the Live Queue toggle lives inside .mdbk-today-card-actions (first
+   child, same as the grouped view's own .mdbk-doctor-group-actions
+   above), so the same margin-left:auto on the wrapper groups the whole
+   toggle+icons cluster at the header's right edge in one move. */
+.mdbk-today-card-actions { display: flex; align-items: center; gap: 10px; margin-left: auto; }
 .mdbk-today-card-print-table { display: none; }
 /* Coarse-pointer/no-hover devices (touchscreens) get a further bump on top
    of the base 30px/10px gap above — same reasoning as the doctor card's
@@ -2091,6 +2084,15 @@ body.mdbk-doctor-chrome .mdbk-admin-wrapper {
 @media (max-width: 782px) {
     #mdbk-admin-dashboard { margin: 0; }
     .mdbk-admin-wrapper { border-radius: 0; box-shadow: none; }
+    /* body.mdbk-doctor-chrome .mdbk-admin-wrapper's own 20px top/left/
+       right/bottom insets (further up this file) are sized for a
+       floating desktop card and never had a mobile override — on an
+       actual phone that's 40px of screen width and height gone to a
+       gap nobody asked for. Zeroed out here instead, so a doctor/staff/
+       manager login's panel (this rule only ever applies to them) uses
+       the full viewport the same as border-radius/box-shadow above
+       already do for every login. */
+    body.mdbk-doctor-chrome .mdbk-admin-wrapper { top: 0; left: 0; right: 0; bottom: 0; }
     .mdbk-mobile-menu-toggle { display: flex; }
     /* translateX (not display:none) so the slide transition has something
        to animate, and so the sidebar's own scroll position/DOM state
@@ -2100,13 +2102,33 @@ body.mdbk-doctor-chrome .mdbk-admin-wrapper {
         top: 0;
         left: 0;
         width: 260px;
-        height: 100%;
+        height: 100vh;
+        /* This element's own 30px top/bottom padding (base rule, further
+           up this file) was being added ON TOP of height:100%/100vh
+           rather than eaten out of it — box-sizing defaults to
+           content-box, so "100% tall" really rendered as "100% tall,
+           PLUS 60px of padding", 60px more than the viewport itself.
+           That silently pushed the footer/Logout block that far below
+           the fold, with nothing to scroll to reach them (scrollHeight
+           and clientHeight had grown together, so overflow-y:auto saw
+           nothing to scroll). border-box makes the padding come out of
+           the 100vh instead of adding to it, so the box actually IS the
+           full viewport height it claims to be. */
+        box-sizing: border-box;
         z-index: 1000;
         transform: translateX(-100%);
         transition: transform 0.25s ease;
         box-shadow: 4px 0 20px rgba(0, 0, 0, 0.25);
     }
     .mdbk-sidebar.is-open { transform: translateX(0); }
+    /* Closed: hamburger sits at the drawer's own future top-left corner,
+       where it's about to slide in from. Open: staying there put the ×
+       directly on top of the sidebar's own logo/clinic-contact text (the
+       drawer is exactly as wide as this button's original position
+       assumed empty) — 206px = the drawer's own 260px width minus this
+       button's 40px minus the same 14px margin the closed state uses,
+       landing it in the drawer's own top-right corner instead. */
+    .mdbk-mobile-menu-toggle.is-open { left: 206px; }
     .mdbk-main-content {
         width: 100%;
         padding: 20px 16px;
@@ -2127,6 +2149,32 @@ body.mdbk-doctor-chrome .mdbk-admin-wrapper {
     .mdbk-doctor-group { margin-left: 12px; margin-right: 12px; }
     .mdbk-doctor-group-header { flex-wrap: wrap; padding: 12px 14px; }
     .mdbk-doctor-group-actions { margin-left: 0; flex-basis: 100%; justify-content: flex-end; }
+    /* Today's Queue card header (single-doctor view) — same two-row
+       split as the doctor-group header above, now via the same
+       mechanism: the toggle lives inside .mdbk-today-card-actions
+       (see admin-dashboard.php) exactly like .mdbk-doctor-group-actions
+       above, so forcing THAT wrapper's own flex-basis:100% line break
+       carries the toggle down with it instead of stranding it — toggle
+       and icons share one forced-own row, toggle first since it's the
+       wrapper's first child. */
+    .mdbk-card-header { flex-wrap: wrap; row-gap: 10px; }
+    .mdbk-card-header h3 { white-space: nowrap; }
+    .mdbk-today-card-actions { margin-left: 0; flex-basis: 100%; justify-content: flex-end; }
+    /* Both break-countdown contexts above — no longer position:absolute
+       here, so it takes its natural place right after the title/name
+       instead of centering over the whole (now two-row) header, and
+       margin-left:auto pushes it to that first row's own right edge.
+       fitPill() (admin-script.js) already skips its gap-measuring/hide
+       logic for anything that isn't position:absolute, so this doesn't
+       need any JS change to stop being hidden here. */
+    .mdbk-card-header .mdbk-break-countdown,
+    .mdbk-doctor-group-header .mdbk-break-countdown {
+        position: static;
+        transform: none;
+        margin-left: auto;
+        max-width: 55%;
+        white-space: normal;
+    }
     /* Both fixed-pixel-track patient-row grids (the 11-track history-list
        row and the 8-track Today's-Queue row) sum to several hundred px of
        hard-coded column widths — nowhere near fitting an actual phone's

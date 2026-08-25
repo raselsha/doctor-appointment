@@ -385,12 +385,24 @@ class MDBK_Admin_Dashboard {
         $this->render_today_queue_table($apps, false);
         $print_table_html = ob_get_clean();
 
+        // The break-countdown pill (render_break_countdown_el()) lives in
+        // the HEADER, outside everything list_html/print_table_html above
+        // replace — without handing back a fresh copy here too, a break
+        // that starts/ends (or gets edited) while this page is sitting
+        // open only ever shows up after a full manual reload, even though
+        // this same endpoint is already polled every 15s for the patient
+        // list. '' when there's nothing to show, same as the page-load
+        // render — admin-script.js swaps it in (or removes a stale one)
+        // either way. Only relevant for the Today's Queue group.
+        $break_html = ($is_today && $doctor_id) ? $this->render_break_countdown_el($doctor_id) : '';
+
         wp_send_json_success([
             'count'            => count($apps),
             'count_label'      => sprintf(_n('%d patient', '%d patients', count($apps), 'doctor-appointment'), count($apps)),
             'list_html'        => $list_html,
             'print_table_html' => $print_table_html,
             'is_visiting'      => $is_visiting,
+            'break_html'       => $break_html,
         ]);
     }
 
@@ -2553,10 +2565,6 @@ class MDBK_Admin_Dashboard {
                     // off), so the countdown pill belongs here.
                     echo $this->render_break_countdown_el($doctor_id);
                     ?>
-                    <label class="mdbk-toggle mdbk-mini-toggle mdbk-doctor-live-queue-toggle" title="<?php esc_attr_e('Live Queue display for this doctor', 'doctor-appointment'); ?>">
-                        <input type="checkbox" class="mdbk-doctor-live-queue-checkbox" data-doctor-id="<?php echo esc_attr($doctor_id); ?>" <?php checked($live_queue_enabled); ?>>
-                        <span class="mdbk-toggle-slider"></span><span class="mdbk-mini-toggle-text"><?php _e('Live Queue', 'doctor-appointment'); ?></span>
-                    </label>
                     <?php // Same Refresh/Print/Export CSV/Download Image cluster
                     // the grouped view's own per-doctor <summary> carries (see
                     // render_patient_list_html()) — a pure doctor account is
@@ -2569,8 +2577,20 @@ class MDBK_Admin_Dashboard {
                     // .mdbk-doctor-group wrapper (the <details> element) that
                     // doesn't exist here; ajax_refresh_doctor_group() itself
                     // is still reused as-is, it only ever needed doctor_id +
-                    // is_today, both already true here. ?>
+                    // is_today, both already true here.
+                    //
+                    // Toggle lives INSIDE this span (first child, same as
+                    // the grouped view's own .mdbk-doctor-group-actions)
+                    // rather than as a separate sibling — that keeps it
+                    // bundled with the icon buttons as one action cluster,
+                    // so the mobile layout can force the whole cluster onto
+                    // its own row without leaving the icons stranded on a
+                    // third row of their own (see admin-style.css). ?>
                     <span class="mdbk-today-card-actions">
+                        <label class="mdbk-toggle mdbk-mini-toggle mdbk-doctor-live-queue-toggle" title="<?php esc_attr_e('Live Queue display for this doctor', 'doctor-appointment'); ?>">
+                            <input type="checkbox" class="mdbk-doctor-live-queue-checkbox" data-doctor-id="<?php echo esc_attr($doctor_id); ?>" <?php checked($live_queue_enabled); ?>>
+                            <span class="mdbk-toggle-slider"></span><span class="mdbk-mini-toggle-text"><?php _e('Live Queue', 'doctor-appointment'); ?></span>
+                        </label>
                         <button type="button" class="mdbk-icon-btn mdbk-refresh-today-card" title="<?php esc_attr_e('Refresh', 'doctor-appointment'); ?>"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg></button>
                         <button type="button" class="mdbk-icon-btn mdbk-print-today-card" title="<?php esc_attr_e('Print', 'doctor-appointment'); ?>"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg></button>
                         <?php $today_export_url = wp_nonce_url(add_query_arg(['page' => 'mdbk-schedule', 'filter_date' => current_time('Y-m-d'), 'filter_doctor' => $doctor_id, 'mdbk_export' => 'csv'], admin_url('admin.php')), 'mdbk_export_csv'); ?>

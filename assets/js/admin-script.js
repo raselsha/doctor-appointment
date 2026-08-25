@@ -2392,6 +2392,23 @@ document.addEventListener('DOMContentLoaded', function() {
     // <details> element is never replaced (so its open/closed state is
     // untouched), and every OTHER group on the page — including their
     // scroll position — is left completely alone.
+    // Swaps in a fresh .mdbk-break-countdown from an ajax_refresh_doctor_group()
+    // response (see that handler's own comment on break_html) — removes
+    // whatever pill is already in this header first (there's at most one),
+    // then inserts the new markup right before the action cluster if the
+    // response actually has one to show. tick() (further down this file)
+    // re-queries document.querySelectorAll('.mdbk-break-countdown') on
+    // every pass rather than binding to elements it saw at load, so a
+    // freshly-inserted pill just starts counting on its own next tick —
+    // no re-init call needed here.
+    function mdbkSwapBreakPill(header, actionsSelector, html) {
+        if (!header) return;
+        const old = header.querySelector('.mdbk-break-countdown');
+        if (old) old.remove();
+        if (!html) return;
+        const actions = header.querySelector(actionsSelector);
+        if (actions) actions.insertAdjacentHTML('beforebegin', html);
+    }
     document.addEventListener('click', function(e) {
         const btn = e.target.closest('.mdbk-refresh-group');
         if (!btn || typeof mdbk_admin_obj === 'undefined') return;
@@ -2423,6 +2440,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (listEl) listEl.innerHTML = res.data.list_html;
                 if (tableEl) tableEl.innerHTML = res.data.print_table_html;
                 if (dotEl) dotEl.classList.toggle('mdbk-live-pulse-active', !!res.data.is_visiting);
+                mdbkSwapBreakPill(group.querySelector('.mdbk-doctor-group-header'), '.mdbk-doctor-group-actions', res.data.break_html);
             })
             .finally(function() {
                 btn.disabled = false;
@@ -2459,6 +2477,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 const tableEl = card.querySelector('.mdbk-today-card-print-table');
                 if (listEl) listEl.innerHTML = res.data.list_html;
                 if (tableEl) tableEl.innerHTML = res.data.print_table_html;
+                mdbkSwapBreakPill(card.querySelector('.mdbk-card-header'), '.mdbk-today-card-actions', res.data.break_html);
             })
             .finally(function() {
                 btn.disabled = false;
@@ -2508,6 +2527,15 @@ document.addEventListener('DOMContentLoaded', function() {
     // "touch only this one doctor's rows" behavior a manual click
     // already has — this just presses the button on a timer rather than
     // introducing a second, cruder refresh path alongside it.
+    //
+    // 30s, not 15s — a walk-in queue's own state (new booking, check-in,
+    // serial change) doesn't move fast enough to need a check every 15s,
+    // and the spinning Refresh icon on every tick was showing up as
+    // distractingly frequent. Half the request rate, still well inside
+    // "feels live" for what's actually a waiting room, not a stock
+    // ticker. (The break-countdown pill's own second-by-second tick,
+    // above, is unaffected — it runs client-side off the data this
+    // fetch delivers, not on this timer.)
     (function() {
         const card = document.getElementById('mdbk-today-queue-card');
         if (!card) return;
@@ -2518,7 +2546,7 @@ document.addEventListener('DOMContentLoaded', function() {
             card.querySelectorAll('.mdbk-refresh-group, .mdbk-refresh-today-card').forEach(function(btn) {
                 if (!btn.disabled) btn.click();
             });
-        }, 15000);
+        }, 30000);
     })();
 
     function setSpecialtyIconPreview(url) {
