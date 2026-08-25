@@ -18,8 +18,10 @@ function mdbkBuildBookingCardImage(details, qrImgSrc, callback) {
     }
 
     var W = 400;
+    // No ticket yet under check-in-order queue mode (assigned only once
+    // this patient actually checks in) — Booking ID fills the row instead.
     var rows = [
-        ['Ticket', details.ticket],
+        details.ticket ? ['Ticket', details.ticket] : ['Booking ID', details.booking_id],
         ['Patient', details.patient_name],
         ['Doctor', details.doctor_name],
         ['Date', details.date]
@@ -158,7 +160,7 @@ function mdbkBuildClinicHeaderHtml() {
 function mdbkPrintBookingCard(details, qrImgSrc) {
     var titleText = details.title || 'Booking Confirmed';
     var rows = [
-        ['Ticket', details.ticket],
+        details.ticket ? ['Ticket', details.ticket] : ['Booking ID', details.booking_id],
         ['Patient', details.patient_name],
         ['Doctor', details.doctor_name],
         ['Date', details.date]
@@ -452,6 +454,8 @@ document.addEventListener('DOMContentLoaded', function() {
     var datetimeSelected = document.getElementById('mdbk-datetime-selected');
     var datetimeValue = document.getElementById('mdbk-datetime-value');
     var datetimeChange = document.getElementById('mdbk-datetime-change');
+    var approxTimeNoticeEl = document.getElementById('mdbk-approx-time-notice');
+    var approxTimeValueEl = document.getElementById('mdbk-approx-time-value');
     var modalForm = document.getElementById('mdbk-modal-form');
     var msgBox = container.querySelector('.mdbk-modal-message');
     var confirmationEl = document.getElementById('mdbk-booking-confirmation');
@@ -465,17 +469,42 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!confirmationEl) return;
         currentBooking = booking;
 
-        document.getElementById('mdbk-conf-ticket').textContent = booking.ticket || '';
+        // No ticket yet under check-in-order queue mode (assigned only
+        // once this patient actually checks in, see PHP's
+        // queue_serial_mode()) — the row shows a Booking ID instead until
+        // then.
+        var ticketLabelEl = document.getElementById('mdbk-conf-ticket-label');
+        if (booking.ticket) {
+            if (ticketLabelEl) ticketLabelEl.textContent = 'Ticket';
+            document.getElementById('mdbk-conf-ticket').textContent = booking.ticket;
+        } else {
+            if (ticketLabelEl) ticketLabelEl.textContent = 'Booking ID';
+            document.getElementById('mdbk-conf-ticket').textContent = booking.booking_id || '';
+        }
         document.getElementById('mdbk-conf-patient').textContent = booking.patient_name || '';
         document.getElementById('mdbk-conf-doctor').textContent = booking.doctor_name || '';
         document.getElementById('mdbk-conf-date').textContent = booking.date || '';
 
+        // A hidden-picker doctor's assigned time was never chosen by the
+        // patient (it's find_next_available_slot()'s pick, server-side) —
+        // shown as the same "approximate" notice the pre-booking preview
+        // used instead of the plain Time row, which would otherwise read
+        // as a firm, patient-chosen appointment time.
         var timeRow = document.getElementById('mdbk-conf-time-row');
-        if (booking.slot_time) {
-            document.getElementById('mdbk-conf-time').textContent = booking.slot_time;
-            timeRow.style.display = '';
-        } else if (timeRow) {
-            timeRow.style.display = 'none';
+        var confApproxEl = document.getElementById('mdbk-conf-approx-time-notice');
+        var confApproxValueEl = document.getElementById('mdbk-conf-approx-time-value');
+        if (booking.slot_time && !currentDoctorSlotEnabled) {
+            if (timeRow) timeRow.style.display = 'none';
+            if (confApproxValueEl) confApproxValueEl.textContent = 'Approximate visiting time: ' + booking.slot_time;
+            if (confApproxEl) confApproxEl.style.display = 'flex';
+        } else {
+            if (confApproxEl) confApproxEl.style.display = 'none';
+            if (booking.slot_time) {
+                document.getElementById('mdbk-conf-time').textContent = booking.slot_time;
+                if (timeRow) timeRow.style.display = '';
+            } else if (timeRow) {
+                timeRow.style.display = 'none';
+            }
         }
 
         if (confQrEl) {
@@ -634,6 +663,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 // down the page and making the whole modal scroll instead of
                 // just the picker.
                 showSerialBookingNotice();
+                showApproxTimeNotice(doctorIdInput.value, selectedDateStr);
                 showDetails();
                 showDatetimeSummary();
             }
@@ -685,6 +715,48 @@ document.addEventListener('DOMContentLoaded', function() {
         modalSlotPicker.classList.remove('mdbk-slot-picker-disabled');
         modalSlotPicker.innerHTML = '<p class="mdbk-time-placeholder">No time slot needed — you\'ll be added to the queue automatically.</p>';
         if (modalSlotValue) modalSlotValue.value = '';
+    }
+
+    function hideApproxTimeNotice() {
+        if (approxTimeNoticeEl) approxTimeNoticeEl.style.display = 'none';
+        if (approxTimeValueEl) approxTimeValueEl.textContent = '';
+    }
+
+    /**
+     * A hidden-picker doctor's patient never chooses an exact time — this
+     * previews the time they'd likely be seen at (the same
+     * find_next_available_slot() logic PHP uses to assign the real one on
+     * submit), so they aren't left with zero time expectation until the
+     * confirmation screen. Reuses the same mdbk_get_doctor_slots endpoint
+     * loadSlotsInto() already calls for the visible-picker case — just
+     * reads the first available entry instead of rendering a button grid.
+     * Silently hides the notice (no error UI) if nothing comes back
+     * available; the actual booking attempt is what surfaces that properly.
+     */
+    function showApproxTimeNotice(doctorId, dateStr) {
+        if (!approxTimeNoticeEl || !approxTimeValueEl || !doctorId || !dateStr) {
+            hideApproxTimeNotice();
+            return;
+        }
+        var formData = new FormData();
+        formData.append('action', 'mdbk_get_doctor_slots');
+        formData.append('doctor_id', doctorId);
+        formData.append('date', dateStr);
+        formData.append('nonce', mdbk_form_obj.nonce);
+
+        fetch(mdbk_form_obj.ajax_url, { method: 'POST', body: formData })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            var slots = (data.success && data.data) ? data.data : [];
+            var next = slots.find(function(s) { return s.available; });
+            if (!next) {
+                hideApproxTimeNotice();
+                return;
+            }
+            approxTimeValueEl.textContent = 'Approximate visiting time: ' + formatTime12h(next.time);
+            approxTimeNoticeEl.style.display = 'flex';
+        })
+        .catch(hideApproxTimeNotice);
     }
 
     /**
@@ -751,6 +823,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         if (modalSlotValue) modalSlotValue.value = '';
         if (dateValue) dateValue.value = '';
+        hideApproxTimeNotice();
         showDatetimePicker();
     }
 
@@ -1013,8 +1086,12 @@ document.addEventListener('DOMContentLoaded', function() {
                     return;
                 }
                 var rows = d.patients.map(function(p) {
+                    // No ticket yet under check-in-order queue mode (assigned
+                    // only once this patient actually checks in) — the
+                    // Booking ID fills the slot instead of a blank one.
+                    var numberDisplay = p.ticket || p.booking_id || '';
                     return '<div class="mdbk-today-patient-row">' +
-                        '<span class="mdbk-today-patient-ticket">' + mdbkEscHtml(p.ticket) + '</span>' +
+                        '<span class="mdbk-today-patient-ticket">' + mdbkEscHtml(numberDisplay) + '</span>' +
                         '<span class="mdbk-today-patient-name">' + mdbkEscHtml(p.patient_name) + '</span>' +
                         '<span class="mdbk-today-patient-time">' + mdbkEscHtml(p.time) + '</span>' +
                         '<span class="mdbk-today-patient-status mdbk-status-' + mdbkEscHtml(p.status_slug) + '">' + mdbkEscHtml(p.status_label) + '</span>' +

@@ -588,6 +588,10 @@
    absolutely-positioned sibling further down that overlaps this same
    top-right corner. */
 .mdbk-admin-doctor-card-topbar { grid-row: 1; grid-column: 1 / -1; padding: 0 32px 10px 0; margin-bottom: 2px; border-bottom: 1px solid #f0f2f5; }
+/* Pill-only topbar (Doctors-grid cards, where the action row doesn't
+   render): no separator line, no leftover padding — the pill just sits
+   snugly above the avatar with its own small breathing room. */
+.mdbk-admin-doctor-card-topbar.mdbk-no-actions { border-bottom: 0; padding-bottom: 0; margin-bottom: 8px; }
 .mdbk-admin-doctor-card-topbar-row { display: flex; align-items: center; gap: 8px; min-height: 24px; }
 .mdbk-admin-doctor-card-topbar-actions { display: flex; gap: 4px; margin-left: auto; }
 /* Overrides .mdbk-break-countdown's own absolute-centered layout
@@ -980,7 +984,6 @@ button.mdbk-slot-btn.mdbk-slot-break { cursor: not-allowed; pointer-events: none
 .mdbk-form-hint { margin: 6px 0 0; font-size: 11px; color: #94a3b8; line-height: 1.4; }
 
 .mdbk-key-chip { display: inline-block; padding: 8px 12px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; font-family: ui-monospace, "SF Mono", Consolas, monospace; font-size: 13px; color: #334155; letter-spacing: 0.5px; }
-#mdbk-doc-slot-duration-group.mdbk-field-disabled { opacity: .45; pointer-events: none; }
 
 .mdbk-modal-compact form input[type="text"],
 .mdbk-modal-compact form input[type="email"],
@@ -1901,6 +1904,11 @@ body.medbook_page_mdbk-patients .mdbk-pagination {
    daily one. */
 .mdbk-patient-row-ticket.mdbk-patient-row-pid { background: #f5f3ff; color: #7c3aed; }
 .mdbk-patient-row-ticket.mdbk-patient-row-queue { background: #eff6ff; color: #1d4ed8; }
+/* Check-in-order queue mode: this patient hasn't checked in yet, so there's
+   no queue number to show (assigned only on check-in — see
+   queue_serial_mode()) — same amber the "checked in, waiting" state uses
+   elsewhere (queue-style.css), reading as "pending" rather than "missing". */
+.mdbk-patient-row-ticket.mdbk-patient-row-bookingid { background: #fff7ed; color: #c2410c; }
 .mdbk-patient-row-name { font-size: 14px; font-weight: 800; color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* Same name styling, but as a clickable trigger (.mdbk-view-patient) on
    the Booking page's rows — stays plain dark text like the span version,

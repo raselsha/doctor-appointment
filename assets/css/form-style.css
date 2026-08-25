@@ -979,6 +979,31 @@ button.mdbk-slot-btn.mdbk-slot-break {
     text-align: right;
 }
 
+/* "Approximate visiting time" — a hidden-picker doctor's find_next_available_slot()
+   preview/result, both before booking (below the date-selected summary)
+   and on the confirmation card (in place of a plain Time row, which would
+   otherwise read as a firm, patient-chosen appointment time). Same green
+   as the confirmation checkmark icon above, so it reads as reassuring
+   info rather than a warning. */
+.mdbk-approx-time-notice {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 14px;
+    padding: 10px 14px;
+    background: #e6f7ed;
+    border: 1px solid #bbf0d1;
+    border-radius: 10px;
+    color: #1a7f45;
+    font-size: 13px;
+    font-weight: 600;
+    text-align: left;
+}
+
+.mdbk-approx-time-notice svg {
+    flex-shrink: 0;
+}
+
 .mdbk-confirmation-qr {
     margin: 6px auto 10px;
     display: flex;

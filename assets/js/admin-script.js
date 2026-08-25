@@ -711,17 +711,14 @@ document.addEventListener('DOMContentLoaded', function() {
         if (removeBtn) removeBtn.style.display = url ? '' : 'none';
     }
 
-    // Slot Duration only means anything when Time Slot Booking is on —
-    // dim it (purely visual; the value still submits either way, but it's
-    // ignored server-side for a slot-disabled doctor) so it doesn't look
-    // like an active, required field while off.
-    function updateSlotDurationVisibility() {
-        var toggle = document.getElementById('mdbk-doc-slot-enabled');
-        var group = document.getElementById('mdbk-doc-slot-duration-group');
-        if (toggle && group) group.classList.toggle('mdbk-field-disabled', !toggle.checked);
-    }
+    // Slot Duration used to dim (opacity/pointer-events) whenever the
+    // "Public" toggle next to it was off, back when that toggle meant "no
+    // slot-based booking at all." It's needed regardless now — a hidden
+    // picker still gets a real time auto-assigned behind the scenes
+    // (find_next_available_slot(), PHP side), so the field always reads as
+    // active. var kept (not the dimming function) — still referenced by
+    // the Add-Doctor form-reset below.
     var slotEnabledToggle = document.getElementById('mdbk-doc-slot-enabled');
-    if (slotEnabledToggle) slotEnabledToggle.addEventListener('change', updateSlotDurationVisibility);
 
     // Monthly Availability's two calendars (extra working dates / off
     // dates) — a hand-built month grid, click a day to toggle it into that
@@ -1000,6 +997,19 @@ document.addEventListener('DOMContentLoaded', function() {
         const row = btn.closest('tr, .mdbk-admin-doctor-card, .mdbk-profile-view');
         const title = document.getElementById('mdbk-doctor-modal-title');
         if (title) title.textContent = 'Edit Doctor';
+        // This doctor's own Queue & Ticketing mode (per-doctor since it
+        // moved out of global settings). The modal form isn't reset between
+        // opens, so this runs for BOTH opens: an edit shows that doctor's
+        // stored choice (falling back to the site default when the card
+        // carries no data-queue-mode), and a fresh Add after an edit falls
+        // back to 'booking' instead of inheriting the last-edited doctor's
+        // choice. (No row — e.g. the Add button — resolves to 'booking'.)
+        const queueMode = (row && (row.dataset.queueMode === 'checkin' || row.dataset.queueMode === 'booking'))
+            ? row.dataset.queueMode
+            : 'booking';
+        document.querySelectorAll('input[name="queue_serial_mode"]').forEach(function(radio) {
+            radio.checked = radio.value === queueMode;
+        });
         if (row) {
             document.getElementById('mdbk-doc-name').value = row.dataset.name;
             document.getElementById('mdbk-doc-email').value = row.dataset.email;
@@ -1018,7 +1028,7 @@ document.addEventListener('DOMContentLoaded', function() {
             var slotDuration = document.getElementById('mdbk-doc-slot-duration');
             if (slotDuration) slotDuration.value = row.dataset.slotDuration || 20;
             var slotEnabled = document.getElementById('mdbk-doc-slot-enabled');
-            if (slotEnabled) { slotEnabled.checked = row.dataset.slotEnabled !== 'no'; updateSlotDurationVisibility(); }
+            if (slotEnabled) slotEnabled.checked = row.dataset.slotEnabled !== 'no';
             var docFee = document.getElementById('mdbk-doc-fee');
             if (docFee) docFee.value = row.dataset.fee || '';
             if (doctorSpecSelect && row.dataset.specialty) {
@@ -1068,7 +1078,7 @@ document.addEventListener('DOMContentLoaded', function() {
             document.querySelectorAll('#mdbk-doctor-form .mdbk-day-row').forEach(function(row) {
                 row.classList.add('is-off');
             });
-            if (slotEnabledToggle) { slotEnabledToggle.checked = true; updateSlotDurationVisibility(); }
+            if (slotEnabledToggle) slotEnabledToggle.checked = true;
             var addDocFee = document.getElementById('mdbk-doc-fee');
             if (addDocFee) addDocFee.value = '';
             if (breakRepeater) breakRepeater.reset();
@@ -1524,10 +1534,17 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // A slot-disabled doctor is booked serially (queue number auto-assigned
-    // by the server) — the slot picker means nothing for them, so it's
-    // hidden and a hint takes its place, mirroring the Doctor modal's own
-    // Slot Duration field.
+    // A doctor whose picker is hidden from patients (slotEnabled false —
+    // "Public" off) still gets a real time slot auto-assigned server-side
+    // (find_next_available_slot(), PHP) — this just hides the manual
+    // picker here too and shows a hint instead, same as the public
+    // frontend's own copy of this behavior. Blanking valueEl on switch is
+    // still correct for a NEW booking (nothing chosen yet, server fills it
+    // in) — for an EDIT, the server-side edit branch
+    // (handle_appointment_save() in admin-dashboard.php) now resolves a
+    // blank slot_time the same way rather than persisting the blank
+    // straight through, so an existing auto-assigned time doesn't get
+    // wiped out just by this modal opening/re-rendering.
     function updateAppSlotTimeAvailability(selectedOpt) {
         const picker = document.getElementById('mdbk-app-slot-picker');
         const hint = document.getElementById('mdbk-app-slot-hint');

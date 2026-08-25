@@ -208,6 +208,21 @@
     font-size: 16px;
 }
 
+ /* Not checked in yet, under check-in-order queue mode — "B000123" is
+   far too long for the 50px square built for "#01", so this variant grows
+   to fit instead of clipping/overflowing, and drops to the same amber
+   used for a not-yet-arrived state elsewhere. */
+.mdbk-patient-id.mdbk-patient-id-bid {
+    width: auto;
+    height: auto;
+    min-width: 50px;
+    padding: 6px 8px;
+    font-size: 10px;
+    font-weight: 700;
+    background: #fff7ed;
+    color: #c2410c;
+}
+
 .mdbk-patient-details {
     flex: 1;
 }

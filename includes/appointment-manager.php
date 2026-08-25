@@ -66,7 +66,7 @@ class MDBK_Appointment_Manager {
             return $body;
         }
 
-        $ticket    = self::format_ticket_number(get_post_meta($appointment_id, '_mdbk_ticket_number', true));
+        $ticket    = self::format_ticket_number(self::display_ticket_number($appointment_id));
         $date      = get_post_meta($appointment_id, '_mdbk_appointment_date', true);
         $slot_time = get_post_meta($appointment_id, '_mdbk_slot_time', true);
         $checkin_url = add_query_arg('mdbk_token', $token, home_url('/'));
@@ -177,7 +177,7 @@ class MDBK_Appointment_Manager {
         $status         = in_array($current_status, \MDBK\MDBK_CPT::APPOINTMENT_STATUSES, true) ? self::post_status_to_slug($current_status) : 'waiting';
         $app_date      = get_post_meta($post->ID, '_mdbk_appointment_date', true);
         $slot_time     = get_post_meta($post->ID, '_mdbk_slot_time', true);
-        $ticket_number = get_post_meta($post->ID, '_mdbk_ticket_number', true);
+        $ticket_number = self::display_ticket_number($post->ID) ?: '';
         $doctor_id     = get_post_meta($post->ID, '_mdbk_doctor_id', true);
         $symptoms      = get_post_meta($post->ID, '_mdbk_symptoms', true);
 
@@ -584,6 +584,24 @@ class MDBK_Appointment_Manager {
     }
 
     /**
+     * The soonest open slot for a doctor+date, or '' if none — either the
+     * doctor has no active schedule for this date at all (no Weekly
+     * Availability configured, or it's an off day), or every slot that
+     * exists is already taken/on break. Both cases are the same signal to
+     * the caller: nothing to auto-assign, reject the booking rather than
+     * silently skipping the time-slot system altogether. Used to fill in
+     * _mdbk_slot_time when a doctor's picker is hidden from patients
+     * (is_slot_enabled() off) — see handle_submission() and
+     * handle_appointment_save()'s edit branch.
+     */
+    public static function find_next_available_slot($doctor_id, $date, $exclude_id = 0) {
+        foreach (self::get_available_slots($doctor_id, $date, $exclude_id) as $slot) {
+            if ($slot['available']) return $slot['time'];
+        }
+        return '';
+    }
+
+    /**
      * Slot times already booked for a doctor+date. no-show frees a slot back
      * up (excluded here), waiting/serving/completed hold it. $exclude_id —
      * same purpose as is_slot_taken()'s own param below — leaves the
@@ -663,11 +681,113 @@ class MDBK_Appointment_Manager {
     }
 
     /**
-     * Whether a doctor takes slot-based bookings at all. Off: the doctor is
-     * booked serially by queue number (next_ticket_number()) instead — no
-     * time slot picker, no slot-conflict checking. Defaults to enabled
-     * (the meta only gets written 'no' the first time someone flips the
-     * toggle off), same convention as _mdbk_doctor_active.
+     * Per-request memo for checkin_ticket_number(), keyed "doctorId|date"
+     * — one query per doctor+date instead of one per rendered row.
+     */
+    private static $checkin_rank_cache = [];
+
+    /**
+     * Drop the memo above. Called after anything that changes who is
+     * checked in for a doctor+date (mark_checked_in(), and the reschedule
+     * path in MDBK_Admin_Dashboard::handle_appointment_save() that clears
+     * a check-in), so a rank read later in the SAME request — the kiosk
+     * and chamber check-in handlers both read one immediately after
+     * checking someone in — sees the new arrival rather than the list as
+     * it was a moment ago.
+     */
+    public static function flush_checkin_rank_cache() {
+        self::$checkin_rank_cache = [];
+    }
+
+    /**
+     * This appointment's queue number under check-in-order mode
+     * (queue_serial_mode() === 'checkin'): its 1-based position among
+     * everyone checked in for the same doctor+date, ordered by when they
+     * actually checked in. First arrival is 1, next is 2, and so on. 0 if
+     * this patient hasn't checked in — they have no queue number at all
+     * yet under this mode (their booking still identifies them by
+     * format_booking_id() until they arrive).
+     *
+     * Computed live rather than stamped into _mdbk_ticket_number at
+     * check-in time, so the sequence is always a true 1..N reading of
+     * today's arrivals. A stored number can't promise that: switching
+     * this setting on mid-day (or seeded/booking-mode data, which already
+     * carries booking-order numbers) would leave the first person to
+     * actually arrive holding whatever number the booking-order counter
+     * had reached — "Q15" for the first arrival of the day. Deriving it
+     * instead means flipping the setting re-reads as 1, 2, 3 immediately,
+     * and flipping back restores every booking-order number untouched,
+     * since neither mode writes over the other's numbering.
+     *
+     * Ties on _mdbk_checkin_time (same-second check-ins) fall back to
+     * post ID, so the order is at least stable across renders.
+     */
+    public static function checkin_ticket_number($appointment_id) {
+        $appointment_id = intval($appointment_id);
+        if (get_post_meta($appointment_id, '_mdbk_checked_in', true) !== 'yes') return 0;
+
+        $doctor_id = intval(get_post_meta($appointment_id, '_mdbk_doctor_id', true));
+        $date      = get_post_meta($appointment_id, '_mdbk_appointment_date', true);
+        $key       = $doctor_id . '|' . $date;
+
+        if (!isset(self::$checkin_rank_cache[$key])) {
+            $ids = get_posts([
+                'post_type'   => 'mdbk_appointment',
+                'post_status' => \MDBK\MDBK_CPT::APPOINTMENT_STATUSES,
+                'numberposts' => -1,
+                'fields'      => 'ids',
+                'meta_query'  => [
+                    'relation' => 'AND',
+                    ['key' => '_mdbk_doctor_id', 'value' => $doctor_id],
+                    ['key' => '_mdbk_appointment_date', 'value' => $date],
+                    ['key' => '_mdbk_checked_in', 'value' => 'yes'],
+                ],
+            ]);
+            usort($ids, function($a, $b) {
+                $time_a = intval(get_post_meta($a, '_mdbk_checkin_time', true));
+                $time_b = intval(get_post_meta($b, '_mdbk_checkin_time', true));
+                if ($time_a !== $time_b) return $time_a <=> $time_b;
+                return $a <=> $b;
+            });
+            $ranks = [];
+            foreach ($ids as $i => $id) {
+                $ranks[$id] = $i + 1;
+            }
+            self::$checkin_rank_cache[$key] = $ranks;
+        }
+
+        return isset(self::$checkin_rank_cache[$key][$appointment_id])
+            ? self::$checkin_rank_cache[$key][$appointment_id]
+            : 0;
+    }
+
+    /**
+     * The queue number to SHOW for one appointment, whichever mode is
+     * active — the single place every list, badge, email and API response
+     * asks, so none of them can disagree about a patient's number.
+     * Booking-order mode: the number stamped at booking time
+     * (next_ticket_number(), stored in _mdbk_ticket_number). Check-in-order
+     * mode: their live arrival position (checkin_ticket_number() above),
+     * or 0 while they still haven't checked in. 0 means "no number to
+     * show" either way — format_ticket_number() renders it as ''.
+     */
+    public static function display_ticket_number($appointment_id) {
+        $appointment_id = intval($appointment_id);
+        if (self::queue_serial_mode(intval(get_post_meta($appointment_id, '_mdbk_doctor_id', true))) === 'checkin') {
+            return self::checkin_ticket_number($appointment_id);
+        }
+        return intval(get_post_meta($appointment_id, '_mdbk_ticket_number', true));
+    }
+
+    /**
+     * Whether this doctor's time-slot picker is shown to patients on the
+     * public booking form. Off: the picker is hidden and the patient just
+     * picks a date — a real time slot is still assigned automatically
+     * behind the scenes (find_next_available_slot(), called from
+     * handle_submission()/handle_appointment_save()'s edit branch), it's
+     * just never shown or chosen by the patient. Defaults to enabled (the
+     * meta only gets written 'no' the first time someone flips the toggle
+     * off), same convention as _mdbk_doctor_active.
      */
     public static function is_slot_enabled($doctor_id) {
         return get_post_meta(intval($doctor_id), '_mdbk_slot_enabled', true) !== 'no';
@@ -761,6 +881,15 @@ class MDBK_Appointment_Manager {
 
         update_post_meta($appointment_id, '_mdbk_checked_in', 'yes');
         update_post_meta($appointment_id, '_mdbk_checkin_time', current_time('timestamp'));
+
+        // Nothing to stamp for check-in-order mode: the arrival number is
+        // derived from _mdbk_checkin_time (just written above) whenever
+        // it's displayed — see checkin_ticket_number(), which explains why
+        // deriving beats storing here. The memo it keeps has to go, though,
+        // or this new arrival would be missing from a rank read later in
+        // this same request (both the kiosk and chamber check-in handlers
+        // read one right after calling this).
+        self::flush_checkin_rank_cache();
 
         return true;
     }
@@ -933,14 +1062,119 @@ class MDBK_Appointment_Manager {
     }
 
     /**
-     * Best-effort soft lock around the slot-conflict-check + insert critical
-     * section. Not a hard atomicity guarantee (no new table for a real
-     * mutex) — good enough for realistic front-desk concurrency.
+     * Sort key for check-in-order queue mode (queue_serial_mode() ===
+     * 'checkin') — checked-in patients bubble above everyone still
+     * pending, serially by Q order: whoever arrived earlier sits higher
+     * regardless of their slot time. Returns a [tier, tiebreak] pair so
+     * callers can keep using a single <=> comparison:
+     *
+     *   0 — currently serving (leads the list, same partition every
+     *       queue view already applies on its own),
+     *   1 — waiting AND checked in, tiebroken by live Q number
+     *       (checkin_ticket_number(), i.e. check-in arrival order),
+     *   2 — waiting, NOT yet checked in, tiebroken by slot time so the
+     *       pending crowd still reads as an appointment-time schedule,
+     *   3 — no-show, 4 — completed (bottom of the list).
+     *
+     * Tiebreak values are zero-padded strings so every tier compares
+     * consistently under PHP 8 array comparison.
+     *
+     * Booking mode has no equivalent here — every one of these lists
+     * already had its own, different, pre-existing ticket-order sort for
+     * that mode before this setting existed, and each one keeps exactly
+     * that, unchanged, in its own booking-mode branch — see
+     * render_queue_list_body() in shortcode.php and
+     * ajax_get_today_patient_summary() below.
      */
-    private static function acquire_slot_lock($doctor_id, $date, $slot_time) {
-        if (!$slot_time) return true;
+    public static function checkin_order_sort_key($appointment_id) {
+        $status = self::post_status_to_slug(get_post_status($appointment_id));
+        if ($status === 'serving') return [0, ''];
+        if ($status === 'waiting') {
+            if (get_post_meta($appointment_id, '_mdbk_checked_in', true) === 'yes') {
+                return [1, str_pad((string) self::checkin_ticket_number($appointment_id), 4, '0', STR_PAD_LEFT)];
+            }
+            return [2, (string) get_post_meta($appointment_id, '_mdbk_slot_time', true)];
+        }
+        if ($status === 'no-show') return [3, ''];
+        return [4, ''];
+    }
 
-        $key = 'mdbk_slot_lock_' . md5($doctor_id . '|' . $date . '|' . $slot_time);
+    /**
+     * Every specialty, in the admin's drag-and-drop order (_mdbk_specialty_order
+     * term meta). Deliberately does NOT pass 'orderby' => 'meta_value_num' +
+     * 'meta_key' => '_mdbk_specialty_order' to get_terms(): a meta_key arg adds
+     * an INNER JOIN on termmeta that silently DROPS every term lacking that row,
+     * so any specialty created outside the admin save handler (seeder, import)
+     * vanished from the doctor modal's specialty dropdown, the Specialties page,
+     * and the booking form all at once. Fetched plain and sorted in PHP here
+     * instead; terms with no order meta yet fall back to term_id order at the
+     * bottom until they're reordered once in wp-admin.
+     *
+     * $hide_empty keeps WP's own published-post count filter (a specialty with
+     * zero doctors isn't a real booking choice on patient-facing lists).
+     */
+    public static function get_specialty_terms($hide_empty = false) {
+        $terms = get_terms(['taxonomy' => 'mdbk_department', 'hide_empty' => $hide_empty]);
+        if (is_wp_error($terms)) return [];
+        $terms = array_values($terms);
+        usort($terms, function($a, $b) {
+            $oa = get_term_meta($a->term_id, '_mdbk_specialty_order', true);
+            $ob = get_term_meta($b->term_id, '_mdbk_specialty_order', true);
+            if ($oa !== $ob) {
+                return ($oa !== '' ? intval($oa) : PHP_INT_MAX)
+                    <=> ($ob !== '' ? intval($ob) : PHP_INT_MAX);
+            }
+            return intval($a->term_id) <=> intval($b->term_id);
+        });
+        return $terms;
+    }
+
+    /**
+     * "B000123"-style display format for a booking's post ID — shown on
+     * the confirmation screen in place of a ticket number when there isn't
+     * one yet (check-in-order queue mode, before the patient has checked
+     * in — see queue_serial_mode()).
+     */
+    public static function format_booking_id($appointment_id) {
+        return sprintf('B%06d', $appointment_id);
+    }
+
+    /**
+     * Whether a patient's queue number is stamped the moment they book
+     * (next_ticket_number(), booking order) or derived from when they
+     * actually arrive (checkin_ticket_number(), check-in order).
+     *
+     * Per doctor: each doctor picks their own mode in their profile's
+     * "Queue & Ticketing" section (stored as the _mdbk_queue_serial_mode
+     * post meta). A doctor who never picked one inherits the site-wide
+     * default (the legacy mdbk_queue_serial_mode option, kept working so
+     * existing installs don't flip behavior on upgrade). With no doctor
+     * given — or a $doctor_id that doesn't resolve to a setting — that
+     * same default answers. display_ticket_number() is what every caller
+     * actually asks for a number; it resolves the appointment's own
+     * doctor internally.
+     */
+    public static function queue_serial_mode($doctor_id = 0) {
+        if ($doctor_id) {
+            $own = get_post_meta(intval($doctor_id), '_mdbk_queue_serial_mode', true);
+            if ($own === 'checkin' || $own === 'booking') return $own;
+        }
+        return get_option('mdbk_queue_serial_mode', 'booking') === 'checkin' ? 'checkin' : 'booking';
+    }
+
+    /**
+     * Best-effort soft lock around a critical section keyed by an arbitrary
+     * string. Not a hard atomicity guarantee (no new table for a real
+     * mutex) — good enough for realistic front-desk concurrency. Shared by
+     * the slot-conflict-check + insert section, the auto-assign section,
+     * and check-in-time ticket assignment (see their respective callers).
+     * Public — MDBK_Admin_Dashboard::handle_appointment_save()'s edit
+     * branch needs the same auto-assign locking handle_submission() uses
+     * below, for a doctor whose picker is hidden (see that branch's own
+     * comment for why it can't just delegate to handle_submission()).
+     */
+    public static function acquire_lock($key) {
+        $key = 'mdbk_lock_' . md5($key);
         for ($i = 0; $i < 5; $i++) {
             if (false === get_transient($key)) {
                 set_transient($key, 1, 10);
@@ -951,9 +1185,8 @@ class MDBK_Appointment_Manager {
         return false;
     }
 
-    private static function release_slot_lock($doctor_id, $date, $slot_time) {
-        if (!$slot_time) return;
-        delete_transient('mdbk_slot_lock_' . md5($doctor_id . '|' . $date . '|' . $slot_time));
+    public static function release_lock($key) {
+        delete_transient('mdbk_lock_' . md5($key));
     }
 
     /**
@@ -974,11 +1207,35 @@ class MDBK_Appointment_Manager {
         $phone     = isset($data['mobile']) ? sanitize_text_field($data['mobile']) : '';
         $email     = isset($data['email']) ? sanitize_email($data['email']) : '';
 
-        if (!self::acquire_slot_lock($doctor_id, $date, $slot_time)) {
+        // A blank slot_time means the doctor's picker is hidden from
+        // patients (is_slot_enabled() off) — nothing was picked, so a real
+        // slot has to be found automatically. That resolution has to
+        // happen INSIDE the lock (a doctor+date-wide one here, since there's
+        // no specific slot to key on yet) or two concurrent hidden-picker
+        // bookings for the same doctor+date could both resolve to the same
+        // "next available" slot before either one exists in the DB to make
+        // it taken. A picked slot keeps the original, narrower per-slot
+        // lock so two different explicit picks never wait on each other.
+        $lock_key = $slot_time !== ''
+            ? 'slot|' . $doctor_id . '|' . $date . '|' . $slot_time
+            : 'autoassign|' . $doctor_id . '|' . $date;
+
+        if (!self::acquire_lock($lock_key)) {
             return new \WP_Error('mdbk_slot_locked', __('This slot is being booked by someone else right now. Please try again.', 'doctor-appointment'));
         }
 
         try {
+            if ($slot_time === '') {
+                $slot_time = self::find_next_available_slot($doctor_id, $date);
+                if ($slot_time === '') {
+                    return new \WP_Error('mdbk_no_slot', __('No available time could be assigned for this doctor on this date. Please choose a different date, or contact the clinic directly.', 'doctor-appointment'));
+                }
+            }
+
+            // Still checked even for an auto-assigned slot — cheap
+            // defense-in-depth against find_next_available_slot() having
+            // read a snapshot that's since changed, on top of the lock
+            // above.
             if (self::is_slot_taken($doctor_id, $date, $slot_time)) {
                 return new \WP_Error('mdbk_slot_taken', __('That time slot is no longer available. Please choose another.', 'doctor-appointment'));
             }
@@ -1014,7 +1271,13 @@ class MDBK_Appointment_Manager {
             update_post_meta($appointment_id, '_mdbk_slot_time', $slot_time);
             update_post_meta($appointment_id, '_mdbk_doctor_id', $doctor_id);
             update_post_meta($appointment_id, '_mdbk_symptoms', isset($data['symptoms']) ? sanitize_textarea_field($data['symptoms']) : '');
-            update_post_meta($appointment_id, '_mdbk_ticket_number', self::next_ticket_number($doctor_id, $date, $appointment_id));
+            // Booking-order mode: assign the ticket right away, as before.
+            // Check-in-order mode: leave it unassigned — mark_checked_in()
+            // assigns it once the patient actually arrives, so the number
+            // reflects check-in order instead of booking order.
+            if (self::queue_serial_mode($doctor_id) !== 'checkin') {
+                update_post_meta($appointment_id, '_mdbk_ticket_number', self::next_ticket_number($doctor_id, $date, $appointment_id));
+            }
             // Token must exist before the status transition below, since that
             // transition synchronously fires the confirmation email, and the
             // email's check-in link needs a token to point at.
@@ -1024,7 +1287,7 @@ class MDBK_Appointment_Manager {
 
             return $appointment_id;
         } finally {
-            self::release_slot_lock($doctor_id, $date, $slot_time);
+            self::release_lock($lock_key);
         }
     }
 
@@ -1035,10 +1298,11 @@ class MDBK_Appointment_Manager {
         check_ajax_referer('mdbk_form_nonce', 'nonce');
 
         $required = ['full_name', 'mobile', 'doctor', 'date'];
-        // Slot time is only required when the selected doctor actually
-        // takes slot-based bookings — a slot-disabled doctor books
-        // patients serially by queue number, with no time picker on the
-        // frontend to even produce a slot_time value.
+        // Slot time is only required from the patient when this doctor's
+        // picker is actually shown to them — a hidden-picker doctor has no
+        // time control on the frontend to produce a slot_time value at
+        // all, so handle_submission() auto-assigns one server-side instead
+        // (find_next_available_slot()).
         if (self::is_slot_enabled(isset($_POST['doctor']) ? intval($_POST['doctor']) : 0)) {
             $required[] = 'slot_time';
         }
@@ -1067,12 +1331,17 @@ class MDBK_Appointment_Manager {
             $doctor_id = intval(get_post_meta($appointment_id, '_mdbk_doctor_id', true));
             $date      = get_post_meta($appointment_id, '_mdbk_appointment_date', true);
             $slot_time = get_post_meta($appointment_id, '_mdbk_slot_time', true);
-            $ticket    = get_post_meta($appointment_id, '_mdbk_ticket_number', true);
+            $ticket    = self::display_ticket_number($appointment_id);
             $token     = get_post_meta($appointment_id, '_mdbk_checkin_token', true);
 
             wp_send_json_success([
                 'message'      => __('Appointment booked successfully! We will contact you soon.', 'doctor-appointment'),
                 'ticket'       => self::format_ticket_number($ticket),
+                // Always sent, cheap to compute — the frontend shows this
+                // instead of "ticket" only when the latter is empty
+                // (check-in-order queue mode, before this patient has
+                // checked in).
+                'booking_id'   => self::format_booking_id($appointment_id),
                 'patient_name' => get_post_meta($appointment_id, '_mdbk_patient_name', true),
                 'doctor_name'  => get_the_title($doctor_id),
                 'date'         => $date ? date_i18n(get_option('date_format'), strtotime($date)) : '',
@@ -1281,19 +1550,43 @@ class MDBK_Appointment_Manager {
         }
 
         $today = current_time('Y-m-d');
+        // Not sorted via a top-level 'meta_key' => '_mdbk_ticket_number' +
+        // orderby arg — that combination turns into an implicit INNER JOIN
+        // requiring the meta row to exist, silently DROPPING (not just
+        // leaving unordered) every appointment with no ticket yet, which
+        // is the normal state for a not-checked-in patient under check-in-
+        // order queue mode (see queue_serial_mode()). Sorted in PHP after
+        // fetching instead, same fix as render_queue_list_body()'s own
+        // copy of this same gotcha in shortcode.php.
         $apps = get_posts([
             'post_type'   => 'mdbk_appointment',
             'post_status' => \MDBK\MDBK_CPT::APPOINTMENT_STATUSES,
             'numberposts' => -1,
-            'meta_key'    => '_mdbk_ticket_number',
-            'orderby'     => 'meta_value_num',
-            'order'       => 'ASC',
             'meta_query'  => [
                 'relation' => 'AND',
                 ['key' => '_mdbk_doctor_id', 'value' => $doctor_id],
                 ['key' => '_mdbk_appointment_date', 'value' => $today],
             ],
         ]);
+        // Booking mode: ticket order, same as this list's own pre-existing
+        // DB-level sort before the top-level meta_key was dropped above
+        // (tie/both-blank falls back to slot time). Check-in mode:
+        // checkin_order_sort_key() — checked-in patients lead in Q order,
+        // everyone still pending follows in slot-time order (most rows
+        // have no number at all there until their patient arrives).
+        $checkin_mode = self::queue_serial_mode($doctor_id) === 'checkin';
+        usort($apps, function($a, $b) use ($checkin_mode) {
+            if ($checkin_mode) {
+                return self::checkin_order_sort_key($a->ID) <=> self::checkin_order_sort_key($b->ID);
+            }
+            $ticket_a = intval(get_post_meta($a->ID, '_mdbk_ticket_number', true));
+            $ticket_b = intval(get_post_meta($b->ID, '_mdbk_ticket_number', true));
+            if ($ticket_a !== $ticket_b) return $ticket_a <=> $ticket_b;
+            return strcmp(
+                (string) get_post_meta($a->ID, '_mdbk_slot_time', true),
+                (string) get_post_meta($b->ID, '_mdbk_slot_time', true)
+            );
+        });
 
         $counts = ['waiting' => 0, 'serving' => 0, 'completed' => 0, 'no_show' => 0];
         $patients = [];
@@ -1302,10 +1595,13 @@ class MDBK_Appointment_Manager {
             $count_key = str_replace('-', '_', self::post_status_to_slug($a->post_status));
             if (isset($counts[$count_key])) $counts[$count_key]++;
 
-            $ticket = get_post_meta($a->ID, '_mdbk_ticket_number', true);
             $slot_time = get_post_meta($a->ID, '_mdbk_slot_time', true);
             $patients[] = [
-                'ticket'       => $ticket ? self::format_ticket_number($ticket) : '',
+                'ticket'       => self::format_ticket_number(self::display_ticket_number($a->ID)),
+                // Shown by the JS in place of an empty ticket — no queue
+                // number yet under check-in-order mode, until this patient
+                // actually checks in (see checkin_ticket_number()).
+                'booking_id'   => self::format_booking_id($a->ID),
                 'patient_name' => get_post_meta($a->ID, '_mdbk_patient_name', true),
                 'time'         => $slot_time ? date_i18n(get_option('time_format'), strtotime($slot_time)) : '',
                 'status_slug'  => $display_slug,

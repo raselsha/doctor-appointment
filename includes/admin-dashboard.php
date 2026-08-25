@@ -424,7 +424,7 @@ class MDBK_Admin_Dashboard {
             wp_send_json_error(['message' => __('Doctor not found.', 'doctor-appointment')]);
         }
 
-        wp_send_json_success(['html' => $this->render_doctor_card($doctor)]);
+        wp_send_json_success(['html' => $this->render_doctor_card($doctor, false)]);
     }
 
     /**
@@ -661,6 +661,19 @@ class MDBK_Admin_Dashboard {
             update_post_meta($id, '_mdbk_extra_dates', self::sanitize_date_list($_POST['extra_dates_json'] ?? ''));
             update_post_meta($id, '_mdbk_off_dates', self::sanitize_date_list($_POST['off_dates_json'] ?? ''));
             if (isset($_POST['specialty'])) wp_set_object_terms($id, [intval($_POST['specialty'])], 'mdbk_department');
+            // This doctor's own Queue & Ticketing choice (moved here from
+            // global settings). Always written as a concrete 'booking'/'checkin'
+            // so the radio's visible state can never silently disagree with
+            // what's stored.
+            $serial_mode = ($_POST['queue_serial_mode'] ?? '') === 'checkin' ? 'checkin' : 'booking';
+            update_post_meta($id, '_mdbk_queue_serial_mode', $serial_mode);
+            // Switching THIS doctor back to booking order: their bookings taken
+            // while check-in-order was active hold no stored number, which
+            // booking-order mode has only to show. Backfill just this doctor's
+            // rows, never anyone else's.
+            if ($doctor_id && $serial_mode === 'booking') {
+                $this->backfill_missing_ticket_numbers($id);
+            }
             $photo_id = !empty($_POST['photo_id']) ? intval($_POST['photo_id']) : 0;
             if ($photo_id) { set_post_thumbnail($id, $photo_id); } else { delete_post_thumbnail($id); }
 
@@ -1016,9 +1029,47 @@ class MDBK_Admin_Dashboard {
         $old_slot_time = get_post_meta($app_id, '_mdbk_slot_time', true);
         $old_doctor_id = intval(get_post_meta($app_id, '_mdbk_doctor_id', true));
 
-        if (\MDBK\MDBK_Appointment_Manager::is_slot_taken($doctor_id, $date, $slot_time, $app_id)) {
-            wp_redirect(admin_url('admin.php?page=mdbk-schedule&error=' . urlencode(__('That time slot is already booked.', 'doctor-appointment'))));
+        // A blank slot_time here means the selected doctor's picker is
+        // hidden from patients (is_slot_enabled() off) — the Add/Edit
+        // modal's own JS blanks this field whenever that's the case,
+        // including on Edit-open (updateAppSlotTimeAvailability(),
+        // admin-script.js), so this branch can't just assume "blank means
+        // leave it blank" the way it used to: without resolving a real
+        // slot here too, simply re-saving any OTHER field on one of these
+        // bookings (fixing a typo'd phone number, say) would silently wipe
+        // an already-auto-assigned time back to empty on every save. This
+        // is the same resolve-under-lock handle_submission() does for a
+        // brand new booking — that function only covers NEW bookings
+        // (this is the separate edit path), so it's repeated here rather
+        // than reachable from one shared call.
+        $lock_key = $slot_time !== ''
+            ? 'slot|' . $doctor_id . '|' . $date . '|' . $slot_time
+            : 'autoassign|' . $doctor_id . '|' . $date;
+        if (!\MDBK\MDBK_Appointment_Manager::acquire_lock($lock_key)) {
+            wp_redirect(admin_url('admin.php?page=mdbk-schedule&error=' . urlencode(__('This slot is being booked by someone else right now. Please try again.', 'doctor-appointment'))));
             exit;
+        }
+        // exit() below bypasses finally entirely (unlike return), so each
+        // early-out releases the lock explicitly before exiting — the
+        // finally below only covers the normal fall-through case. A
+        // second release on that path is harmless (deleting an
+        // already-gone transient is a no-op).
+        try {
+            if ($slot_time === '') {
+                $slot_time = \MDBK\MDBK_Appointment_Manager::find_next_available_slot($doctor_id, $date, $app_id);
+                if ($slot_time === '') {
+                    \MDBK\MDBK_Appointment_Manager::release_lock($lock_key);
+                    wp_redirect(admin_url('admin.php?page=mdbk-schedule&error=' . urlencode(__('No available time could be assigned for this doctor on this date.', 'doctor-appointment'))));
+                    exit;
+                }
+            }
+            if (\MDBK\MDBK_Appointment_Manager::is_slot_taken($doctor_id, $date, $slot_time, $app_id)) {
+                \MDBK\MDBK_Appointment_Manager::release_lock($lock_key);
+                wp_redirect(admin_url('admin.php?page=mdbk-schedule&error=' . urlencode(__('That time slot is already booked.', 'doctor-appointment'))));
+                exit;
+            }
+        } finally {
+            \MDBK\MDBK_Appointment_Manager::release_lock($lock_key);
         }
 
         $p_email = isset($_POST['patient_email']) ? sanitize_email($_POST['patient_email']) : '';
@@ -1050,11 +1101,27 @@ class MDBK_Admin_Dashboard {
             if ($date !== $old_date || $slot_time !== $old_slot_time) {
                 delete_post_meta($id, '_mdbk_checked_in');
                 delete_post_meta($id, '_mdbk_checkin_time');
+                // Dropping a check-in shifts everyone who arrived after
+                // this patient up one place under check-in-order mode
+                // (their numbers are read off the arrival list, see
+                // MDBK_Appointment_Manager::checkin_ticket_number()), so the
+                // memo of that list can't be trusted for the rest of this
+                // request.
+                \MDBK\MDBK_Appointment_Manager::flush_checkin_rank_cache();
             }
-            // Reassign the ticket number when the date or doctor changed
-            // (rescheduling), or when there was never one (legacy record).
-            if (!get_post_meta($id, '_mdbk_ticket_number', true) || $date !== $old_date || $doctor_id !== $old_doctor_id) {
-                update_post_meta($id, '_mdbk_ticket_number', \MDBK\MDBK_Appointment_Manager::next_ticket_number($doctor_id, $date, $id));
+            // Only booking-order mode keeps a stored number to maintain
+            // here. Check-in-order mode derives each patient's number from
+            // when they actually arrived, so there's nothing to reassign —
+            // and _mdbk_ticket_number is deliberately left untouched rather
+            // than cleared, so switching the setting back restores every
+            // booking-order number exactly as it was.
+            if (\MDBK\MDBK_Appointment_Manager::queue_serial_mode($doctor_id) !== 'checkin') {
+                // Reassign when the date or doctor changed (rescheduling),
+                // or when there was never one (legacy record) — unchanged
+                // from before this setting existed.
+                if (!get_post_meta($id, '_mdbk_ticket_number', true) || $date !== $old_date || $doctor_id !== $old_doctor_id) {
+                    update_post_meta($id, '_mdbk_ticket_number', \MDBK\MDBK_Appointment_Manager::next_ticket_number($doctor_id, $date, $id));
+                }
             }
             wp_redirect(admin_url('admin.php?page=mdbk-schedule&success=1'));
             exit;
@@ -1108,8 +1175,94 @@ class MDBK_Admin_Dashboard {
         $secondary_color = sanitize_hex_color($_POST['color_secondary'] ?? '');
         update_option('mdbk_color_secondary', $secondary_color ?: self::DEFAULT_COLOR_SECONDARY);
         update_option('mdbk_enable_live_queue', isset($_POST['enable_live_queue']) ? 'yes' : 'no');
+        // Queue & Ticketing moved OUT of global settings — each doctor picks
+        // their own serial mode in the doctor-edit modal now (see
+        // handle_doctor_save()). The legacy mdbk_queue_serial_mode option is
+        // left in place untouched: queue_serial_mode() still reads it as the
+        // site-wide default for any doctor who never chose their own mode.
         wp_redirect(admin_url('admin.php?page=mdbk-global-settings&success=1'));
         exit;
+    }
+
+    /**
+     * Give a stored queue number to any current booking that never got one.
+     *
+     * Only bookings taken while check-in-order mode was active are ever in
+     * this state: that mode derives each patient's number from when they
+     * arrive rather than stamping one at booking time (see
+     * MDBK_Appointment_Manager::checkin_ticket_number()), so nothing was
+     * written for them. Switching back to booking order would otherwise
+     * leave exactly those rows blank, since booking order has only the
+     * stored number to show.
+     *
+     * Scoped to today and later — a past day's queue is finished, and
+     * renumbering it would rewrite history nobody is looking at. Ordered
+     * by date then slot time so a day filled in here reads chronologically
+     * rather than in whatever order the query happened to return.
+     *
+     * $doctor_id (optional) scopes it to one doctor's bookings — used when
+     * that doctor's own profile switches their queue serial mode back to
+     * booking order; other doctors' checkin-mode blanks are none of this
+     * save's business.
+     */
+    private function backfill_missing_ticket_numbers($doctor_id = 0) {
+        $today = current_time('Y-m-d');
+        $meta_query = [
+            'relation' => 'AND',
+            ['key' => '_mdbk_appointment_date', 'value' => $today, 'compare' => '>='],
+            ['key' => '_mdbk_ticket_number', 'compare' => 'NOT EXISTS'],
+        ];
+        if ($doctor_id) {
+            $meta_query[] = ['key' => '_mdbk_doctor_id', 'value' => intval($doctor_id)];
+        }
+        $pending = get_posts([
+            'post_type'   => 'mdbk_appointment',
+            'post_status' => \MDBK\MDBK_CPT::APPOINTMENT_STATUSES,
+            'numberposts' => -1,
+            'meta_query'  => $meta_query,
+        ]);
+        usort($pending, function($a, $b) {
+            $key_a = get_post_meta($a->ID, '_mdbk_appointment_date', true) . ' ' . get_post_meta($a->ID, '_mdbk_slot_time', true);
+            $key_b = get_post_meta($b->ID, '_mdbk_appointment_date', true) . ' ' . get_post_meta($b->ID, '_mdbk_slot_time', true);
+            return strcmp($key_a, $key_b);
+        });
+
+        // Deliberately NOT next_ticket_number() per row: that counts a
+        // doctor+date's appointments and adds one, which is only the next
+        // free number while every appointment already holds a ticket — its
+        // normal one-new-booking-at-a-time caller. Here a whole group is
+        // missing one at once, so every row in that group would count the
+        // same total and all be handed the SAME number. Carrying the
+        // highest number already in use per doctor+date and stepping up
+        // from it gives each row its own.
+        $next_by_group = [];
+        foreach ($pending as $app) {
+            $doctor_id = intval(get_post_meta($app->ID, '_mdbk_doctor_id', true));
+            $date      = get_post_meta($app->ID, '_mdbk_appointment_date', true);
+            if (!$doctor_id || !$date) continue;
+
+            $group = $doctor_id . '|' . $date;
+            if (!isset($next_by_group[$group])) {
+                $highest = 0;
+                foreach (get_posts([
+                    'post_type'   => 'mdbk_appointment',
+                    'post_status' => \MDBK\MDBK_CPT::APPOINTMENT_STATUSES,
+                    'numberposts' => -1,
+                    'fields'      => 'ids',
+                    'meta_query'  => [
+                        'relation' => 'AND',
+                        ['key' => '_mdbk_doctor_id', 'value' => $doctor_id],
+                        ['key' => '_mdbk_appointment_date', 'value' => $date],
+                    ],
+                ]) as $existing_id) {
+                    $highest = max($highest, intval(get_post_meta($existing_id, '_mdbk_ticket_number', true)));
+                }
+                $next_by_group[$group] = $highest + 1;
+            }
+
+            update_post_meta($app->ID, '_mdbk_ticket_number', $next_by_group[$group]);
+            $next_by_group[$group]++;
+        }
     }
 
     // Matches the plugin's own already-established frontend brand colors
@@ -1187,6 +1340,7 @@ class MDBK_Admin_Dashboard {
                         </div>
                         <p class="mdbk-form-hint"><?php _e('When off, the Live Queue page(s) show a simple "not available" message instead of the queue — useful if you don\'t want walk-in patients\' names visible on a public screen.', 'doctor-appointment'); ?></p>
                     </div>
+
                     </div>
 
                     <div class="mdbk-global-settings-save-row">
@@ -1598,7 +1752,7 @@ class MDBK_Admin_Dashboard {
 
     public function render_doctors_page() {
         $doctors = get_posts(['post_type' => 'mdbk_doctor', 'numberposts' => -1, 'orderby' => 'menu_order', 'order' => 'ASC']);
-        $specialties = get_terms(['taxonomy' => 'mdbk_department', 'hide_empty' => false, 'orderby' => 'meta_value_num', 'meta_key' => '_mdbk_specialty_order', 'order' => 'ASC']);
+        $specialties = \MDBK\MDBK_Appointment_Manager::get_specialty_terms(false);
         $total = count($doctors);
         ?>
         <div id="mdbk-admin-dashboard"><div class="mdbk-admin-wrapper"><?php $this->render_sidebar('doctors'); ?>
@@ -1637,7 +1791,7 @@ class MDBK_Admin_Dashboard {
                 <div class="mdbk-admin-doctor-grid" id="mdbk-admin-doctor-grid">
                     <?php if (empty($doctors)): ?>
                         <p class="mdbk-admin-doctor-empty"><?php _e('No doctors found.', 'doctor-appointment'); ?></p>
-                    <?php else: foreach ($doctors as $d): echo $this->render_doctor_card($d); endforeach; endif; ?>
+                    <?php else: foreach ($doctors as $d): echo $this->render_doctor_card($d, false); endforeach; endif; ?>
                     <?php // Trailing "add new" card — reuses .mdbk-add-doctor
                     // (same class the header button above uses) so
                     // initModal()'s querySelectorAll binding picks it up
@@ -1719,7 +1873,17 @@ class MDBK_Admin_Dashboard {
 
     // Reused for the initial page render and could be reused for an AJAX-refreshed
     // fragment later, so the markup only lives in one place.
-    private function render_doctor_card($d) {
+    /**
+     * One admin doctor card. $show_top_actions hides the topbar's action
+     * row (Live Queue toggle, Refresh, Print, Export CSV, Download Image)
+     * — those are queue-management actions that belong on each doctor's
+     * own Booking section (the Bookings page's per-doctor group headers
+     * carry exactly this same set), not on a directory/profile card, so
+     * the Doctors grid renders cards without them. The break countdown
+     * pill stays regardless — it's this doctor's live status, not an
+     * action button.
+     */
+    private function render_doctor_card($d, $show_top_actions = true) {
         $spec = get_the_terms($d->ID, 'mdbk_department');
         $spec_name = ($spec && !is_wp_error($spec)) ? $spec[0]->name : __('General', 'doctor-appointment');
         $spec_id = ($spec && !is_wp_error($spec)) ? $spec[0]->term_id : 0;
@@ -1753,7 +1917,7 @@ class MDBK_Admin_Dashboard {
         $csv_url = wp_nonce_url(add_query_arg(['page' => 'mdbk-schedule', 'filter_date' => '', 'filter_doctor' => $d->ID, 'mdbk_export' => 'csv'], admin_url('admin.php')), 'mdbk_export_csv');
         ob_start();
         ?>
-        <div class="mdbk-admin-doctor-card<?php echo $active ? '' : ' is-inactive'; ?>" data-id="<?php echo esc_attr($d->ID); ?>" data-name="<?php echo esc_attr($d->post_title); ?>" data-email="<?php echo esc_attr($email); ?>" data-phone="<?php echo esc_attr($phone); ?>" data-bio="<?php echo esc_attr($bio); ?>" data-show-phone="<?php echo esc_attr($show_phone ? $show_phone : 'yes'); ?>" data-show-email="<?php echo esc_attr($show_email ? $show_email : 'yes'); ?>" data-schedule='<?php echo esc_attr(json_encode($schedule)); ?>' data-slot-duration="<?php echo esc_attr($slot_duration ? $slot_duration : 20); ?>" data-slot-enabled="<?php echo esc_attr($slot_enabled === 'no' ? 'no' : 'yes'); ?>" data-extra-dates='<?php echo esc_attr(json_encode(is_array($extra_dates) ? $extra_dates : [])); ?>' data-off-dates='<?php echo esc_attr(json_encode(is_array($off_dates) ? $off_dates : [])); ?>' data-specialty="<?php echo esc_attr($spec_id); ?>" data-thumbnail="<?php echo esc_url($thumb ?: ''); ?>" data-thumbnail-id="<?php echo esc_attr($thumb_id ?: 0); ?>" data-fee="<?php echo esc_attr($fee ?: ''); ?>" data-breaks='<?php echo esc_attr(json_encode($breaks)); ?>'>
+        <div class="mdbk-admin-doctor-card<?php echo $active ? '' : ' is-inactive'; ?>" data-id="<?php echo esc_attr($d->ID); ?>" data-name="<?php echo esc_attr($d->post_title); ?>" data-email="<?php echo esc_attr($email); ?>" data-phone="<?php echo esc_attr($phone); ?>" data-bio="<?php echo esc_attr($bio); ?>" data-show-phone="<?php echo esc_attr($show_phone ? $show_phone : 'yes'); ?>" data-show-email="<?php echo esc_attr($show_email ? $show_email : 'yes'); ?>" data-schedule='<?php echo esc_attr(json_encode($schedule)); ?>' data-slot-duration="<?php echo esc_attr($slot_duration ? $slot_duration : 20); ?>" data-slot-enabled="<?php echo esc_attr($slot_enabled === 'no' ? 'no' : 'yes'); ?>" data-extra-dates='<?php echo esc_attr(json_encode(is_array($extra_dates) ? $extra_dates : [])); ?>' data-off-dates='<?php echo esc_attr(json_encode(is_array($off_dates) ? $off_dates : [])); ?>' data-specialty="<?php echo esc_attr($spec_id); ?>" data-queue-mode="<?php echo esc_attr(get_post_meta($d->ID, '_mdbk_queue_serial_mode', true) ?: \MDBK\MDBK_Appointment_Manager::queue_serial_mode()); ?>" data-thumbnail="<?php echo esc_url($thumb ?: ''); ?>" data-thumbnail-id="<?php echo esc_attr($thumb_id ?: 0); ?>" data-fee="<?php echo esc_attr($fee ?: ''); ?>" data-breaks='<?php echo esc_attr(json_encode($breaks)); ?>'>
             <?php // Same set of actions the Booking page's per-doctor group
             // header carries (Live Queue toggle, Refresh, Print, Export
             // CSV, Download Image) — reinterpreted for a profile card
@@ -1770,8 +1934,15 @@ class MDBK_Admin_Dashboard {
             // one piece that stays visible to whoever can see the card at
             // all, doctor included — it's their own live status, not a
             // management action. ?>
-            <?php if ($is_admin_viewer || !empty($breaks)) : ?>
-            <div class="mdbk-admin-doctor-card-topbar">
+            <?php // The topbar renders ONLY when it has content: without the
+            // action row (Doctors-grid cards) an empty wrapper would still
+            // paint its border-bottom + padding as a stray separator line.
+            // Pill-only topbars get .mdbk-no-actions so they lose the
+            // separator too and sit snug above the avatar. ?>
+            <?php $card_break_el = $this->render_break_countdown_el($d->ID);
+            $card_has_actions = $is_admin_viewer && $show_top_actions;
+            if ($card_has_actions || $card_break_el) : ?>
+            <div class="mdbk-admin-doctor-card-topbar<?php echo $card_has_actions ? '' : ' mdbk-no-actions'; ?>">
                 <?php // Toggle + action icons share one row (space-between);
                 // the break pill gets its own full-width line below rather
                 // than sharing this one — this card is far narrower than the
@@ -1783,7 +1954,7 @@ class MDBK_Admin_Dashboard {
                 // hide (see .mdbk-admin-doctor-card-topbar .mdbk-break-countdown
                 // in admin-style.css, which drops the shared class's
                 // absolute-positioning for a plain static, wrapping one here). ?>
-                <?php if ($is_admin_viewer) : ?>
+                <?php if ($card_has_actions) : ?>
                 <div class="mdbk-admin-doctor-card-topbar-row">
                     <label class="mdbk-toggle mdbk-mini-toggle mdbk-doctor-live-queue-toggle" title="<?php esc_attr_e('Live Queue display for this doctor', 'doctor-appointment'); ?>">
                         <input type="checkbox" class="mdbk-doctor-live-queue-checkbox" data-doctor-id="<?php echo esc_attr($d->ID); ?>" <?php checked($live_queue_enabled); ?>>
@@ -1797,9 +1968,9 @@ class MDBK_Admin_Dashboard {
                     </span>
                 </div>
                 <?php endif; ?>
-                <?php echo $this->render_break_countdown_el($d->ID); ?>
+                <?php echo $card_break_el; ?>
             </div>
-            <?php if ($is_admin_viewer) : ?>
+            <?php if ($card_has_actions) : ?>
             <div class="mdbk-admin-doctor-card-print-table" style="display:none;">
                 <table>
                     <tr><th><?php _e('Specialty', 'doctor-appointment'); ?></th><td><?php echo esc_html($spec_name); ?></td></tr>
@@ -1967,7 +2138,7 @@ class MDBK_Admin_Dashboard {
         $doc_id = get_post_meta($a->ID, '_mdbk_doctor_id', true);
         $date = get_post_meta($a->ID, '_mdbk_appointment_date', true);
         $slot_time = get_post_meta($a->ID, '_mdbk_slot_time', true);
-        $ticket = get_post_meta($a->ID, '_mdbk_ticket_number', true);
+        $ticket = \MDBK\MDBK_Appointment_Manager::display_ticket_number($a->ID);
         $patient_id = get_post_meta($a->ID, '_mdbk_patient_id', true);
         $status = \MDBK\MDBK_Appointment_Manager::post_status_to_slug(get_post_status($a));
         $age_gender = trim($gender . ($age && $gender ? ' · ' : '') . $age);
@@ -1983,7 +2154,7 @@ class MDBK_Admin_Dashboard {
         ob_start();
         ?>
         <div class="mdbk-patient-row<?php echo $show_doctor ? ' mdbk-patient-row-has-doctor' : ''; ?> mdbk-status-<?php echo esc_attr($status); ?>" data-id="<?php echo esc_attr($a->ID); ?>" data-patient="<?php echo esc_attr($p_name); ?>" data-phone="<?php echo esc_attr($phone); ?>" data-email="<?php echo esc_attr($email); ?>" data-age="<?php echo esc_attr($age); ?>" data-gender="<?php echo esc_attr($gender); ?>" data-doctor="<?php echo esc_attr($doc_id); ?>" data-specialty="<?php echo esc_attr($app_spec_id); ?>" data-date="<?php echo esc_attr($date); ?>" data-slot-time="<?php echo esc_attr($slot_time); ?>" data-status="<?php echo esc_attr($status); ?>">
-            <span class="mdbk-patient-row-ticket-slot"><?php if ($ticket): ?><span class="mdbk-patient-row-ticket mdbk-patient-row-queue" title="<?php esc_attr_e('Queue number', 'doctor-appointment'); ?>">Q<?php echo esc_html(str_pad($ticket, 2, '0', STR_PAD_LEFT)); ?></span><?php endif; ?></span>
+            <span class="mdbk-patient-row-ticket-slot"><?php if ($ticket): ?><span class="mdbk-patient-row-ticket mdbk-patient-row-queue" title="<?php esc_attr_e('Queue number', 'doctor-appointment'); ?>">Q<?php echo esc_html(str_pad($ticket, 2, '0', STR_PAD_LEFT)); ?></span><?php elseif (\MDBK\MDBK_Appointment_Manager::queue_serial_mode($doc_id) === 'checkin') : ?><span class="mdbk-patient-row-ticket mdbk-patient-row-bookingid" title="<?php esc_attr_e('Not checked in yet — queue number assigns on check-in', 'doctor-appointment'); ?>"><?php echo esc_html(\MDBK\MDBK_Appointment_Manager::format_booking_id($a->ID)); ?></span><?php endif; ?></span>
             <?php if ($patient_id && current_user_can(MDBK_CAP_QUEUE)) : ?>
                 <a href="#" class="mdbk-patient-row-name mdbk-view-patient" data-id="<?php echo esc_attr($patient_id); ?>" title="<?php esc_attr_e('View patient', 'doctor-appointment'); ?>"><?php echo esc_html($p_name); ?></a>
             <?php else : ?>
@@ -2128,9 +2299,9 @@ class MDBK_Admin_Dashboard {
         fputcsv($out, ['Queue', 'Patient ID', 'Patient Name', 'Phone', 'Email', 'Age', 'Gender', 'Doctor', 'Date', 'Time', 'Status', 'Symptoms']);
         foreach ($apps as $a) {
             $doc_id = get_post_meta($a->ID, '_mdbk_doctor_id', true);
-            $ticket = get_post_meta($a->ID, '_mdbk_ticket_number', true);
+            $ticket = \MDBK\MDBK_Appointment_Manager::display_ticket_number($a->ID);
             fputcsv($out, [
-                $ticket ? 'Q' . str_pad($ticket, 2, '0', STR_PAD_LEFT) : '',
+                \MDBK\MDBK_Appointment_Manager::format_ticket_number($ticket),
                 get_post_meta($a->ID, '_mdbk_patient_id', true),
                 get_post_meta($a->ID, '_mdbk_patient_name', true),
                 get_post_meta($a->ID, '_mdbk_patient_phone', true),
@@ -3246,22 +3417,52 @@ class MDBK_Admin_Dashboard {
             return get_post_meta($a->ID, '_mdbk_appointment_date', true) === $today;
         }));
 
+        // Booking-order mode (default): unchanged from before check-in-order
+        // queue mode existed — checked-in waiting patients bubble above
+        // still-not-checked-in ones (rank 1 vs 2), each tier then sorted by
+        // ticket. Check-in mode mirrors that same shape now: a waiting
+        // patient who has checked in rises into rank 1 and sorts by their
+        // live Q number (display_ticket_number()), while everyone still
+        // pending holds rank 2 in slot-time schedule order.
+        // Queue serial mode is PER DOCTOR now (each doctor's own profile
+        // setting, see queue_serial_mode()), so the mode is resolved per
+        // row from that row's own doctor — a mixed-doctor list (the
+        // $doctor_id=0 view) then sorts each doctor's rows by that
+        // doctor's own rule instead of one site-wide assumption.
+        $row_checkin = function($app) {
+            return \MDBK\MDBK_Appointment_Manager::queue_serial_mode(
+                intval(get_post_meta($app->ID, '_mdbk_doctor_id', true))
+            ) === 'checkin';
+        };
         $rank = function($app) {
             $status = \MDBK\MDBK_Appointment_Manager::post_status_to_slug(get_post_status($app));
             if ($status === 'serving') return 0;
-            $checked_in = get_post_meta($app->ID, '_mdbk_checked_in', true) === 'yes';
-            if ($status === 'waiting' && $checked_in) return 1;
-            if ($status === 'waiting') return 2;
+            if ($status === 'waiting') {
+                $checked_in = get_post_meta($app->ID, '_mdbk_checked_in', true) === 'yes';
+                return $checked_in ? 1 : 2;
+            }
             if ($status === 'no-show') return 3;
             return 4; // completed
         };
-        usort($today_apps, function($a, $b) use ($rank) {
+        usort($today_apps, function($a, $b) use ($rank, $row_checkin) {
             $rank_a = $rank($a);
             $rank_b = $rank($b);
             if ($rank_a !== $rank_b) return $rank_a <=> $rank_b;
-            $ticket_a = intval(get_post_meta($a->ID, '_mdbk_ticket_number', true));
-            $ticket_b = intval(get_post_meta($b->ID, '_mdbk_ticket_number', true));
-            return $ticket_a <=> $ticket_b;
+            $checkin_a = $row_checkin($a);
+            $checkin_b = $row_checkin($b);
+            if ($checkin_a && $checkin_b && $rank_a === 1) {
+                return \MDBK\MDBK_Appointment_Manager::display_ticket_number($a->ID)
+                    <=> \MDBK\MDBK_Appointment_Manager::display_ticket_number($b->ID);
+            }
+            if (!$checkin_a && !$checkin_b) {
+                $ticket_a = intval(get_post_meta($a->ID, '_mdbk_ticket_number', true));
+                $ticket_b = intval(get_post_meta($b->ID, '_mdbk_ticket_number', true));
+                return $ticket_a <=> $ticket_b;
+            }
+            return strcmp(
+                (string) get_post_meta($a->ID, '_mdbk_slot_time', true),
+                (string) get_post_meta($b->ID, '_mdbk_slot_time', true)
+            );
         });
 
         return $today_apps;
@@ -3294,7 +3495,7 @@ class MDBK_Admin_Dashboard {
         $gender_key = $gender ? strtolower($gender) : 'unknown';
         $date = get_post_meta($a->ID, '_mdbk_appointment_date', true);
         $slot_time = get_post_meta($a->ID, '_mdbk_slot_time', true);
-        $ticket = get_post_meta($a->ID, '_mdbk_ticket_number', true);
+        $ticket = \MDBK\MDBK_Appointment_Manager::display_ticket_number($a->ID);
         $patient_id = get_post_meta($a->ID, '_mdbk_patient_id', true);
         $status = \MDBK\MDBK_Appointment_Manager::post_status_to_slug(get_post_status($a));
         // A ticket/queue number is only meaningful within the day it was
@@ -3364,6 +3565,8 @@ class MDBK_Admin_Dashboard {
             <span class="mdbk-patient-row-ticket-slot">
                 <?php if ($is_today && $ticket) : ?>
                     <span class="mdbk-patient-row-ticket mdbk-patient-row-queue" title="<?php esc_attr_e('Queue number', 'doctor-appointment'); ?>">Q<?php echo esc_html(str_pad($ticket, 2, '0', STR_PAD_LEFT)); ?></span>
+                <?php elseif ($is_today && \MDBK\MDBK_Appointment_Manager::queue_serial_mode(get_post_meta($a->ID, '_mdbk_doctor_id', true)) === 'checkin') : ?>
+                    <span class="mdbk-patient-row-ticket mdbk-patient-row-bookingid" title="<?php esc_attr_e('Not checked in yet — queue number assigns on check-in', 'doctor-appointment'); ?>"><?php echo esc_html(\MDBK\MDBK_Appointment_Manager::format_booking_id($a->ID)); ?></span>
                 <?php elseif (!$is_today && $patient_id) : ?>
                     <span class="mdbk-patient-row-ticket mdbk-patient-row-pid" title="<?php esc_attr_e('Patient ID', 'doctor-appointment'); ?>">P<?php echo esc_html($patient_id); ?></span>
                 <?php endif; ?>
@@ -3890,7 +4093,7 @@ class MDBK_Admin_Dashboard {
     }
 
     public function render_specialties_page() {
-        $terms = get_terms(['taxonomy' => 'mdbk_department', 'hide_empty' => false, 'orderby' => 'meta_value_num', 'meta_key' => '_mdbk_specialty_order', 'order' => 'ASC']);
+        $terms = \MDBK\MDBK_Appointment_Manager::get_specialty_terms(false);
         ?>
         <div id="mdbk-admin-dashboard"><div class="mdbk-admin-wrapper"><?php $this->render_sidebar('specialties'); ?>
             <div class="mdbk-main-content">
@@ -4069,7 +4272,7 @@ class MDBK_Admin_Dashboard {
                     <div><label class="mdbk-form-label" for="mdbk-doc-name"><?php _e('Full Name', 'doctor-appointment'); ?> *</label><input type="text" name="doc_name" id="mdbk-doc-name" placeholder="<?php esc_attr_e('e.g. Dr. Karim Ahmed', 'doctor-appointment'); ?>" required></div>
                     <div>
                         <label class="mdbk-form-label" for="mdbk-doc-spec-trigger"><?php _e('Specialty', 'doctor-appointment'); ?></label>
-                        <?php $spec_terms = get_terms(['taxonomy' => 'mdbk_department', 'hide_empty' => false, 'orderby' => 'meta_value_num', 'meta_key' => '_mdbk_specialty_order', 'order' => 'ASC']); ?>
+                        <?php $spec_terms = \MDBK\MDBK_Appointment_Manager::get_specialty_terms(false); ?>
                         <div class="mdbk-custom-select" id="mdbk-doc-spec-select">
                             <button type="button" class="mdbk-custom-select-trigger" id="mdbk-doc-spec-trigger">
                                 <span class="mdbk-custom-select-value"><?php echo $spec_terms ? esc_html($spec_terms[0]->name) : ''; ?></span>
@@ -4098,28 +4301,61 @@ class MDBK_Admin_Dashboard {
                     </div>
                 </div>
 
-                <div class="mdbk-form-row mdbk-form-row-duo">
-                    <div>
-                        <div class="mdbk-form-label-row">
-                            <label class="mdbk-form-label" for="mdbk-doc-slot-duration"><?php _e('Slot Duration (minutes)', 'doctor-appointment'); ?></label>
-                            <label class="mdbk-toggle mdbk-mini-toggle"><input type="checkbox" name="slot_enabled" id="mdbk-doc-slot-enabled" value="1" checked><span class="mdbk-toggle-slider"></span><span class="mdbk-mini-toggle-text"><?php _e('Enabled', 'doctor-appointment'); ?></span></label>
-                        </div>
-                        <div id="mdbk-doc-slot-duration-group"><input type="number" name="slot_duration" id="mdbk-doc-slot-duration" min="5" step="5" value="20" placeholder="<?php esc_attr_e('e.g. 20', 'doctor-appointment'); ?>"></div>
-                    </div>
-                    <div>
-                        <label class="mdbk-form-label" for="mdbk-doc-fee"><?php _e('Consultation Fee (৳)', 'doctor-appointment'); ?></label>
-                        <div class="mdbk-stepper">
-                            <button type="button" class="mdbk-stepper-btn mdbk-stepper-minus" tabindex="-1" aria-label="<?php esc_attr_e('Decrease', 'doctor-appointment'); ?>">&minus;</button>
-                            <input type="number" name="doc_fee" id="mdbk-doc-fee" min="0" step="0.01" data-step="50" placeholder="<?php esc_attr_e('e.g. 800', 'doctor-appointment'); ?>">
-                            <button type="button" class="mdbk-stepper-btn mdbk-stepper-plus" tabindex="-1" aria-label="<?php esc_attr_e('Increase', 'doctor-appointment'); ?>">&plus;</button>
-                        </div>
-                    </div>
-                </div>
-
                 <div class="mdbk-form-row">
                     <label class="mdbk-form-label" for="mdbk-doc-bio"><?php _e('Bio / Description', 'doctor-appointment'); ?></label>
                     <textarea name="doc_bio" id="mdbk-doc-bio" rows="3" placeholder="<?php esc_attr_e('Specialty, experience, qualifications...', 'doctor-appointment'); ?>"></textarea>
                 </div>
+
+                <?php // Slot duration + consultation fee live in their own
+                // collapsible group below Bio — same details/summary shape as
+                // Weekly Availability / Break Times above/below, so all three
+                // optional-settings groups read identically. Field names/IDs
+                // are untouched — only this modal's markup moved. ?>
+                <details class="mdbk-availability-section" open>
+                    <summary class="mdbk-availability-header"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 12"></polyline><line x1="12" y1="16" x2="16" y2="18"></line></svg><h4><?php _e('Time Slot & Fee', 'doctor-appointment'); ?></h4><span class="mdbk-availability-chevron"></span></summary>
+                    <div class="mdbk-form-row mdbk-form-row-duo">
+                        <div>
+                            <div class="mdbk-form-label-row">
+                                <label class="mdbk-form-label" for="mdbk-doc-slot-duration"><?php _e('Slot Duration (minutes)', 'doctor-appointment'); ?></label>
+                                <label class="mdbk-toggle mdbk-mini-toggle"><input type="checkbox" name="slot_enabled" id="mdbk-doc-slot-enabled" value="1" checked><span class="mdbk-toggle-slider"></span><span class="mdbk-mini-toggle-text"><?php _e('Public', 'doctor-appointment'); ?></span></label>
+                            </div>
+                            <div id="mdbk-doc-slot-duration-group"><input type="number" name="slot_duration" id="mdbk-doc-slot-duration" min="5" step="5" value="20" placeholder="<?php esc_attr_e('e.g. 20', 'doctor-appointment'); ?>"></div>
+                            <p class="mdbk-form-hint"><?php _e("When off, patients won't see a time picker — they're queued automatically and still get a real appointment time behind the scenes.", 'doctor-appointment'); ?></p>
+                        </div>
+                        <div>
+                            <label class="mdbk-form-label" for="mdbk-doc-fee"><?php _e('Consultation Fee (৳)', 'doctor-appointment'); ?></label>
+                            <div class="mdbk-stepper">
+                                <button type="button" class="mdbk-stepper-btn mdbk-stepper-minus" tabindex="-1" aria-label="<?php esc_attr_e('Decrease', 'doctor-appointment'); ?>">&minus;</button>
+                                <input type="number" name="doc_fee" id="mdbk-doc-fee" min="0" step="0.01" data-step="50" placeholder="<?php esc_attr_e('e.g. 800', 'doctor-appointment'); ?>">
+                                <button type="button" class="mdbk-stepper-btn mdbk-stepper-plus" tabindex="-1" aria-label="<?php esc_attr_e('Increase', 'doctor-appointment'); ?>">&plus;</button>
+                            </div>
+                        </div>
+                    </div>
+                </details>
+
+                <?php // Queue & Ticketing — per-doctor since it moved out of
+                // global settings: each doctor picks how their own queue
+                // serials are issued. Same radio design the old global card
+                // used; handle_doctor_save() persists it as this doctor's
+                // _mdbk_queue_serial_mode meta. ?>
+                <details class="mdbk-availability-section" open>
+                    <summary class="mdbk-availability-header"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16"></path><path d="M4 12h16"></path><path d="M4 18h10"></path><circle cx="19" cy="18" r="3"></circle></svg><h4><?php _e('Queue & Ticketing', 'doctor-appointment'); ?></h4><span class="mdbk-availability-chevron"></span></summary>
+                    <label class="mdbk-form-label" style="display:block; margin-bottom:10px;"><?php _e('Queue Serial Numbering', 'doctor-appointment'); ?></label>
+                    <label style="display:flex; align-items:flex-start; gap:10px; cursor:pointer; margin-bottom:12px;">
+                        <input type="radio" name="queue_serial_mode" value="booking" <?php echo 'booking' === \MDBK\MDBK_Appointment_Manager::queue_serial_mode() ? 'checked' : ''; ?> style="margin-top:3px;">
+                        <span>
+                            <strong style="display:block; font-size:13px;"><?php _e('Booking order', 'doctor-appointment'); ?></strong>
+                            <span class="mdbk-form-hint" style="margin:2px 0 0;"><?php _e("The queue number (\"Q01\") is assigned the moment someone books.", 'doctor-appointment'); ?></span>
+                        </span>
+                    </label>
+                    <label style="display:flex; align-items:flex-start; gap:10px; cursor:pointer;">
+                        <input type="radio" name="queue_serial_mode" value="checkin" <?php echo 'checkin' === \MDBK\MDBK_Appointment_Manager::queue_serial_mode() ? 'checked' : ''; ?> style="margin-top:3px;">
+                        <span>
+                            <strong style="display:block; font-size:13px;"><?php _e('Check-in order', 'doctor-appointment'); ?></strong>
+                            <span class="mdbk-form-hint" style="margin:2px 0 0;"><?php _e('The number is assigned only when the patient actually checks in, reflecting arrival order instead of booking order. The booking confirmation shows a Booking ID until then.', 'doctor-appointment'); ?></span>
+                        </span>
+                    </label>
+                </details>
 
                 <details class="mdbk-availability-section" open>
                     <summary class="mdbk-availability-header"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="3"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg><h4><?php _e('Weekly Availability', 'doctor-appointment'); ?></h4><span class="mdbk-availability-chevron"></span></summary>
@@ -4557,7 +4793,7 @@ class MDBK_Admin_Dashboard {
         // would just filter the Doctor dropdown down to nothing. Matches
         // the public booking form's own specialty list (render_booking_widget_fields()
         // in shortcode.php) for the same reason.
-        $spec_terms = get_terms(['taxonomy' => 'mdbk_department', 'hide_empty' => true, 'orderby' => 'meta_value_num', 'meta_key' => '_mdbk_specialty_order', 'order' => 'ASC']);
+        $spec_terms = \MDBK\MDBK_Appointment_Manager::get_specialty_terms(true);
         $doctor_specs = [];
         foreach ($all_doctors as $d) {
             $terms = get_the_terms($d->ID, 'mdbk_department');
@@ -4689,7 +4925,7 @@ class MDBK_Admin_Dashboard {
                             <p class="mdbk-time-placeholder"><?php _e('Select a date first', 'doctor-appointment'); ?></p>
                         </div>
                         <input type="hidden" name="slot_time" id="mdbk-app-slot-time">
-                        <p class="mdbk-form-hint" id="mdbk-app-slot-hint" style="<?php echo $first_slot_enabled ? 'display:none;' : ''; ?>"><?php _e('Serial booking — queue number is assigned automatically.', 'doctor-appointment'); ?></p>
+                        <p class="mdbk-form-hint" id="mdbk-app-slot-hint" style="<?php echo $first_slot_enabled ? 'display:none;' : ''; ?>"><?php _e('No time slot shown — a time and queue position are assigned automatically.', 'doctor-appointment'); ?></p>
                     </div>
                 </div>
                 </div>

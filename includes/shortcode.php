@@ -451,14 +451,24 @@ class MDBK_Shortcode {
                     $doctor_id = intval(get_post_meta($appointment->ID, '_mdbk_doctor_id', true));
                     $date      = get_post_meta($appointment->ID, '_mdbk_appointment_date', true);
                     $slot_time = get_post_meta($appointment->ID, '_mdbk_slot_time', true);
-                    $ticket    = \MDBK\MDBK_Appointment_Manager::format_ticket_number(get_post_meta($appointment->ID, '_mdbk_ticket_number', true));
+                    $ticket    = \MDBK\MDBK_Appointment_Manager::format_ticket_number(\MDBK\MDBK_Appointment_Manager::display_ticket_number($appointment->ID));
+                    // Empty under check-in-order queue mode until this
+                    // patient actually checks in (see
+                    // MDBK_Appointment_Manager::queue_serial_mode()) — a
+                    // Booking ID (stable from the moment they booked) fills
+                    // in for the ticket row until then.
+                    $booking_id = \MDBK\MDBK_Appointment_Manager::format_booking_id($appointment->ID);
                     $checked_in = get_post_meta($appointment->ID, '_mdbk_checked_in', true) === 'yes';
                     ?>
                     <div class="mdbk-booking-confirmation" style="display:block">
                         <div class="mdbk-confirmation-icon">&#10003;</div>
                         <h4><?php echo $checked_in ? esc_html__('Checked In', 'doctor-appointment') : esc_html__('Booking Confirmed', 'doctor-appointment'); ?></h4>
                         <div class="mdbk-confirmation-details">
+                            <?php if ($ticket): ?>
                             <div class="mdbk-confirmation-row"><span><?php _e('Ticket', 'doctor-appointment'); ?></span><strong><?php echo esc_html($ticket); ?></strong></div>
+                            <?php else: ?>
+                            <div class="mdbk-confirmation-row"><span><?php _e('Booking ID', 'doctor-appointment'); ?></span><strong><?php echo esc_html($booking_id); ?></strong></div>
+                            <?php endif; ?>
                             <div class="mdbk-confirmation-row"><span><?php _e('Patient', 'doctor-appointment'); ?></span><strong><?php echo esc_html(get_post_meta($appointment->ID, '_mdbk_patient_name', true)); ?></strong></div>
                             <div class="mdbk-confirmation-row"><span><?php _e('Doctor', 'doctor-appointment'); ?></span><strong><?php echo esc_html(get_the_title($doctor_id)); ?></strong></div>
                             <div class="mdbk-confirmation-row"><span><?php _e('Date', 'doctor-appointment'); ?></span><strong><?php echo $date ? esc_html(date_i18n(get_option('date_format'), strtotime($date))) : ''; ?></strong></div>
@@ -472,6 +482,7 @@ class MDBK_Shortcode {
                             <button type="button" class="mdbk-confirmation-secondary-btn" id="mdbk-status-download"
                                 data-title="<?php echo esc_attr($checked_in ? __('Checked In', 'doctor-appointment') : __('Booking Confirmed', 'doctor-appointment')); ?>"
                                 data-ticket="<?php echo esc_attr($ticket); ?>"
+                                data-booking-id="<?php echo esc_attr($booking_id); ?>"
                                 data-patient-name="<?php echo esc_attr(get_post_meta($appointment->ID, '_mdbk_patient_name', true)); ?>"
                                 data-doctor-name="<?php echo esc_attr(get_the_title($doctor_id)); ?>"
                                 data-date="<?php echo esc_attr($date ? date_i18n(get_option('date_format'), strtotime($date)) : ''); ?>"
@@ -516,6 +527,7 @@ class MDBK_Shortcode {
                     mdbkDownloadBookingCard({
                         title: downloadBtn.getAttribute('data-title'),
                         ticket: downloadBtn.getAttribute('data-ticket'),
+                        booking_id: downloadBtn.getAttribute('data-booking-id'),
                         patient_name: downloadBtn.getAttribute('data-patient-name'),
                         doctor_name: downloadBtn.getAttribute('data-doctor-name'),
                         date: downloadBtn.getAttribute('data-date'),
@@ -531,6 +543,7 @@ class MDBK_Shortcode {
                     mdbkPrintBookingCard({
                         title: downloadBtn.getAttribute('data-title'),
                         ticket: downloadBtn.getAttribute('data-ticket'),
+                        booking_id: downloadBtn.getAttribute('data-booking-id'),
                         patient_name: downloadBtn.getAttribute('data-patient-name'),
                         doctor_name: downloadBtn.getAttribute('data-doctor-name'),
                         date: downloadBtn.getAttribute('data-date'),
@@ -670,26 +683,17 @@ class MDBK_Shortcode {
      * page, so there's never a collision to guard against.
      */
     private function render_booking_widget_fields() {
-        $specialties = get_terms([
-            'taxonomy'   => 'mdbk_department',
-            // A specialty with zero doctors assigned isn't a real choice
-            // for a patient booking — it would only ever lead to "No
-            // doctors available for this specialty." hide_empty (WP's own
-            // published-post count per term) filters those out.
-            'hide_empty' => true,
-            // Matches the admin's own drag-and-drop Specialties order.
-            'orderby'    => 'meta_value_num',
-            'meta_key'   => '_mdbk_specialty_order',
-            'order'      => 'ASC',
-            // Specialties default to active — the meta only ever gets
-            // written (to 'no') once someone flips a card's toggle off in
-            // wp-admin. Same pattern as doctors' own active/inactive meta.
-            'meta_query' => [
-                'relation' => 'OR',
-                ['key' => '_mdbk_specialty_active', 'compare' => 'NOT EXISTS'],
-                ['key' => '_mdbk_specialty_active', 'value' => 'no', 'compare' => '!='],
-            ],
-        ]);
+        // Via the shared helper — NOT a raw get_terms() with 'orderby' =>
+        // 'meta_value_num' + 'meta_key' => '_mdbk_specialty_order': that
+        // meta_key arg INNER-JOINS termmeta and silently drops any specialty
+        // missing an order row (see get_specialty_terms()'s docblock).
+        $specialties = \MDBK\MDBK_Appointment_Manager::get_specialty_terms(true);
+        // A specialty toggled inactive in wp-admin isn't bookable either
+        // (specialties default to active — the meta only ever gets written,
+        // to 'no', once someone flips a card's toggle off).
+        $specialties = array_values(array_filter($specialties, function($t) {
+            return get_term_meta($t->term_id, '_mdbk_specialty_active', true) !== 'no';
+        }));
         // get_terms() with hide_empty (and more so combined with the meta
         // orderby above) doesn't guarantee a 0-indexed return array — the
         // surviving terms can keep non-sequential keys, so $specialties[0]
@@ -702,11 +706,20 @@ class MDBK_Shortcode {
             <div class="mdbk-confirmation-icon">&#10003;</div>
             <h4><?php _e('Booking Confirmed', 'doctor-appointment'); ?></h4>
             <div class="mdbk-confirmation-details">
-                <div class="mdbk-confirmation-row"><span><?php _e('Ticket', 'doctor-appointment'); ?></span><strong id="mdbk-conf-ticket"></strong></div>
+                <div class="mdbk-confirmation-row"><span id="mdbk-conf-ticket-label"><?php _e('Ticket', 'doctor-appointment'); ?></span><strong id="mdbk-conf-ticket"></strong></div>
                 <div class="mdbk-confirmation-row"><span><?php _e('Patient', 'doctor-appointment'); ?></span><strong id="mdbk-conf-patient"></strong></div>
                 <div class="mdbk-confirmation-row"><span><?php _e('Doctor', 'doctor-appointment'); ?></span><strong id="mdbk-conf-doctor"></strong></div>
                 <div class="mdbk-confirmation-row"><span><?php _e('Date', 'doctor-appointment'); ?></span><strong id="mdbk-conf-date"></strong></div>
                 <div class="mdbk-confirmation-row" id="mdbk-conf-time-row"><span><?php _e('Time', 'doctor-appointment'); ?></span><strong id="mdbk-conf-time"></strong></div>
+            </div>
+            <?php // Same notice as the pre-booking preview above — shown here
+            // too when this booking's doctor had a hidden picker, so the
+            // "approximate" framing carries through to the confirmation
+            // instead of the Time row above suddenly reading as a firm,
+            // patient-chosen appointment time. form-script.js fills this in. ?>
+            <div class="mdbk-approx-time-notice" id="mdbk-conf-approx-time-notice" style="display:none">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                <span id="mdbk-conf-approx-time-value"></span>
             </div>
             <div class="mdbk-confirmation-qr" id="mdbk-confirmation-qr"></div>
             <p class="mdbk-confirmation-hint"><?php _e('Show this QR code at check-in.', 'doctor-appointment'); ?></p>
@@ -764,6 +777,19 @@ class MDBK_Shortcode {
                         <span class="mdbk-datetime-value" id="mdbk-datetime-value"></span>
                         <button type="button" class="mdbk-datetime-change" id="mdbk-datetime-change"><?php _e('Change', 'doctor-appointment'); ?></button>
                     </div>
+                </div>
+                <?php // Shown only for a hidden-picker doctor (is_slot_enabled()
+                // off), once a date is picked — the patient never chose an
+                // exact time, so this previews the time they'd likely be
+                // seen at (find_next_available_slot(), same server-side
+                // logic that assigns the real one on submit) rather than
+                // leaving them with no time expectation at all until the
+                // confirmation screen. "Approximate" on purpose: the real
+                // assignment happens at submit time and could shift if
+                // another booking lands first. form-script.js fills this in. ?>
+                <div class="mdbk-approx-time-notice" id="mdbk-approx-time-notice" style="display:none">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                    <span id="mdbk-approx-time-value"></span>
                 </div>
             </div>
 
@@ -1013,6 +1039,14 @@ class MDBK_Shortcode {
         $doctor_id = intval($doctor_id);
         $date = current_time('Y-m-d');
 
+        // Not sorted via a top-level 'meta_key' => '_mdbk_ticket_number' +
+        // orderby arg — that combination turns into an implicit INNER JOIN
+        // requiring the meta row to exist, silently DROPPING (not just
+        // leaving unordered) every appointment with no ticket yet, which
+        // is the normal state for a not-checked-in patient under check-in-
+        // order queue mode (MDBK_Appointment_Manager::queue_serial_mode()).
+        // Sorted in PHP instead, via the usort() below (which already had
+        // to exist anyway for the serving-first partition).
         $patients = get_posts([
             'post_type'   => 'mdbk_appointment',
             'post_status' => ['mdbk_waiting', 'mdbk_serving'],
@@ -1021,9 +1055,6 @@ class MDBK_Shortcode {
                 ['key' => '_mdbk_appointment_date', 'value' => $date],
                 ['key' => '_mdbk_doctor_id', 'value' => $doctor_id],
             ],
-            'meta_key'    => '_mdbk_ticket_number',
-            'orderby'     => 'meta_value_num',
-            'order'       => 'ASC',
             'numberposts' => -1,
         ]);
 
@@ -1035,12 +1066,27 @@ class MDBK_Shortcode {
         // — ajax_queue_call_next()/ajax_queue_set_status() below, and
         // MDBK_Appointment_Manager::start_visiting() on the admin
         // "Patients" page), so this is a single stable partition, not a
-        // general-purpose sort.
-        usort($patients, function($a, $b) {
+        // general-purpose sort. Everyone else within it: plain ticket order
+        // (booking mode, unchanged from before this list's own top-level
+        // meta_key sort was dropped above), or
+        // MDBK_Appointment_Manager::checkin_order_sort_key() (check-in
+        // mode: checked-in patients first in Q order, pending ones after
+        // in slot-time order — see its docblock).
+        $checkin_mode = \MDBK\MDBK_Appointment_Manager::queue_serial_mode($doctor_id) === 'checkin';
+        usort($patients, function($a, $b) use ($checkin_mode) {
             $a_rank = $a->post_status === 'mdbk_serving' ? 0 : 1;
             $b_rank = $b->post_status === 'mdbk_serving' ? 0 : 1;
             if ($a_rank !== $b_rank) return $a_rank <=> $b_rank;
-            return intval(get_post_meta($a->ID, '_mdbk_ticket_number', true)) <=> intval(get_post_meta($b->ID, '_mdbk_ticket_number', true));
+            if ($checkin_mode) {
+                return \MDBK\MDBK_Appointment_Manager::checkin_order_sort_key($a->ID) <=> \MDBK\MDBK_Appointment_Manager::checkin_order_sort_key($b->ID);
+            }
+            $ticket_a = intval(get_post_meta($a->ID, '_mdbk_ticket_number', true));
+            $ticket_b = intval(get_post_meta($b->ID, '_mdbk_ticket_number', true));
+            if ($ticket_a !== $ticket_b) return $ticket_a <=> $ticket_b;
+            return strcmp(
+                (string) get_post_meta($a->ID, '_mdbk_slot_time', true),
+                (string) get_post_meta($b->ID, '_mdbk_slot_time', true)
+            );
         });
 
         $departments = get_the_terms($doctor_id, 'mdbk_department');
@@ -1145,7 +1191,14 @@ class MDBK_Shortcode {
         <div class="mdbk-queue-list-columns">
             <?php if (!empty($patients)) : ?>
                 <?php foreach ($patients as $patient) :
-                    $ticket = \MDBK\MDBK_Appointment_Manager::format_ticket_number(get_post_meta($patient->ID, '_mdbk_ticket_number', true));
+                    $ticket = \MDBK\MDBK_Appointment_Manager::format_ticket_number(\MDBK\MDBK_Appointment_Manager::display_ticket_number($patient->ID));
+                    // No queue number yet under check-in-order mode (only
+                    // assigned once this patient actually checks in) — the
+                    // Booking ID badge fills that spot instead of a blank one.
+                    $number_display = $ticket;
+                    if (!$number_display && \MDBK\MDBK_Appointment_Manager::queue_serial_mode(get_post_meta($patient->ID, '_mdbk_doctor_id', true)) === 'checkin') {
+                        $number_display = \MDBK\MDBK_Appointment_Manager::format_booking_id($patient->ID);
+                    }
                     $name   = self::truncate_patient_name(get_post_meta($patient->ID, '_mdbk_patient_name', true));
                     $checked_in = get_post_meta($patient->ID, '_mdbk_checked_in', true) === 'yes';
                     $skipped = get_post_meta($patient->ID, '_mdbk_skipped', true) === 'yes';
@@ -1171,7 +1224,7 @@ class MDBK_Shortcode {
                     }
                     ?>
                     <div class="mdbk-queue-list-row <?php echo esc_attr($status_class); ?>" data-appointment-id="<?php echo esc_attr($patient->ID); ?>">
-                        <span class="mdbk-queue-list-number"><?php echo esc_html($ticket); ?></span>
+                        <span class="mdbk-queue-list-number"><?php echo esc_html($number_display); ?></span>
                         <span class="mdbk-queue-list-name"><?php echo esc_html($name); ?></span>
                         <?php if ($status_label) : ?>
                             <span class="mdbk-queue-list-badge"><?php echo esc_html($status_label); ?></span>
@@ -1276,7 +1329,7 @@ class MDBK_Shortcode {
             <div class="mdbk-serving-label"><?php _e('Now Visiting', 'doctor-appointment'); ?></div>
             <div class="mdbk-serving-info">
                 <?php if ($serving) :
-                    $ticket = get_post_meta($serving->ID, '_mdbk_ticket_number', true);
+                    $ticket = \MDBK\MDBK_Appointment_Manager::display_ticket_number($serving->ID);
                     $name   = self::truncate_patient_name(get_post_meta($serving->ID, '_mdbk_patient_name', true));
                     ?>
                     <div class="mdbk-serving-id">#<?php echo $ticket ? esc_html(str_pad($ticket, 2, '0', STR_PAD_LEFT)) : '—'; ?></div>
@@ -1303,14 +1356,26 @@ class MDBK_Shortcode {
             <div class="mdbk-patient-list">
                 <?php if (!empty($waiting_patients)) : ?>
                     <?php foreach ($waiting_patients as $patient) :
-                        $ticket = get_post_meta($patient->ID, '_mdbk_ticket_number', true);
+                        $ticket = \MDBK\MDBK_Appointment_Manager::display_ticket_number($patient->ID);
                         $name   = self::truncate_patient_name(get_post_meta($patient->ID, '_mdbk_patient_name', true));
                         $slot   = get_post_meta($patient->ID, '_mdbk_slot_time', true);
                         $checked_in = get_post_meta($patient->ID, '_mdbk_checked_in', true) === 'yes';
                         $skipped = get_post_meta($patient->ID, '_mdbk_skipped', true) === 'yes';
                         ?>
                         <div class="mdbk-patient-card">
-                            <div class="mdbk-patient-id">#<?php echo $ticket ? esc_html(str_pad($ticket, 2, '0', STR_PAD_LEFT)) : '—'; ?></div>
+                            <?php // No queue number yet under check-in-order mode (only
+                            // assigned once this patient actually checks in) — the
+                            // Booking ID fills the badge instead of a bare "—" until then. ?>
+                            <?php $show_bid = !$ticket && \MDBK\MDBK_Appointment_Manager::queue_serial_mode(get_post_meta($patient->ID, '_mdbk_doctor_id', true)) === 'checkin'; ?>
+                            <div class="mdbk-patient-id<?php echo $show_bid ? ' mdbk-patient-id-bid' : ''; ?>"><?php
+                                if ($ticket) {
+                                    echo '#' . esc_html(str_pad($ticket, 2, '0', STR_PAD_LEFT));
+                                } elseif ($show_bid) {
+                                    echo esc_html(\MDBK\MDBK_Appointment_Manager::format_booking_id($patient->ID));
+                                } else {
+                                    echo '—';
+                                }
+                            ?></div>
                             <div class="mdbk-patient-details">
                                 <h4><?php echo esc_html($name); ?></h4>
                                 <?php if ($slot) : ?><p><?php echo esc_html($slot); ?></p><?php endif; ?>
@@ -1486,7 +1551,7 @@ class MDBK_Shortcode {
         wp_send_json_success([
             'patient_name' => get_post_meta($appointment->ID, '_mdbk_patient_name', true),
             'doctor_name'  => get_the_title($doctor_id),
-            'ticket'       => \MDBK\MDBK_Appointment_Manager::format_ticket_number(get_post_meta($appointment->ID, '_mdbk_ticket_number', true)),
+            'ticket'       => \MDBK\MDBK_Appointment_Manager::format_ticket_number(\MDBK\MDBK_Appointment_Manager::display_ticket_number($appointment->ID)),
             'slot_time'    => $slot_time ? date_i18n(get_option('time_format'), strtotime($slot_time)) : '',
             'fragment'     => self::render_queue_body($doctor_id),
         ]);
@@ -1550,7 +1615,7 @@ class MDBK_Shortcode {
                     $list[] = [
                         'id'     => $id,
                         'name'   => get_post_meta($id, '_mdbk_patient_name', true),
-                        'ticket' => \MDBK\MDBK_Appointment_Manager::format_ticket_number(get_post_meta($id, '_mdbk_ticket_number', true)),
+                        'ticket' => \MDBK\MDBK_Appointment_Manager::format_ticket_number(\MDBK\MDBK_Appointment_Manager::display_ticket_number($id)),
                     ];
                 }
                 wp_send_json_success(['matches' => $list]);
@@ -1563,12 +1628,17 @@ class MDBK_Shortcode {
             wp_send_json_error(['message' => $result]);
         }
 
+        // Reads the number back AFTER mark_checked_in() — under
+        // check-in-order mode that call is what earns this patient a
+        // number at all (their arrival position, see
+        // checkin_ticket_number()), so it has to be read here rather than
+        // captured before.
+        $checked_in_name   = get_post_meta($candidate_id, '_mdbk_patient_name', true);
+        $checked_in_ticket = \MDBK\MDBK_Appointment_Manager::format_ticket_number(\MDBK\MDBK_Appointment_Manager::display_ticket_number($candidate_id));
         wp_send_json_success([
-            'message' => sprintf(
-                __('%1$s checked in — ticket %2$s.', 'doctor-appointment'),
-                get_post_meta($candidate_id, '_mdbk_patient_name', true),
-                \MDBK\MDBK_Appointment_Manager::format_ticket_number(get_post_meta($candidate_id, '_mdbk_ticket_number', true))
-            ),
+            'message' => $checked_in_ticket
+                ? sprintf(__('%1$s checked in — ticket %2$s.', 'doctor-appointment'), $checked_in_name, $checked_in_ticket)
+                : sprintf(__('%s checked in.', 'doctor-appointment'), $checked_in_name),
         ]);
     }
 }
