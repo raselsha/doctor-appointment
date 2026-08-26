@@ -110,6 +110,28 @@
     gap: 12px;
 }
 
+/* "Visit site" — pushed to the footer row's far edge with margin-left:auto
+   so it sits clear of the name/username block however long those run. */
+.mdbk-sidebar-visit-site {
+    margin-left: auto;
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    color: rgba(255, 255, 255, 0.55);
+    background: rgba(255, 255, 255, 0.06);
+    transition: background-color .15s ease, color .15s ease;
+}
+.mdbk-sidebar-visit-site:hover,
+.mdbk-sidebar-visit-site:focus-visible {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.16);
+}
+.mdbk-sidebar-visit-site svg { display: block; }
+
 .mdbk-user-avatar {
     width: 32px;
     height: 32px;
@@ -729,6 +751,38 @@
 
 /* ===== Doctor "View" detail popup ===== */
 .mdbk-view-top-row { display: flex; gap: 20px; padding-bottom: 16px; border-bottom: 1px solid #e2e8f0; margin-bottom: 16px; flex-wrap: wrap; }
+/* Operating settings (queue mode, slot visibility, fee) as a pill row.
+   flex-basis:100% makes it claim a line of its own at the end of
+   .mdbk-view-top-row, so it sits directly above that row's own
+   border-bottom divider rather than competing for width with the
+   hero/details columns beside it. */
+.mdbk-view-pills { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+.mdbk-view-pill {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 6px;
+    padding: 5px 12px;
+    border-radius: 999px;
+    background: #f1f5f9;
+    border: 1px solid #e2e8f0;
+    font-size: 12px;
+    line-height: 1.4;
+    white-space: nowrap;
+}
+.mdbk-view-pill-label { color: #64748b; font-weight: 600; text-transform: uppercase; font-size: 10px; letter-spacing: .3px; }
+.mdbk-view-pill-value { color: #1e293b; font-weight: 700; }
+/* Tone follows the same palette these states use elsewhere in the panel:
+   blue for the default/active setting, amber for check-in order (matching
+   the not-yet-arrived Booking ID badge) and for a hidden slot picker,
+   green for money. */
+.mdbk-view-pill.is-blue  { background: #eff6ff; border-color: #bfdbfe; }
+.mdbk-view-pill.is-blue  .mdbk-view-pill-value { color: #1d4ed8; }
+.mdbk-view-pill.is-amber { background: #fff7ed; border-color: #fed7aa; }
+.mdbk-view-pill.is-amber .mdbk-view-pill-value { color: #c2410c; }
+.mdbk-view-pill.is-green { background: #ecfdf5; border-color: #a7f3d0; }
+.mdbk-view-pill.is-green .mdbk-view-pill-value { color: #047857; }
+.mdbk-view-pill.is-muted .mdbk-view-pill-value { color: #475569; }
+
 .mdbk-view-hero { display: flex; align-items: center; gap: 14px; }
 .mdbk-view-avatar { width: 56px; height: 56px; border-radius: 50%; background: #eef1f5; display: flex; align-items: center; justify-content: center; overflow: hidden; flex-shrink: 0; font-size: 20px; font-weight: 700; color: #6b7280; }
 .mdbk-view-avatar img { width: 100%; height: 100%; object-fit: cover; }
@@ -769,6 +823,49 @@
     border-bottom: 1px solid #e2e8f0;
 }
 .mdbk-patient-view-info .mdbk-view-field-full { grid-column: 1 / -1; margin-bottom: 0; }
+/* Shown when the bookings below outlived the registry entry they linked
+   to (ajax_view_patient()'s fallback) — amber "heads up", not a red
+   error: everything on screen is still real, it just came from the
+   bookings rather than the patient record. */
+/* Visit History inside the patient modal. The shared .mdbk-table padding
+   (20px 30px) is sized for a full-width admin page; five columns of it
+   inside an 800px modal spent ~300px on padding alone and left so little
+   for the values that "August 26, 2026" broke across two lines with the
+   row half empty beside it. Tighter padding here hands that space back so
+   a normal row sits on one line — deliberately NOT white-space:nowrap,
+   so genuinely long content (a long doctor name) still wraps instead of
+   forcing the table wider than the modal. */
+.mdbk-visit-history-table th,
+.mdbk-visit-history-table td {
+    padding: 12px 14px;
+}
+.mdbk-visit-history-table th:first-child,
+.mdbk-visit-history-table td:first-child { padding-left: 0; }
+.mdbk-visit-history-table th:last-child,
+.mdbk-visit-history-table td:last-child { padding-right: 0; }
+/* Status is the last column (see the markup's own comment) and pinned to
+   the table's right edge, so every badge starts from the same line down
+   the list instead of shifting with whatever sits beside it. The invoice
+   action just before it stays snug against the badge rather than taking
+   a share of the leftover width. */
+.mdbk-visit-history-table th:last-child,
+.mdbk-visit-history-table .mdbk-visit-history-status { text-align: right; white-space: nowrap; }
+.mdbk-visit-history-table .mdbk-visit-history-action { width: 1%; text-align: right; padding-right: 8px; }
+/* Last resort for a viewport too narrow even for wrapped content (the
+   modal on a phone) — the table scrolls inside itself rather than
+   pushing the modal sideways. */
+.mdbk-visit-history-scroll { overflow-x: auto; }
+
+.mdbk-view-orphan-note {
+    margin: 0 0 16px;
+    padding: 10px 14px;
+    background: #fff7ed;
+    border: 1px solid #fed7aa;
+    border-radius: 8px;
+    color: #c2410c;
+    font-size: 13px;
+    font-weight: 600;
+}
 
 /* Invoice popup's Paid/Unpaid toggle — two buttons, not a single on/off
    switch, since "which one is currently selected" needs to stay legible
@@ -1150,9 +1247,34 @@ button.mdbk-slot-btn.mdbk-slot-break { cursor: not-allowed; pointer-events: none
    spins its icon while the AJAX request is in flight, same signal a native
    pull-to-refresh gives, so a slow request doesn't look like the click did
    nothing. */
+/* transform-origin is pinned to the icon's own centre rather than left to
+   default: an SVG box whose width/height attributes (13) differ from its
+   viewBox (24) can otherwise rotate a hair off-centre, which shows up as
+   a wobble at this size. will-change hands the rotation to the compositor
+   so it doesn't judder against layout work happening on the same frame —
+   the refresh this spinner belongs to is replacing rows underneath it.
+   admin-script.js's mdbkStopSpin() is what stops it cleanly, at the end
+   of a full turn instead of mid-rotation. */
 .mdbk-refresh-group svg.mdbk-spin,
 .mdbk-refresh-doctor-card svg.mdbk-spin,
-.mdbk-refresh-today-card svg.mdbk-spin { animation: mdbk-spin 0.7s linear infinite; }
+.mdbk-refresh-today-card svg.mdbk-spin {
+    animation: mdbk-spin 0.7s linear infinite;
+    transform-origin: 50% 50%;
+    will-change: transform;
+}
+/* Someone who asked their OS to reduce motion still needs to know the
+   refresh is working — a gentle fade in place, no rotation. */
+@media (prefers-reduced-motion: reduce) {
+    .mdbk-refresh-group svg.mdbk-spin,
+    .mdbk-refresh-doctor-card svg.mdbk-spin,
+    .mdbk-refresh-today-card svg.mdbk-spin {
+        animation: mdbk-spin-fade 0.7s ease-in-out infinite;
+    }
+    @keyframes mdbk-spin-fade {
+        0%, 100% { opacity: 1; }
+        50%      { opacity: .35; }
+    }
+}
 @keyframes mdbk-spin {
     from { transform: rotate(0deg); }
     to   { transform: rotate(360deg); }
@@ -1428,6 +1550,63 @@ button.mdbk-slot-btn.mdbk-slot-break { cursor: not-allowed; pointer-events: none
 /* Two classes (not one) so this beats wp-admin core's own
    input[type=text] rule in forms.css, which otherwise wins on
    specificity (class+attribute+element) over a single class here. */
+/* Booking-page filter dropdowns. The generic custom-select styling further
+   up is scoped to .mdbk-modal-compact, so this is the filter-bar dress for
+   the same markup — matched to the search input and native controls beside
+   it (38px tall, 12px radius, same focus ring) so the row still reads as
+   one set of controls. The real <select> underneath stays hidden and
+   submitted; see initCustomSelect() in admin-script.js. */
+.mdbk-filters-select { position: relative; min-width: 150px; }
+.mdbk-filters-select button.mdbk-custom-select-trigger {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    width: 100%;
+    height: 38px;
+    padding: 0 12px;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    background: #fff;
+    color: #1e293b;
+    font-size: 13px;
+    font-family: inherit;
+    text-align: left;
+    cursor: pointer;
+    box-sizing: border-box;
+    transition: border-color .15s ease, box-shadow .15s ease;
+}
+.mdbk-filters-select button.mdbk-custom-select-trigger:hover { border-color: #cbd3e1; }
+.mdbk-filters-select.open button.mdbk-custom-select-trigger,
+.mdbk-filters-select button.mdbk-custom-select-trigger:focus-visible { outline: none; border-color: #0061d5; box-shadow: 0 0 0 3px rgba(0, 97, 213, .12); }
+.mdbk-filters-select .mdbk-custom-select-value { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mdbk-filters-select .mdbk-custom-select-chevron { flex-shrink: 0; width: 7px; height: 7px; border-right: 1.5px solid #64748b; border-bottom: 1.5px solid #64748b; transform: rotate(45deg) translate(-2px, -2px); transition: transform .2s ease; }
+.mdbk-filters-select.open .mdbk-custom-select-chevron { transform: rotate(-135deg); }
+.mdbk-filters-select .mdbk-custom-select-panel {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    min-width: 100%;
+    z-index: 30;
+    max-height: 260px;
+    overflow-y: auto;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    box-shadow: 0 10px 30px rgba(15, 23, 42, .12);
+    padding: 6px;
+}
+.mdbk-filters-select .mdbk-custom-select-option { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 8px; font-size: 13px; color: #1e293b; cursor: pointer; white-space: nowrap; }
+.mdbk-filters-select .mdbk-custom-select-option:hover { background: rgba(0, 97, 213, .08); }
+.mdbk-filters-select .mdbk-custom-select-option.selected { background: rgba(0, 97, 213, .1); color: #0061d5; font-weight: 600; }
+/* A colour cue per status, same palette the row badges use, so the filter
+   list is scannable rather than four lines of similar text. */
+.mdbk-status-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; background: #94a3b8; }
+.mdbk-status-dot-waiting { background: #fb923c; }
+.mdbk-status-dot-serving { background: #34c777; }
+.mdbk-status-dot-completed { background: #0061d5; }
+.mdbk-status-dot-no-show { background: #ef4444; }
+
 .mdbk-filters-form .mdbk-filters-search { flex: 1 1 240px; min-width: 180px; max-width: 320px; height: 38px; padding: 0 14px; border: 1px solid #e2e8f0; border-radius: 12px; font-size: 13px; color: #1e293b; box-sizing: border-box; transition: all .15s ease; }
 .mdbk-filters-form .mdbk-filters-search:focus { border-color: #0061d5; outline: none; box-shadow: 0 0 0 2px rgba(0, 97, 213, .2); }
 
@@ -1447,7 +1626,7 @@ button.mdbk-slot-btn.mdbk-slot-break { cursor: not-allowed; pointer-events: none
 .mdbk-patient-list { display: flex; flex-direction: column; }
 .mdbk-patient-row {
     display: grid;
-    grid-template-columns: 44px minmax(110px, 160px) 50px 130px minmax(160px, 1fr) 90px 20px 1fr 90px 110px 60px;
+    grid-template-columns: 62px minmax(110px, 160px) 54px 130px minmax(160px, 1fr) 90px 20px 1fr 90px 110px 60px;
     align-items: center;
     gap: 10px;
     padding: 11px 26px 11px 23px;
@@ -1456,7 +1635,7 @@ button.mdbk-slot-btn.mdbk-slot-break { cursor: not-allowed; pointer-events: none
 }
 /* Only the "All Dates" ungrouped view passes $show_doctor — one extra
    track for the doctor chip, inserted right after the patient-ID slot. */
-.mdbk-patient-row-has-doctor { grid-template-columns: 44px minmax(110px, 160px) 50px 140px 130px minmax(160px, 1fr) 90px 20px 1fr 90px 110px 60px; }
+.mdbk-patient-row-has-doctor { grid-template-columns: 62px minmax(110px, 160px) 54px 140px 130px minmax(160px, 1fr) 90px 20px 1fr 90px 110px 60px; }
 .mdbk-patient-row:last-child { border-bottom: none; }
 .mdbk-patient-row:hover { background: #f8fafc; }
 
@@ -1475,7 +1654,16 @@ button.mdbk-slot-btn.mdbk-slot-break { cursor: not-allowed; pointer-events: none
        though their own width stays fixed. A constant width here (wide
        enough for the busiest row: skip icon + badge + button) keeps every
        column's start position identical on every row. */
-    grid-template-columns: 44px minmax(120px, 200px) 130px minmax(160px, 1fr) 90px 1fr 125px 125px 230px;
+    /* Date track is 155px, not the 125px it shared with Time: the date
+       chip's own content ("DATE August 26, 2026", icon and label
+       included) measures ~131px and a longer month pushes past 145px, so
+       at 125px it overflowed its track — white-space:nowrap means it
+       spills rather than wraps — and ate into the 10px column gap,
+       leaving Date and Time only 4px apart. Sized to fit the longest
+       month instead, so the gap between the two is the real column gap
+       on every row. Time keeps 125px, which its own content fills
+       exactly. */
+    grid-template-columns: 62px minmax(120px, 200px) 130px minmax(160px, 1fr) 90px 1fr 155px 125px 230px;
 }
 /* Front-desk staff's all-doctors view of this same page groups rows
    under a collapsible per-doctor <details> section instead (see
@@ -1896,7 +2084,16 @@ body.medbook_page_mdbk-patients .mdbk-pagination {
 .mdbk-specialty-card-add .mdbk-specialty-card-icon { background: rgba(0, 97, 213, .1); color: #0061d5; }
 .mdbk-specialty-card-add .mdbk-specialty-card-name { color: #0061d5; }
 
-.mdbk-patient-row-ticket { background: #f1f5f9; color: #64748b; font-size: 11px; font-weight: 800; letter-spacing: .2px; padding: 3px 8px; border-radius: 6px; cursor: help; }
+/* The badge fills its whole grid track rather than hugging its text, so
+   the gap to the patient name next to it is the grid's own gap and
+   nothing else — identical on every row. Sizing to content instead let
+   the width follow the label: a "Q03" left an ~19px gap while a
+   "B002694" booking ID (60px against a track built for 44px) overflowed
+   its track and closed the gap to nothing, so the two badge kinds never
+   lined up in the same list. The track widths above are set to fit the
+   longest label of each kind. */
+.mdbk-patient-row-ticket-slot { display: flex; min-width: 0; }
+.mdbk-patient-row-ticket { background: #f1f5f9; color: #64748b; font-size: 11px; font-weight: 800; letter-spacing: .2px; padding: 3px 8px; border-radius: 6px; cursor: help; flex: 1; min-width: 0; text-align: center; overflow: hidden; text-overflow: ellipsis; }
 /* Patient ID (persistent — the linked mdbk_patient CPT, same across every
    visit for a returning patient) vs. Queue number (per-doctor, per-day
    sequence, resets daily) are easy to mix up once both sit side by side, so

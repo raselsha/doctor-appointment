@@ -938,6 +938,7 @@ document.addEventListener('DOMContentLoaded', function() {
         function open() { wrapper.classList.add('open'); panel.style.display = 'block'; }
 
         function setValue(value, label) {
+            const changed = String(hiddenSelect.value) !== String(value);
             hiddenSelect.value = value;
             if (valueEl) valueEl.textContent = label;
             let selectedOpt = null;
@@ -946,6 +947,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 o.classList.toggle('selected', isMatch);
                 if (isMatch) selectedOpt = o;
             });
+            // Assigning .value in script never fires 'change' the way a user
+            // picking from a native <select> does, so anything listening on
+            // the real control stayed unaware this wrapper had changed it —
+            // the Booking page's live search binds exactly that way. Firing
+            // it here means a custom select behaves like the native control
+            // it stands in for, whichever way a caller chose to listen.
+            if (changed) hiddenSelect.dispatchEvent(new Event('change', { bubbles: true }));
             if (onChange) onChange(selectedOpt, value);
         }
 
@@ -987,6 +995,11 @@ document.addEventListener('DOMContentLoaded', function() {
     const doctorSpecSelect = initCustomSelect('mdbk-doc-spec-select');
     const patientGenderSelect = initCustomSelect('mdbk-patient-gender-select');
     const staffRoleSelect = initCustomSelect('mdbk-staff-role-select');
+    // Booking page filter bar. Nothing to do on change beyond what the
+    // hidden <select> already triggers — the live-search IIFE above listens
+    // on that control directly (see setValue's dispatched 'change').
+    initCustomSelect('mdbk-schedule-doctor-select');
+    initCustomSelect('mdbk-schedule-status-select');
 
     initModal('mdbk-doctor-modal', '.mdbk-add-doctor, .mdbk-edit-doctor', 'mdbk-doctor-form', 'mdbk-edit-doctor', (id, btn) => {
         document.getElementById('mdbk-doctor-id').value = id;
@@ -1202,6 +1215,30 @@ document.addEventListener('DOMContentLoaded', function() {
             '</details>';
         }
 
+        // The doctor's operating settings, as a pill row across the bottom
+        // of the top block rather than more label/value fields stacked in
+        // the right column — these are short states you scan, not details
+        // you read, and the column was getting long enough to push the
+        // divider down past the avatar. Wording matches the Doctor form's
+        // own labels ("Booking order"/"Check-in order", "Consultation
+        // Fee") so the same setting never goes by two names.
+        const isCheckin = card.dataset.queueMode === 'checkin';
+        const fee = (card.dataset.fee || '').trim();
+        const slotPublic = card.dataset.slotEnabled !== 'no';
+        const pill = function (label, value, tone) {
+            return '<span class="mdbk-view-pill' + (tone ? ' is-' + tone : '') + '">' +
+                '<span class="mdbk-view-pill-label">' + escHtml(label) + '</span>' +
+                '<span class="mdbk-view-pill-value">' + escHtml(value) + '</span>' +
+            '</span>';
+        };
+        const pillsHtml =
+            '<div class="mdbk-view-pills">' +
+                pill('Queue', isCheckin ? 'Check-in order' : 'Booking order', isCheckin ? 'amber' : 'blue') +
+                pill('Slot', slotPublic ? 'Public' : 'Hidden', slotPublic ? 'blue' : 'muted') +
+                pill('Duration', (card.dataset.slotDuration || 20) + ' min', 'muted') +
+                pill('Fee', fee !== '' ? '৳' + fee : '—', 'green') +
+            '</div>';
+
         body.innerHTML =
             '<div class="mdbk-view-top-row">' +
                 '<div class="mdbk-view-hero">' +
@@ -1211,8 +1248,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 '<div class="mdbk-view-col">' +
                     '<div class="mdbk-view-field"><label>Email</label><span>' + escHtml(card.dataset.email || '—') + '</span></div>' +
                     '<div class="mdbk-view-field"><label>Phone</label><span>' + escHtml(card.dataset.phone || '—') + '</span></div>' +
-                    '<div class="mdbk-view-field"><label>Slot Duration</label><span>' + escHtml(card.dataset.slotDuration || 20) + ' min</span></div>' +
                 '</div>' +
+                pillsHtml +
             '</div>' +
             '<div class="mdbk-view-field mdbk-view-field-full"><label>Bio</label><span>' + escHtml(card.dataset.bio || '—') + '</span></div>' +
             '<details class="mdbk-availability-section" open><summary class="mdbk-availability-header">' + CALENDAR_ICON + '<h4>Weekly Availability</h4><span class="mdbk-availability-chevron"></span></summary>' +
@@ -2364,6 +2401,46 @@ document.addEventListener('DOMContentLoaded', function() {
         const titleText = card.dataset.name || 'Doctor';
         mdbkDownloadHtmlAsImage(titleText, table.innerHTML, titleText.replace(/[^a-z0-9]+/gi, '-').toLowerCase() + '-profile.png');
     });
+    // Start/stop helpers for the refresh buttons' spinning icon.
+    //
+    // Stopping the spin the instant the fetch resolved looked broken: the
+    // round trip is ~100ms against a local install, while one full turn
+    // takes 0.7s, so the icon rotated about 55 degrees and then snapped
+    // back to 0 — a stutter, not a spin. Waiting for the animation's own
+    // "iteration" event lets the turn in progress finish at 360 degrees,
+    // where the icon looks identical to its resting state, so the stop is
+    // invisible however quick the request was.
+    function mdbkStopSpin(icon) {
+        if (!icon || !icon.classList.contains('mdbk-spin')) return;
+        let done = false;
+        const stop = function () {
+            if (done) return;
+            done = true;
+            icon.removeEventListener('animationiteration', stop);
+            clearTimeout(timer);
+            icon._mdbkCancelStop = null;
+            icon.classList.remove('mdbk-spin');
+        };
+        // Safety net — if the animation never runs at all (reduced-motion
+        // preference, a background tab throttling it, the stylesheet not
+        // loaded) the event never fires, and the icon would spin forever.
+        const timer = setTimeout(stop, 1500);
+        icon.addEventListener('animationiteration', stop);
+        // Lets a fresh click cancel a stop that's still waiting for its
+        // turn to end, so the new spin isn't cut short by the old one.
+        icon._mdbkCancelStop = function () {
+            done = true;
+            icon.removeEventListener('animationiteration', stop);
+            clearTimeout(timer);
+            icon._mdbkCancelStop = null;
+        };
+    }
+    function mdbkStartSpin(icon) {
+        if (!icon) return;
+        if (icon._mdbkCancelStop) icon._mdbkCancelStop();
+        icon.classList.add('mdbk-spin');
+    }
+
     // Refresh — re-fetches and swaps in just this one card's markup
     // (ajax_refresh_doctor_card() in admin-dashboard.php), same
     // touch-only-what-was-clicked idea as the Booking page's own
@@ -2377,7 +2454,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!card || btn.disabled) return;
         const icon = btn.querySelector('svg');
         btn.disabled = true;
-        if (icon) icon.classList.add('mdbk-spin');
+        mdbkStartSpin(icon);
         const body = new URLSearchParams();
         body.set('action', 'mdbk_refresh_doctor_card');
         body.set('nonce', mdbk_admin_obj.nonce);
@@ -2392,7 +2469,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (fresh) card.replaceWith(fresh);
             })
             .finally(function() {
-                if (icon) icon.classList.remove('mdbk-spin');
+                mdbkStopSpin(icon);
                 btn.disabled = false;
             });
     });
@@ -2433,7 +2510,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!group || btn.disabled) return;
         const icon = btn.querySelector('svg');
         btn.disabled = true;
-        if (icon) icon.classList.add('mdbk-spin');
+        mdbkStartSpin(icon);
 
         const searchInput = document.getElementById('mdbk-schedule-search');
         const statusSelect = document.getElementById('mdbk-schedule-filter-status');
@@ -2461,7 +2538,7 @@ document.addEventListener('DOMContentLoaded', function() {
             })
             .finally(function() {
                 btn.disabled = false;
-                if (icon) icon.classList.remove('mdbk-spin');
+                mdbkStopSpin(icon);
             });
     });
 
@@ -2480,7 +2557,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!card || btn.disabled) return;
         const icon = btn.querySelector('svg');
         btn.disabled = true;
-        if (icon) icon.classList.add('mdbk-spin');
+        mdbkStartSpin(icon);
         const body = new URLSearchParams();
         body.set('action', 'mdbk_refresh_doctor_group');
         body.set('nonce', mdbk_admin_obj.nonce);
@@ -2498,7 +2575,7 @@ document.addEventListener('DOMContentLoaded', function() {
             })
             .finally(function() {
                 btn.disabled = false;
-                if (icon) icon.classList.remove('mdbk-spin');
+                mdbkStopSpin(icon);
             });
     });
     document.addEventListener('click', function(e) {

@@ -1718,9 +1718,12 @@ class MDBK_Admin_Dashboard {
                                     <span class="mdbk-badge mdbk-badge-green"><?php echo esc_html($count); ?></span>
                                 </div>
                                 <ul class="mdbk-dash-patient-list">
-                                <?php $queue_no = 0; foreach ($apps as $app): $queue_no++; $p_age = get_post_meta($app->ID, '_mdbk_patient_age', true); ?>
+                                <?php // Real label, not this loop's position — see
+                                // render_today_queue_table()'s own comment on why a
+                                // counter here disagreed with every other view. ?>
+                                <?php foreach ($apps as $app): $p_age = get_post_meta($app->ID, '_mdbk_patient_age', true); ?>
                                     <li class="mdbk-dash-patient-item">
-                                        <span class="mdbk-patient-row-ticket mdbk-patient-row-queue">Q<?php echo esc_html(str_pad($queue_no, 2, '0', STR_PAD_LEFT)); ?></span>
+                                        <span class="mdbk-patient-row-ticket mdbk-patient-row-queue"><?php echo esc_html(\MDBK\MDBK_Appointment_Manager::display_ticket_label($app->ID)); ?></span>
                                         <span class="mdbk-dash-patient-name"><?php echo esc_html(get_post_meta($app->ID, '_mdbk_patient_name', true)); ?></span>
                                         <?php if ($p_age): ?><span class="mdbk-dash-patient-age"><?php echo esc_html(sprintf(__('%sy', 'doctor-appointment'), $p_age)); ?></span><?php endif; ?>
                                     </li>
@@ -2098,11 +2101,26 @@ class MDBK_Admin_Dashboard {
         }
         ?>
         <table class="mdbk-table">
-            <thead><tr><th><?php _e('Queue', 'doctor-appointment'); ?></th><th><?php _e('Patient', 'doctor-appointment'); ?></th><?php if ($show_doctor_column): ?><th><?php _e('Doctor', 'doctor-appointment'); ?></th><?php endif; ?><th><?php _e('Age', 'doctor-appointment'); ?></th><th><?php _e('Gender', 'doctor-appointment'); ?></th><th><?php _e('Time', 'doctor-appointment'); ?></th><th><?php _e('Status', 'doctor-appointment'); ?></th></tr></thead>
+            <?php // Date sits beside Time, same pairing the on-screen row shows.
+            // It used to be missing entirely: the printed/exported sheet
+            // carried a time with no day against it, and the clinic header
+            // above the table doesn't name one either — fine while this only
+            // ever printed today's queue, wrong once the same table started
+            // printing the multi-date "Upcoming Dates" section, where every
+            // row could be a different day. ?>
+            <thead><tr><th><?php _e('Queue', 'doctor-appointment'); ?></th><th><?php _e('Patient', 'doctor-appointment'); ?></th><?php if ($show_doctor_column): ?><th><?php _e('Doctor', 'doctor-appointment'); ?></th><?php endif; ?><th><?php _e('Age', 'doctor-appointment'); ?></th><th><?php _e('Gender', 'doctor-appointment'); ?></th><th><?php _e('Date', 'doctor-appointment'); ?></th><th><?php _e('Time', 'doctor-appointment'); ?></th><th><?php _e('Status', 'doctor-appointment'); ?></th></tr></thead>
             <tbody>
-            <?php $n = 0; foreach ($apps as $app): $n++; $t_doc_id = get_post_meta($app->ID, '_mdbk_doctor_id', true); $t_age = get_post_meta($app->ID, '_mdbk_patient_age', true); $t_gender = get_post_meta($app->ID, '_mdbk_patient_gender', true); $t_slot = get_post_meta($app->ID, '_mdbk_slot_time', true); $t_status = \MDBK\MDBK_Appointment_Manager::get_display_status_slug($app->ID); $t_badge_class = in_array($t_status, ['upcoming', 'not-checked-in'], true) ? $t_status : 'status-' . $t_status; ?>
+            <?php // The Queue cell used to print this loop's own 1..N counter,
+            // so a printout numbered its rows Q01, Q02, Q03 no matter what
+            // the on-screen badges said — wrong against real ticket numbers
+            // (which skip and restart per doctor), and wrong entirely under
+            // check-in-order mode, where a patient who hasn't arrived has no
+            // queue number at all. display_ticket_label() is the same call
+            // every visible row makes, so the print/image table and the CSV
+            // now say exactly what the screen says. ?>
+            <?php foreach ($apps as $app): $t_doc_id = get_post_meta($app->ID, '_mdbk_doctor_id', true); $t_age = get_post_meta($app->ID, '_mdbk_patient_age', true); $t_gender = get_post_meta($app->ID, '_mdbk_patient_gender', true); $t_date = get_post_meta($app->ID, '_mdbk_appointment_date', true); $t_slot = get_post_meta($app->ID, '_mdbk_slot_time', true); $t_status = \MDBK\MDBK_Appointment_Manager::get_display_status_slug($app->ID); $t_badge_class = in_array($t_status, ['upcoming', 'not-checked-in'], true) ? $t_status : 'status-' . $t_status; ?>
                 <tr>
-                    <td><span class="mdbk-patient-row-ticket mdbk-patient-row-queue">Q<?php echo esc_html(str_pad($n, 2, '0', STR_PAD_LEFT)); ?></span></td>
+                    <td><span class="mdbk-patient-row-ticket mdbk-patient-row-queue"><?php echo esc_html(\MDBK\MDBK_Appointment_Manager::display_ticket_label($app->ID)); ?></span></td>
                     <td><strong><?php echo esc_html(get_post_meta($app->ID, '_mdbk_patient_name', true)); ?></strong></td>
                     <?php if ($show_doctor_column): ?><td><?php echo $t_doc_id ? esc_html(get_the_title($t_doc_id)) : esc_html__('N/A', 'doctor-appointment'); ?></td><?php endif; ?>
                     <td><?php echo $t_age ? esc_html($t_age) : '—'; ?></td>
@@ -2113,6 +2131,9 @@ class MDBK_Admin_Dashboard {
                     // $time_display uses this exact same conversion, so the
                     // printed table matched what's on screen instead of the
                     // raw stored value. ?>
+                    <?php // Site's own Settings > General date format, same as the
+                    // on-screen row's date chip, so the two read identically. ?>
+                    <td><?php echo esc_html($t_date ? date_i18n(get_option('date_format'), strtotime($t_date)) : '—'); ?></td>
                     <td><?php echo esc_html($t_slot ? date_i18n('g:i A', strtotime($t_slot)) : '—'); ?></td>
                     <td><span class="mdbk-badge mdbk-badge-<?php echo esc_attr($t_badge_class); ?>"><?php echo esc_html(\MDBK\MDBK_Appointment_Manager::status_display_label($t_status)); ?></span></td>
                 </tr>
@@ -2154,7 +2175,11 @@ class MDBK_Admin_Dashboard {
         ob_start();
         ?>
         <div class="mdbk-patient-row<?php echo $show_doctor ? ' mdbk-patient-row-has-doctor' : ''; ?> mdbk-status-<?php echo esc_attr($status); ?>" data-id="<?php echo esc_attr($a->ID); ?>" data-patient="<?php echo esc_attr($p_name); ?>" data-phone="<?php echo esc_attr($phone); ?>" data-email="<?php echo esc_attr($email); ?>" data-age="<?php echo esc_attr($age); ?>" data-gender="<?php echo esc_attr($gender); ?>" data-doctor="<?php echo esc_attr($doc_id); ?>" data-specialty="<?php echo esc_attr($app_spec_id); ?>" data-date="<?php echo esc_attr($date); ?>" data-slot-time="<?php echo esc_attr($slot_time); ?>" data-status="<?php echo esc_attr($status); ?>">
-            <span class="mdbk-patient-row-ticket-slot"><?php if ($ticket): ?><span class="mdbk-patient-row-ticket mdbk-patient-row-queue" title="<?php esc_attr_e('Queue number', 'doctor-appointment'); ?>">Q<?php echo esc_html(str_pad($ticket, 2, '0', STR_PAD_LEFT)); ?></span><?php elseif (\MDBK\MDBK_Appointment_Manager::queue_serial_mode($doc_id) === 'checkin') : ?><span class="mdbk-patient-row-ticket mdbk-patient-row-bookingid" title="<?php esc_attr_e('Not checked in yet — queue number assigns on check-in', 'doctor-appointment'); ?>"><?php echo esc_html(\MDBK\MDBK_Appointment_Manager::format_booking_id($a->ID)); ?></span><?php endif; ?></span>
+            <?php // Same shared label as every other view — see
+            // MDBK_Appointment_Manager::display_ticket_label(). ?>
+            <?php $ticket_label = \MDBK\MDBK_Appointment_Manager::display_ticket_label($a->ID); ?>
+            <?php $is_queue_label = strpos($ticket_label, 'Q') === 0; ?>
+            <span class="mdbk-patient-row-ticket-slot"><span class="mdbk-patient-row-ticket <?php echo $is_queue_label ? 'mdbk-patient-row-queue' : 'mdbk-patient-row-bookingid'; ?>" title="<?php echo $is_queue_label ? esc_attr__('Queue number', 'doctor-appointment') : esc_attr__('Booking ID', 'doctor-appointment'); ?>"><?php echo esc_html($ticket_label); ?></span></span>
             <?php if ($patient_id && current_user_can(MDBK_CAP_QUEUE)) : ?>
                 <a href="#" class="mdbk-patient-row-name mdbk-view-patient" data-id="<?php echo esc_attr($patient_id); ?>" title="<?php esc_attr_e('View patient', 'doctor-appointment'); ?>"><?php echo esc_html($p_name); ?></a>
             <?php else : ?>
@@ -2203,8 +2228,10 @@ class MDBK_Admin_Dashboard {
 
         // Date filter defaults to TODAY when the page is opened fresh (no
         // filter_date in the URL at all). An explicit but empty filter_date
-        // (the "All Dates" link below) is a deliberate opt-out back to the
-        // original unscoped, ungrouped view — distinct from "not set yet".
+        // is a deliberate opt-out back to the original unscoped, ungrouped
+        // view — distinct from "not set yet". Still reachable by hand or
+        // from a saved URL; the header link that used to offer it was
+        // removed, the view behind it was not.
         $has_date_param = isset($_GET['filter_date']);
         $raw_date = $has_date_param ? sanitize_text_field($_GET['filter_date']) : '';
         $valid_date = function ($str) {
@@ -2299,9 +2326,11 @@ class MDBK_Admin_Dashboard {
         fputcsv($out, ['Queue', 'Patient ID', 'Patient Name', 'Phone', 'Email', 'Age', 'Gender', 'Doctor', 'Date', 'Time', 'Status', 'Symptoms']);
         foreach ($apps as $a) {
             $doc_id = get_post_meta($a->ID, '_mdbk_doctor_id', true);
-            $ticket = \MDBK\MDBK_Appointment_Manager::display_ticket_number($a->ID);
             fputcsv($out, [
-                \MDBK\MDBK_Appointment_Manager::format_ticket_number($ticket),
+                // Same label the on-screen row shows — this export spans
+                // every date, and a queue number means nothing outside its
+                // own day, so non-today rows carry their Booking ID.
+                \MDBK\MDBK_Appointment_Manager::display_ticket_label($a->ID),
                 get_post_meta($a->ID, '_mdbk_patient_id', true),
                 get_post_meta($a->ID, '_mdbk_patient_name', true),
                 get_post_meta($a->ID, '_mdbk_patient_phone', true),
@@ -2376,7 +2405,7 @@ class MDBK_Admin_Dashboard {
         }
         $all_doctors = get_posts(['post_type' => 'mdbk_doctor', 'numberposts' => -1, 'orderby' => 'menu_order', 'order' => 'ASC']);
 
-        // Prev/Today/Next + "All Dates" nav links, carrying forward whichever
+        // Prev/Today/Next nav links, carrying forward whichever
         // doctor/status/search filters are already active.
         $nav_args = ['page' => 'mdbk-schedule'];
         if ($filter_doctor && !$is_doctor_only) $nav_args['filter_doctor'] = $filter_doctor;
@@ -2385,7 +2414,6 @@ class MDBK_Admin_Dashboard {
         $day_url = function ($date) use ($nav_args) {
             return add_query_arg(array_merge($nav_args, ['filter_date' => $date]), admin_url('admin.php'));
         };
-        $all_dates_url = add_query_arg(array_merge($nav_args, ['filter_date' => '']), admin_url('admin.php'));
         $today = current_time('Y-m-d');
         $is_today_view = ($filter_date === $today);
         ?>
@@ -2408,7 +2436,7 @@ class MDBK_Admin_Dashboard {
                     <details class="mdbk-filters-bar" id="mdbk-filters-bar" open>
                         <summary class="mdbk-filters-bar-summary"><?php _e('Filters', 'doctor-appointment'); ?><span class="mdbk-filters-bar-chevron"></span></summary>
                         <div class="mdbk-filters-bar-body">
-                            <?php $this->render_schedule_filters_bar($filter_date, $filter_doctor, $filter_status, $search, $is_doctor_only, $all_doctors, $day_url, $all_dates_url); ?>
+                            <?php $this->render_schedule_filters_bar($filter_date, $filter_doctor, $filter_status, $search, $is_doctor_only, $all_doctors, $day_url); ?>
                         </div>
                     </details>
                     <div id="mdbk-schedule-results"><?php echo $this->render_schedule_results_html($filter_date, $filter_doctor, $filter_status, $search, $apps, $is_today_view); ?></div>
@@ -2417,7 +2445,7 @@ class MDBK_Admin_Dashboard {
                 <details class="mdbk-filters-bar" id="mdbk-filters-bar" open>
                     <summary class="mdbk-filters-bar-summary"><?php _e('Filters', 'doctor-appointment'); ?><span class="mdbk-filters-bar-chevron"></span></summary>
                     <div class="mdbk-filters-bar-body">
-                        <?php $this->render_schedule_filters_bar($filter_date, $filter_doctor, $filter_status, $search, $is_doctor_only, $all_doctors, $day_url, $all_dates_url); ?>
+                        <?php $this->render_schedule_filters_bar($filter_date, $filter_doctor, $filter_status, $search, $is_doctor_only, $all_doctors, $day_url); ?>
                     </div>
                 </details>
                 <div id="mdbk-schedule-results"><?php echo $this->render_schedule_results_html($filter_date, $filter_doctor, $filter_status, $search, $apps, $is_today_view); ?></div>
@@ -2436,7 +2464,7 @@ class MDBK_Admin_Dashboard {
      * here directly, since the wrapper itself doesn't depend on any of
      * this method's own arguments.
      */
-    private function render_schedule_filters_bar($filter_date, $filter_doctor, $filter_status, $search, $is_doctor_only, $all_doctors, $day_url, $all_dates_url) {
+    private function render_schedule_filters_bar($filter_date, $filter_doctor, $filter_status, $search, $is_doctor_only, $all_doctors, $day_url) {
         ?>
         <form method="get" class="mdbk-filters-form">
             <input type="hidden" name="page" value="mdbk-schedule">
@@ -2457,27 +2485,73 @@ class MDBK_Admin_Dashboard {
             <span class="mdbk-filters-divider"></span>
             <?php endif; ?>
             <input type="text" id="mdbk-schedule-search" name="s" value="<?php echo esc_attr($search); ?>" placeholder="<?php esc_attr_e('Search name, phone, or email...', 'doctor-appointment'); ?>" class="mdbk-filters-search">
+            <?php
+            // Both filters use the panel's own custom-select (a styled
+            // button + panel over a hidden real <select>) rather than the
+            // browser's native control, matching every other dropdown in
+            // here and letting them be styled consistently. The hidden
+            // <select> is still the actual form control, so this form
+            // submits exactly as it did before.
+            //
+            // Status labels come from status_display_label() instead of
+            // being written out again here — this list had drifted, offering
+            // "Completed" for a status every badge, table and export calls
+            // "Visited".
+            $status_choices = [];
+            foreach (['waiting', 'serving', 'completed', 'no-show'] as $slug) {
+                $status_choices[$slug] = \MDBK\MDBK_Appointment_Manager::status_display_label($slug);
+            }
+            $status_label = $filter_status && isset($status_choices[$filter_status])
+                ? $status_choices[$filter_status]
+                : __('All Statuses', 'doctor-appointment');
+            ?>
             <?php if (!$is_doctor_only): ?>
-            <select id="mdbk-schedule-filter-doctor" name="filter_doctor">
-                <option value=""><?php _e('All Doctors', 'doctor-appointment'); ?></option>
-                <?php foreach ($all_doctors as $d) : ?>
-                    <option value="<?php echo esc_attr($d->ID); ?>" <?php selected($filter_doctor, $d->ID); ?>><?php echo esc_html($d->post_title); ?></option>
-                <?php endforeach; ?>
-            </select>
+            <?php
+            $doctor_label = __('All Doctors', 'doctor-appointment');
+            foreach ($all_doctors as $d) {
+                if ((int) $filter_doctor === (int) $d->ID) $doctor_label = $d->post_title;
+            }
+            ?>
+            <div class="mdbk-custom-select mdbk-filters-select" id="mdbk-schedule-doctor-select">
+                <button type="button" class="mdbk-custom-select-trigger">
+                    <span class="mdbk-custom-select-value"><?php echo esc_html($doctor_label); ?></span>
+                    <span class="mdbk-custom-select-chevron"></span>
+                </button>
+                <div class="mdbk-custom-select-panel" style="display:none;">
+                    <div class="mdbk-custom-select-option<?php echo $filter_doctor ? '' : ' selected'; ?>" data-value=""><?php _e('All Doctors', 'doctor-appointment'); ?></div>
+                    <?php foreach ($all_doctors as $d) : ?>
+                        <div class="mdbk-custom-select-option<?php echo (int) $filter_doctor === (int) $d->ID ? ' selected' : ''; ?>" data-value="<?php echo esc_attr($d->ID); ?>"><?php echo esc_html($d->post_title); ?></div>
+                    <?php endforeach; ?>
+                </div>
+                <select id="mdbk-schedule-filter-doctor" name="filter_doctor" style="display:none;">
+                    <option value=""><?php _e('All Doctors', 'doctor-appointment'); ?></option>
+                    <?php foreach ($all_doctors as $d) : ?>
+                        <option value="<?php echo esc_attr($d->ID); ?>" <?php selected($filter_doctor, $d->ID); ?>><?php echo esc_html($d->post_title); ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
             <?php endif; ?>
-            <select id="mdbk-schedule-filter-status" name="filter_status">
-                <option value=""><?php _e('All Statuses', 'doctor-appointment'); ?></option>
-                <option value="waiting" <?php selected($filter_status, 'waiting'); ?>><?php _e('Waiting', 'doctor-appointment'); ?></option>
-                <option value="serving" <?php selected($filter_status, 'serving'); ?>><?php _e('Visiting', 'doctor-appointment'); ?></option>
-                <option value="completed" <?php selected($filter_status, 'completed'); ?>><?php _e('Completed', 'doctor-appointment'); ?></option>
-                <option value="no-show" <?php selected($filter_status, 'no-show'); ?>><?php _e('No Show', 'doctor-appointment'); ?></option>
-            </select>
+            <div class="mdbk-custom-select mdbk-filters-select" id="mdbk-schedule-status-select">
+                <button type="button" class="mdbk-custom-select-trigger">
+                    <span class="mdbk-custom-select-value"><?php echo esc_html($status_label); ?></span>
+                    <span class="mdbk-custom-select-chevron"></span>
+                </button>
+                <div class="mdbk-custom-select-panel" style="display:none;">
+                    <div class="mdbk-custom-select-option<?php echo $filter_status ? '' : ' selected'; ?>" data-value=""><?php _e('All Statuses', 'doctor-appointment'); ?></div>
+                    <?php foreach ($status_choices as $slug => $label) : ?>
+                        <div class="mdbk-custom-select-option<?php echo $filter_status === $slug ? ' selected' : ''; ?>" data-value="<?php echo esc_attr($slug); ?>"><span class="mdbk-status-dot mdbk-status-dot-<?php echo esc_attr($slug); ?>"></span><?php echo esc_html($label); ?></div>
+                    <?php endforeach; ?>
+                </div>
+                <select id="mdbk-schedule-filter-status" name="filter_status" style="display:none;">
+                    <option value=""><?php _e('All Statuses', 'doctor-appointment'); ?></option>
+                    <?php foreach ($status_choices as $slug => $label) : ?>
+                        <option value="<?php echo esc_attr($slug); ?>" <?php selected($filter_status, $slug); ?>><?php echo esc_html($label); ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
             <button type="submit" class="mdbk-btn-add mdbk-btn-sm"><?php _e('Filter', 'doctor-appointment'); ?></button>
             <div class="mdbk-filters-spacer"></div>
             <a id="mdbk-schedule-clear-filters" href="<?php echo esc_url(add_query_arg(['page' => 'mdbk-schedule', 'filter_date' => $filter_date], admin_url('admin.php'))); ?>" class="mdbk-date-nav-all" style="<?php echo ($filter_doctor || $filter_status || $search !== '') ? '' : 'display:none;'; ?>"><?php _e('Clear', 'doctor-appointment'); ?></a>
-            <?php if ($filter_date) : ?>
-                <a href="<?php echo esc_url($all_dates_url); ?>" class="mdbk-date-nav-all"><?php _e('All Dates', 'doctor-appointment'); ?></a>
-            <?php endif; ?>
         </form>
         <?php
     }
@@ -3317,7 +3391,13 @@ class MDBK_Admin_Dashboard {
 
         $html = '';
         foreach ($groups as $doc_id => $doc_apps) {
-            $doc_name = $doc_id ? get_the_title($doc_id) : __('Unassigned', 'doctor-appointment');
+            // get_the_title() comes back empty for a doctor_id pointing at a
+            // post that no longer exists (a doctor deleted after their
+            // bookings were taken, or demo data re-seeded underneath them),
+            // which rendered a nameless group header with no hint of why.
+            // Treated the same as never having had a doctor at all.
+            $doc_name = $doc_id ? get_the_title($doc_id) : '';
+            if ($doc_name === '') $doc_name = __('Unassigned', 'doctor-appointment');
             $count = count($doc_apps);
             $export_args = ['page' => 'mdbk-schedule', 'filter_doctor' => $doc_id, 'mdbk_export' => 'csv'];
             if ($is_today_group) $export_args['filter_date'] = current_time('Y-m-d');
@@ -3563,13 +3643,16 @@ class MDBK_Admin_Dashboard {
         ?>
         <div class="mdbk-patient-row mdbk-my-queue-row<?php echo $row_state ? ' mdbk-row-state-' . esc_attr($row_state) : ''; ?>" data-id="<?php echo esc_attr($a->ID); ?>">
             <span class="mdbk-patient-row-ticket-slot">
-                <?php if ($is_today && $ticket) : ?>
-                    <span class="mdbk-patient-row-ticket mdbk-patient-row-queue" title="<?php esc_attr_e('Queue number', 'doctor-appointment'); ?>">Q<?php echo esc_html(str_pad($ticket, 2, '0', STR_PAD_LEFT)); ?></span>
-                <?php elseif ($is_today && \MDBK\MDBK_Appointment_Manager::queue_serial_mode(get_post_meta($a->ID, '_mdbk_doctor_id', true)) === 'checkin') : ?>
-                    <span class="mdbk-patient-row-ticket mdbk-patient-row-bookingid" title="<?php esc_attr_e('Not checked in yet — queue number assigns on check-in', 'doctor-appointment'); ?>"><?php echo esc_html(\MDBK\MDBK_Appointment_Manager::format_booking_id($a->ID)); ?></span>
-                <?php elseif (!$is_today && $patient_id) : ?>
-                    <span class="mdbk-patient-row-ticket mdbk-patient-row-pid" title="<?php esc_attr_e('Patient ID', 'doctor-appointment'); ?>">P<?php echo esc_html($patient_id); ?></span>
-                <?php endif; ?>
+                <?php // Queue number for today's rows that have one, Booking ID
+                // otherwise — the single rule in display_ticket_label(), shared
+                // with the print/image table and the CSV export so a printout
+                // can't disagree with the screen it was printed from. A queue
+                // number only means something inside its own day; the Booking
+                // ID that stands in elsewhere identifies THIS booking, which is
+                // what the row is, and matches the patient's confirmation. ?>
+                <?php $ticket_label = \MDBK\MDBK_Appointment_Manager::display_ticket_label($a->ID); ?>
+                <?php $is_queue_label = strpos($ticket_label, 'Q') === 0; ?>
+                <span class="mdbk-patient-row-ticket <?php echo $is_queue_label ? 'mdbk-patient-row-queue' : 'mdbk-patient-row-bookingid'; ?>" title="<?php echo $is_queue_label ? esc_attr__('Queue number', 'doctor-appointment') : esc_attr__('Booking ID', 'doctor-appointment'); ?>"><?php echo esc_html($ticket_label); ?></span>
             </span>
             <?php if ($patient_id && current_user_can(MDBK_CAP_QUEUE)) : ?>
                 <a href="#" class="mdbk-patient-row-name mdbk-view-patient" data-id="<?php echo esc_attr($patient_id); ?>" title="<?php esc_attr_e('View patient', 'doctor-appointment'); ?>"><?php echo esc_html($p_name); ?></a>
@@ -3602,6 +3685,27 @@ class MDBK_Admin_Dashboard {
                         <?php endif; ?>
                     </button>
                 <?php endif; ?>
+                <?php // Invoice — only ever meaningful once a visit has
+                // actually happened (same completed-only gate as the
+                // other date views' render_patient_appointment_row()),
+                // which is exactly when the status block below is already
+                // showing "Visited" instead of one of the workflow
+                // buttons — this never renders alongside those.
+                // $is_today too: this same row template also renders the
+                // "Upcoming Dates" section below (see render_patient_list_html()),
+                // strictly future dates only — a booking that hasn't
+                // happened yet can't have a real invoice regardless of
+                // what its status field says.
+                //
+                // Deliberately BEFORE the status block rather than after:
+                // the badge is the last thing in this cluster and the
+                // cluster is right-aligned, so every row's badge ends on
+                // the same line down the list. With the invoice trailing
+                // it instead, only the rows that had one pushed their
+                // badge left and the column read as ragged. ?>
+                <?php if ($is_today && $status === 'completed' && current_user_can(MDBK_CAP_QUEUE)) : ?>
+                    <a href="#" class="mdbk-action-btn mdbk-open-invoice" data-id="<?php echo esc_attr($a->ID); ?>" title="<?php esc_attr_e('Invoice', 'doctor-appointment'); ?>"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="9" y1="13" x2="15" y2="13"></line><line x1="9" y1="17" x2="15" y2="17"></line></svg></a>
+                <?php endif; ?>
                 <?php if ($can_visit): ?>
                     <button type="button" class="mdbk-btn-sm mdbk-status-action-btn mdbk-status-action-visiting mdbk-mark-visited" data-id="<?php echo esc_attr($a->ID); ?>" title="<?php esc_attr_e('Currently Visiting — click to mark as visited', 'doctor-appointment'); ?>"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg><?php _e('Mark Visited', 'doctor-appointment'); ?></button>
                 <?php elseif (!$is_today && in_array($status, ['waiting', 'serving'], true)): ?>
@@ -3616,20 +3720,6 @@ class MDBK_Admin_Dashboard {
                     <span class="mdbk-badge mdbk-badge-status-waiting" title="<?php esc_attr_e('Another patient is currently being seen', 'doctor-appointment'); ?>"><?php echo esc_html(\MDBK\MDBK_Appointment_Manager::status_display_label('waiting')); ?></span>
                 <?php else: ?>
                     <span class="mdbk-badge mdbk-badge-status-<?php echo esc_attr($status); ?>"><?php echo esc_html(\MDBK\MDBK_Appointment_Manager::status_display_label($status)); ?></span>
-                <?php endif; ?>
-                <?php // Invoice — only ever meaningful once a visit has
-                // actually happened (same completed-only gate as the
-                // other date views' render_patient_appointment_row()),
-                // which is exactly when this row's own status badge above
-                // is already showing "Visited" instead of one of the
-                // workflow buttons — this never renders alongside those.
-                // $is_today too: this same row template also renders the
-                // "Upcoming Dates" section below (see render_patient_list_html()),
-                // strictly future dates only — a booking that hasn't
-                // happened yet can't have a real invoice regardless of
-                // what its status field says. ?>
-                <?php if ($is_today && $status === 'completed' && current_user_can(MDBK_CAP_QUEUE)) : ?>
-                    <a href="#" class="mdbk-action-btn mdbk-open-invoice" data-id="<?php echo esc_attr($a->ID); ?>" title="<?php esc_attr_e('Invoice', 'doctor-appointment'); ?>"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="9" y1="13" x2="15" y2="13"></line><line x1="9" y1="17" x2="15" y2="17"></line></svg></a>
                 <?php endif; ?>
             </div>
         </div>
@@ -4188,7 +4278,26 @@ class MDBK_Admin_Dashboard {
         $footer_doctor_id = \MDBK\MDBK_Appointment_Manager::get_doctor_id_for_user($footer_user->ID);
         $footer_name = $footer_doctor_id ? get_the_title($footer_doctor_id) : $footer_user->display_name;
         ?>
-        <div class="mdbk-sidebar-footer"><div class="mdbk-user-avatar"></div><div class="mdbk-user-info"><div style="font-weight: 700; font-size: 13px;"><?php echo esc_html($footer_name); ?></div><div style="font-size: 11px; opacity: 0.6;"><?php echo esc_html($footer_user->user_login); ?></div></div></div>
+        <?php // "Visit site" — this panel hides wp-admin's own chrome (see
+        // admin_body_class()), and with it WordPress's usual admin-bar route
+        // out to the public site, so there was no way to open the front end
+        // from in here at all. Unlike "Back to WordPress" above this isn't
+        // admin-only: a doctor or front-desk account has every reason to
+        // check the public booking page or live queue, and the front end is
+        // public anyway. Opens in a new tab so whoever clicks it doesn't
+        // lose the queue they were working on; rel="noopener" because
+        // target="_blank" otherwise hands the new tab a handle back to this
+        // one. ?>
+        <div class="mdbk-sidebar-footer">
+            <div class="mdbk-user-avatar"></div>
+            <div class="mdbk-user-info">
+                <div style="font-weight: 700; font-size: 13px;"><?php echo esc_html($footer_name); ?></div>
+                <div style="font-size: 11px; opacity: 0.6;"><?php echo esc_html($footer_user->user_login); ?></div>
+            </div>
+            <a class="mdbk-sidebar-visit-site" href="<?php echo esc_url(home_url('/')); ?>" target="_blank" rel="noopener" title="<?php esc_attr_e('Visit site', 'doctor-appointment'); ?>" aria-label="<?php esc_attr_e('Visit site (opens in a new tab)', 'doctor-appointment'); ?>">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
+            </a>
+        </div>
         <?php
         // Sends a logged-out visitor to the MedBook theme's own themed Login
         // page (page-templates/login.php) instead of wp-login.php's default
@@ -4468,17 +4577,11 @@ class MDBK_Admin_Dashboard {
         if (!current_user_can(MDBK_CAP_QUEUE)) wp_send_json_error(['message' => __('Unauthorized.', 'doctor-appointment')]);
 
         $patient_id = isset($_POST['patient_id']) ? intval($_POST['patient_id']) : 0;
-        $patient = $patient_id ? get_post($patient_id) : null;
-        if (!$patient || $patient->post_type !== 'mdbk_patient') {
+        if (!$patient_id) {
             wp_send_json_error(['message' => __('Patient not found.', 'doctor-appointment')]);
         }
-
-        $phone = get_post_meta($patient_id, '_mdbk_patient_phone', true);
-        $email = get_post_meta($patient_id, '_mdbk_patient_email', true);
-        $address = get_post_meta($patient_id, '_mdbk_patient_address', true);
-        $age = get_post_meta($patient_id, '_mdbk_patient_age', true);
-        $gender = get_post_meta($patient_id, '_mdbk_patient_gender', true);
-        $age_gender = trim($gender . ($age && $gender ? ' · ' : '') . $age);
+        $patient = get_post($patient_id);
+        if ($patient && $patient->post_type !== 'mdbk_patient') $patient = null;
 
         $apps = get_posts([
             'post_type'   => 'mdbk_appointment',
@@ -4490,8 +4593,42 @@ class MDBK_Admin_Dashboard {
             'order'       => 'DESC',
         ]);
 
+        // A booking outlives the patient record it was linked to — the
+        // registry entry can be deleted (or replaced wholesale, as a demo
+        // re-seed does) while every appointment keeps pointing at the old
+        // ID. Rather than refuse to open at all, fall back to the details
+        // each appointment stored for itself at booking time, which is
+        // where these fields were copied from in the first place. Only a
+        // patient_id that matches nothing anywhere is a real dead end.
+        $orphaned = !$patient;
+        if ($orphaned && empty($apps)) {
+            wp_send_json_error(['message' => __('Patient not found.', 'doctor-appointment')]);
+        }
+
+        if ($patient) {
+            $title_name = $patient->post_title;
+            $phone   = get_post_meta($patient_id, '_mdbk_patient_phone', true);
+            $email   = get_post_meta($patient_id, '_mdbk_patient_email', true);
+            $address = get_post_meta($patient_id, '_mdbk_patient_address', true);
+            $age     = get_post_meta($patient_id, '_mdbk_patient_age', true);
+            $gender  = get_post_meta($patient_id, '_mdbk_patient_gender', true);
+        } else {
+            $latest     = $apps[0];
+            $title_name = get_post_meta($latest->ID, '_mdbk_patient_name', true);
+            $phone      = get_post_meta($latest->ID, '_mdbk_patient_phone', true);
+            $email      = get_post_meta($latest->ID, '_mdbk_patient_email', true);
+            $address    = '';
+            $age        = get_post_meta($latest->ID, '_mdbk_patient_age', true);
+            $gender     = get_post_meta($latest->ID, '_mdbk_patient_gender', true);
+        }
+        if ($title_name === '') $title_name = __('Unknown patient', 'doctor-appointment');
+        $age_gender = trim($gender . ($age && $gender ? ' · ' : '') . $age);
+
         ob_start();
         ?>
+        <?php if ($orphaned) : ?>
+            <p class="mdbk-view-orphan-note"><?php _e('This patient is no longer in the registry — showing the details saved with their bookings.', 'doctor-appointment'); ?></p>
+        <?php endif; ?>
         <div class="mdbk-patient-view-info">
             <div class="mdbk-view-field"><label><?php _e('Phone', 'doctor-appointment'); ?></label><span><?php echo esc_html($phone ?: '—'); ?></span></div>
             <div class="mdbk-view-field"><label><?php _e('Email', 'doctor-appointment'); ?></label><span><?php echo esc_html($email ?: '—'); ?></span></div>
@@ -4505,7 +4642,7 @@ class MDBK_Admin_Dashboard {
         $body_html = ob_get_clean();
 
         wp_send_json_success([
-            'title'     => sprintf(__('%s — Visit History', 'doctor-appointment'), $patient->post_title),
+            'title'     => sprintf(__('%s — Visit History', 'doctor-appointment'), $title_name),
             'body_html' => $body_html,
         ]);
     }
@@ -4523,16 +4660,21 @@ class MDBK_Admin_Dashboard {
             return;
         }
         ?>
-        <table class="mdbk-table">
-            <thead><tr><th><?php _e('Date', 'doctor-appointment'); ?></th><th><?php _e('Doctor', 'doctor-appointment'); ?></th><th><?php _e('Time', 'doctor-appointment'); ?></th><th><?php _e('Status', 'doctor-appointment'); ?></th><th></th></tr></thead>
+        <div class="mdbk-visit-history-scroll">
+        <table class="mdbk-table mdbk-visit-history-table">
+            <?php // Invoice column sits BEFORE Status, so Status is the last
+            // column and every badge lines up against the table's right
+            // edge. With the invoice action last instead, only the rows
+            // that actually have one pushed their badge left, leaving the
+            // badge column looking ragged down the list. ?>
+            <thead><tr><th><?php _e('Date', 'doctor-appointment'); ?></th><th><?php _e('Doctor', 'doctor-appointment'); ?></th><th><?php _e('Time', 'doctor-appointment'); ?></th><th></th><th><?php _e('Status', 'doctor-appointment'); ?></th></tr></thead>
             <tbody>
             <?php foreach ($apps as $a): $v_doc_id = get_post_meta($a->ID, '_mdbk_doctor_id', true); $v_date = get_post_meta($a->ID, '_mdbk_appointment_date', true); $v_slot = get_post_meta($a->ID, '_mdbk_slot_time', true); $v_status = \MDBK\MDBK_Appointment_Manager::get_display_status_slug($a->ID); $v_badge_class = in_array($v_status, ['upcoming', 'not-checked-in'], true) ? $v_status : 'status-' . $v_status; ?>
                 <tr>
                     <td><?php echo $v_date ? esc_html(date_i18n(get_option('date_format'), strtotime($v_date))) : '—'; ?></td>
                     <td><?php echo $v_doc_id ? esc_html(get_the_title($v_doc_id)) : esc_html__('N/A', 'doctor-appointment'); ?></td>
                     <td><?php echo esc_html($v_slot ? date_i18n('g:i A', strtotime($v_slot)) : '—'); ?></td>
-                    <td><span class="mdbk-badge mdbk-badge-<?php echo esc_attr($v_badge_class); ?>"><?php echo esc_html(\MDBK\MDBK_Appointment_Manager::status_display_label($v_status)); ?></span></td>
-                    <td>
+                    <td class="mdbk-visit-history-action">
                         <?php // Same completed-and-not-future gate as every other
                         // Invoice trigger (render_patient_appointment_row(),
                         // render_my_queue_patient_row()) — a past visit shown
@@ -4543,10 +4685,12 @@ class MDBK_Admin_Dashboard {
                             <a href="#" class="mdbk-action-btn mdbk-open-invoice" data-id="<?php echo esc_attr($a->ID); ?>" title="<?php esc_attr_e('Invoice', 'doctor-appointment'); ?>"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="9" y1="13" x2="15" y2="13"></line><line x1="9" y1="17" x2="15" y2="17"></line></svg></a>
                         <?php endif; ?>
                     </td>
+                    <td class="mdbk-visit-history-status"><span class="mdbk-badge mdbk-badge-<?php echo esc_attr($v_badge_class); ?>"><?php echo esc_html(\MDBK\MDBK_Appointment_Manager::status_display_label($v_status)); ?></span></td>
                 </tr>
             <?php endforeach; ?>
             </tbody>
         </table>
+        </div>
         <?php
     }
 

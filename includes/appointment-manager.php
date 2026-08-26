@@ -1140,6 +1140,31 @@ class MDBK_Appointment_Manager {
     }
 
     /**
+     * The identifier to print for one booking, wherever it is shown — the
+     * badge on a queue row, the Print/Download-image table, the CSV
+     * export. One function so those can never disagree: an export that
+     * numbers its own rows 1..N produces a "Q01" that matches nothing on
+     * screen, which is exactly what this replaced.
+     *
+     * Today's bookings show their queue number (Q07) once they have one;
+     * everything else shows the Booking ID (B000123). A queue number is
+     * only meaningful inside the day it was issued for — it restarts each
+     * morning per doctor — so printing one against another date would
+     * name a position in a queue that has already been and gone. The same
+     * fallback covers today's not-yet-arrived patients under
+     * check-in-order mode, who have no number until they check in (see
+     * checkin_ticket_number()).
+     */
+    public static function display_ticket_label($appointment_id) {
+        $appointment_id = intval($appointment_id);
+        if (get_post_meta($appointment_id, '_mdbk_appointment_date', true) === current_time('Y-m-d')) {
+            $number = self::display_ticket_number($appointment_id);
+            if ($number) return self::format_ticket_number($number);
+        }
+        return self::format_booking_id($appointment_id);
+    }
+
+    /**
      * Whether a patient's queue number is stamped the moment they book
      * (next_ticket_number(), booking order) or derived from when they
      * actually arrive (checkin_ticket_number(), check-in order).
