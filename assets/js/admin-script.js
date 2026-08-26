@@ -1234,7 +1234,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const pillsHtml =
             '<div class="mdbk-view-pills">' +
                 pill('Queue', isCheckin ? 'Check-in order' : 'Booking order', isCheckin ? 'amber' : 'blue') +
-                pill('Slot', slotPublic ? 'Public' : 'Hidden', slotPublic ? 'blue' : 'muted') +
+                pill('Time Slot', slotPublic ? 'Public' : 'Hidden', slotPublic ? 'blue' : 'muted') +
                 pill('Duration', (card.dataset.slotDuration || 20) + ' min', 'muted') +
                 pill('Fee', fee !== '' ? '৳' + fee : '—', 'green') +
             '</div>';

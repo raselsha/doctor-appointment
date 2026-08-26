@@ -578,7 +578,16 @@ class MDBK_Admin_Dashboard {
         if (!isset($_GET['action'])) return;
         $id = isset($_GET['id']) ? intval($_GET['id']) : 0;
         if (!$id) return;
-        if (!current_user_can(MDBK_CAP_ADMIN)) wp_die(__('You do not have permission to do this.', 'doctor-appointment'));
+        // Deleting a patient is the one action here a doctor can also take,
+        // and only for someone they have actually treated
+        // (can_view_patient()). Everything else on this handler —
+        // doctors, appointments, specialties, staff — stays admin-only.
+        $doctor_deleting_patient = $_GET['action'] === 'mdbk_delete_patient'
+            && !current_user_can(MDBK_CAP_ADMIN)
+            && $this->can_view_patient($id);
+        if (!current_user_can(MDBK_CAP_ADMIN) && !$doctor_deleting_patient) {
+            wp_die(__('You do not have permission to do this.', 'doctor-appointment'));
+        }
         check_admin_referer('mdbk_delete_action');
         $redirect = '';
         if ($_GET['action'] === 'mdbk_delete_doctor') { wp_delete_post($id, true); $redirect = admin_url('admin.php?page=mdbk-doctors&deleted=1'); }
@@ -817,20 +826,35 @@ class MDBK_Admin_Dashboard {
 
     public function handle_patient_save() {
         if (!isset($_POST['mdbk_save_patient'])) return;
-        // MDBK_CAP_QUEUE (not just manage_options) — front-desk staff
-        // manages the patient registry from the "Patients" page too, not
-        // just admin. See render_patients_page()'s matching gate.
-        if (!current_user_can(MDBK_CAP_QUEUE) && !current_user_can('manage_options')) wp_die(__('You do not have permission to do this.', 'doctor-appointment'));
+        // Three audiences now. Front-desk staff (MDBK_CAP_QUEUE) and admin
+        // manage the clinic-wide registry; a doctor may add a patient and
+        // edit the ones they have actually treated, but nobody else's —
+        // see can_view_patient() for that per-record rule.
+        $is_doctor_only = !current_user_can(MDBK_CAP_QUEUE)
+            && !current_user_can('manage_options')
+            && current_user_can(MDBK_CAP_DOCTOR);
+        if (!current_user_can(MDBK_CAP_QUEUE) && !current_user_can('manage_options') && !$is_doctor_only) {
+            wp_die(__('You do not have permission to do this.', 'doctor-appointment'));
+        }
         check_admin_referer('mdbk_save_patient');
         $patient_id = !empty($_POST['patient_id']) ? intval($_POST['patient_id']) : 0;
-        // Editing an existing patient's record is manager-only (matches
-        // handle_appointment_save()'s matching split) — front-desk staff
-        // can still ADD a brand new patient via the QUEUE-level gate
-        // above, just not modify one already on file.
-        if ($patient_id && !current_user_can(MDBK_CAP_ADMIN)) wp_die(__('You do not have permission to do this.', 'doctor-appointment'));
+        // Editing someone already on file: admin outright, or a doctor for
+        // their own patient. Front-desk staff can still only ADD (the
+        // long-standing split this mirrors — see handle_appointment_save()).
+        if ($patient_id && !current_user_can(MDBK_CAP_ADMIN) && !($is_doctor_only && $this->can_view_patient($patient_id))) {
+            wp_die(__('You do not have permission to do this.', 'doctor-appointment'));
+        }
         $post_data = ['post_title' => sanitize_text_field($_POST['patient_name']), 'post_type' => 'mdbk_patient', 'post_status' => 'publish'];
         if ($patient_id) $post_data['ID'] = $patient_id;
         $id = $patient_id ? wp_update_post($post_data) : wp_insert_post($post_data);
+        // A doctor's own list is built from who they've treated, so a
+        // patient they just added by hand — with no appointment yet —
+        // would vanish the moment the form closed. Recording who created
+        // it keeps them in that doctor's list until a real booking exists.
+        if (!$patient_id && $is_doctor_only && $id && !is_wp_error($id)) {
+            $adding_doctor = \MDBK\MDBK_Appointment_Manager::get_doctor_id_for_user(get_current_user_id());
+            if ($adding_doctor) update_post_meta($id, '_mdbk_added_by_doctor', $adding_doctor);
+        }
         if ($id && !is_wp_error($id)) {
             $p_phone = sanitize_text_field($_POST['patient_phone']);
             $p_email = sanitize_email($_POST['patient_email']);
@@ -1476,7 +1500,13 @@ class MDBK_Admin_Dashboard {
         // deliberately separate from Booking's day-to-day queue/status
         // work above. MDBK_CAP_QUEUE (not manage_options), so front-desk
         // staff manages the patient registry too, not just admin.
-        add_submenu_page('mdbk-home', 'Patients', 'Patients', MDBK_CAP_QUEUE, 'mdbk-patients', [$this, 'render_patients_page']);
+        //
+        // A doctor reaches the same page through MDBK_CAP_DOCTOR, but sees
+        // only the patients they've actually treated and can't add or
+        // delete registry entries — see render_patients_page(), which does
+        // that scoping. The capability check here only decides who gets in
+        // the door; 'read' is the floor both roles clear.
+        add_submenu_page('mdbk-home', 'Patients', 'Patients', 'read', 'mdbk-patients', [$this, 'render_patients_page']);
 
         $hidden_pages = ['mdbk-doctors' => 'render_doctors_page', 'mdbk-staff' => 'render_staff_page', 'mdbk-specialties' => 'render_specialties_page', 'mdbk-global-settings' => 'render_global_settings_page', 'mdbk-license' => 'render_license_page'];
         foreach($hidden_pages as $slug => $cb) add_submenu_page('mdbk-home', $slug, $slug, MDBK_CAP_ADMIN, $slug, [$this, $cb]);
@@ -2180,7 +2210,7 @@ class MDBK_Admin_Dashboard {
             <?php $ticket_label = \MDBK\MDBK_Appointment_Manager::display_ticket_label($a->ID); ?>
             <?php $is_queue_label = strpos($ticket_label, 'Q') === 0; ?>
             <span class="mdbk-patient-row-ticket-slot"><span class="mdbk-patient-row-ticket <?php echo $is_queue_label ? 'mdbk-patient-row-queue' : 'mdbk-patient-row-bookingid'; ?>" title="<?php echo $is_queue_label ? esc_attr__('Queue number', 'doctor-appointment') : esc_attr__('Booking ID', 'doctor-appointment'); ?>"><?php echo esc_html($ticket_label); ?></span></span>
-            <?php if ($patient_id && current_user_can(MDBK_CAP_QUEUE)) : ?>
+            <?php if ($patient_id && $this->can_view_patient($patient_id)) : ?>
                 <a href="#" class="mdbk-patient-row-name mdbk-view-patient" data-id="<?php echo esc_attr($patient_id); ?>" title="<?php esc_attr_e('View patient', 'doctor-appointment'); ?>"><?php echo esc_html($p_name); ?></a>
             <?php else : ?>
                 <span class="mdbk-patient-row-name"><?php echo esc_html($p_name); ?></span>
@@ -2962,6 +2992,16 @@ class MDBK_Admin_Dashboard {
                         data-schedule='<?php echo esc_attr(json_encode($schedule)); ?>'
                         data-slot-duration="<?php echo esc_attr($slot_duration); ?>"
                         data-slot-enabled="<?php echo esc_attr($slot_enabled === 'no' ? 'no' : 'yes'); ?>"
+                        <?php // Edit Profile opens the same shared doctor form the
+                        // Doctors page uses, and admin-script.js fills its
+                        // Queue & Ticketing radios from this element's
+                        // data-queue-mode. Without it the form fell back to
+                        // "Booking order" every time, so a doctor set to
+                        // check-in order saw — and would silently re-save —
+                        // the wrong mode. The doctor card on the Doctors page
+                        // has carried this attribute all along; this one
+                        // didn't. ?>
+                        data-queue-mode="<?php echo esc_attr(\MDBK\MDBK_Appointment_Manager::queue_serial_mode($doctor_id)); ?>"
                         data-fee="<?php echo esc_attr($fee ?: ''); ?>"
                         data-extra-dates='<?php echo esc_attr(json_encode($extra_dates)); ?>'
                         data-off-dates='<?php echo esc_attr(json_encode($off_dates)); ?>'
@@ -2982,7 +3022,37 @@ class MDBK_Admin_Dashboard {
                             <div class="mdbk-view-col">
                                 <div class="mdbk-view-field"><label><?php _e('Email', 'doctor-appointment'); ?></label><span><?php echo esc_html($email ?: '—'); ?></span></div>
                                 <div class="mdbk-view-field"><label><?php _e('Phone', 'doctor-appointment'); ?></label><span><?php echo esc_html($phone ?: '—'); ?></span></div>
-                                <div class="mdbk-view-field"><label><?php _e('Slot Duration', 'doctor-appointment'); ?></label><span><?php echo esc_html($slot_duration); ?> <?php _e('min', 'doctor-appointment'); ?></span></div>
+                            </div>
+                            <?php // Same operating-settings pill row the admin's
+                            // doctor View modal shows (built in admin-script.js) —
+                            // a doctor could see their hours and breaks here but
+                            // not how their own queue is numbered, what their fee
+                            // is, or whether patients get a time picker at all.
+                            // Rendered server-side here because this page has the
+                            // values already; the classes are shared so the two
+                            // stay visually identical. Duration moved down into
+                            // the row for the same reason it did there. ?>
+                            <?php
+                            $p_checkin = \MDBK\MDBK_Appointment_Manager::queue_serial_mode($doctor_id) === 'checkin';
+                            $p_slot_public = $slot_enabled !== 'no';
+                            ?>
+                            <div class="mdbk-view-pills">
+                                <span class="mdbk-view-pill <?php echo $p_checkin ? 'is-amber' : 'is-blue'; ?>">
+                                    <span class="mdbk-view-pill-label"><?php _e('Queue', 'doctor-appointment'); ?></span>
+                                    <span class="mdbk-view-pill-value"><?php echo esc_html($p_checkin ? __('Check-in order', 'doctor-appointment') : __('Booking order', 'doctor-appointment')); ?></span>
+                                </span>
+                                <span class="mdbk-view-pill <?php echo $p_slot_public ? 'is-blue' : 'is-muted'; ?>">
+                                    <span class="mdbk-view-pill-label"><?php _e('Time Slot', 'doctor-appointment'); ?></span>
+                                    <span class="mdbk-view-pill-value"><?php echo esc_html($p_slot_public ? __('Public', 'doctor-appointment') : __('Hidden', 'doctor-appointment')); ?></span>
+                                </span>
+                                <span class="mdbk-view-pill is-muted">
+                                    <span class="mdbk-view-pill-label"><?php _e('Duration', 'doctor-appointment'); ?></span>
+                                    <span class="mdbk-view-pill-value"><?php echo esc_html($slot_duration); ?> <?php _e('min', 'doctor-appointment'); ?></span>
+                                </span>
+                                <span class="mdbk-view-pill is-green">
+                                    <span class="mdbk-view-pill-label"><?php _e('Fee', 'doctor-appointment'); ?></span>
+                                    <span class="mdbk-view-pill-value"><?php echo $fee !== '' ? esc_html('৳' . $fee) : '—'; ?></span>
+                                </span>
                             </div>
                         </div>
                         <?php // A doctor's own live break status — the one piece
@@ -3654,7 +3724,7 @@ class MDBK_Admin_Dashboard {
                 <?php $is_queue_label = strpos($ticket_label, 'Q') === 0; ?>
                 <span class="mdbk-patient-row-ticket <?php echo $is_queue_label ? 'mdbk-patient-row-queue' : 'mdbk-patient-row-bookingid'; ?>" title="<?php echo $is_queue_label ? esc_attr__('Queue number', 'doctor-appointment') : esc_attr__('Booking ID', 'doctor-appointment'); ?>"><?php echo esc_html($ticket_label); ?></span>
             </span>
-            <?php if ($patient_id && current_user_can(MDBK_CAP_QUEUE)) : ?>
+            <?php if ($patient_id && $this->can_view_patient($patient_id)) : ?>
                 <a href="#" class="mdbk-patient-row-name mdbk-view-patient" data-id="<?php echo esc_attr($patient_id); ?>" title="<?php esc_attr_e('View patient', 'doctor-appointment'); ?>"><?php echo esc_html($p_name); ?></a>
             <?php else : ?>
                 <span class="mdbk-patient-row-name"><?php echo esc_html($p_name); ?></span>
@@ -3750,20 +3820,31 @@ class MDBK_Admin_Dashboard {
             <span class="mdbk-patient-row-chip-slot"><?php if ($address): ?><span class="mdbk-patient-row-chip mdbk-chip-address" title="<?php echo esc_attr($address); ?>"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg> <?php echo esc_html($address); ?></span><?php endif; ?></span>
             <span class="mdbk-patient-row-chip-slot"><?php if ($age_gender): ?><span class="mdbk-patient-row-chip mdbk-meta-pill mdbk-gender-<?php echo esc_attr($gender_key); ?>"><?php echo esc_html($age_gender); ?></span><?php endif; ?></span>
             <span class="mdbk-directory-visits-cell">
-                <span class="mdbk-badge mdbk-badge-green" title="<?php esc_attr_e('Total visits', 'doctor-appointment'); ?>"><?php echo esc_html($visit_count); ?></span>
-                <?php if (current_user_can(MDBK_CAP_QUEUE)) : ?>
+                <?php // Tooltip says whose visits are being counted — the number
+                // means something different on a doctor's own list (their
+                // consultations) than on the clinic-wide directory. ?>
+                <span class="mdbk-badge mdbk-badge-green" title="<?php echo current_user_can(MDBK_CAP_QUEUE) ? esc_attr__('Total visits', 'doctor-appointment') : esc_attr__('Visits with you', 'doctor-appointment'); ?>"><?php echo esc_html($visit_count); ?></span>
+                <?php if (current_user_can(MDBK_CAP_QUEUE) || $this->can_view_patient($p->ID)) : ?>
                 <?php // Existing patient, new booking — opens the same
                 // Add Booking modal rendered on THIS page in place (see
                 // render_patients_page()), prefilled from the row's own
-                // data-name/phone/email/age/gender. No page navigation. ?>
+                // data-name/phone/email/age/gender. No page navigation.
+                // A doctor gets this for their own patients too; the modal
+                // locks the doctor field to them (render_appointment_modal_html()
+                // takes their id), so booking from here can only ever land
+                // on their own queue. ?>
                 <a href="#" class="mdbk-book-btn mdbk-book-appointment" data-id="<?php echo esc_attr($p->ID); ?>" title="<?php esc_attr_e('Book Appointment', 'doctor-appointment'); ?>"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="3"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg><?php _e('Book', 'doctor-appointment'); ?></a>
                 <?php endif; ?>
             </span>
             <div class="mdbk-actions">
-                <?php if (current_user_can(MDBK_CAP_QUEUE)) : ?>
+                <?php if ($this->can_view_patient($p->ID)) : ?>
                 <a href="#" class="mdbk-action-btn mdbk-view-patient" data-id="<?php echo esc_attr($p->ID); ?>" title="<?php esc_attr_e('View', 'doctor-appointment'); ?>"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg></a>
                 <?php endif; ?>
-                <?php if (current_user_can(MDBK_CAP_ADMIN)) : ?>
+                <?php // Admin manages any record; a doctor may edit or remove
+                // the patients they've treated (or added themselves), but
+                // nobody else's — handle_patient_save() and the delete
+                // handler enforce the same rule server-side. ?>
+                <?php if (current_user_can(MDBK_CAP_ADMIN) || $this->can_view_patient($p->ID)) : ?>
                 <a href="#" class="mdbk-action-btn mdbk-edit-patient" data-id="<?php echo esc_attr($p->ID); ?>"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"></path><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"></path></svg></a>
                 <a href="<?php echo esc_url(wp_nonce_url(admin_url('admin.php?page=mdbk-patients&action=mdbk_delete_patient&id='.$p->ID), 'mdbk_delete_action')); ?>" class="mdbk-action-btn mdbk-action-btn-red" onclick="return confirm('<?php esc_attr_e('Delete?', 'doctor-appointment'); ?>')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path></svg></a>
                 <?php endif; ?>
@@ -3779,8 +3860,81 @@ class MDBK_Admin_Dashboard {
      * postmeta, so a real name/phone/email search needs PHP-side
      * filtering across all three rather than a WP_Query 's' param.
      */
-    private function get_filtered_patients($search, $filter_gender) {
+    /**
+     * The patient IDs one doctor has actually seen — everyone with an
+     * appointment booked against them, any date, any status.
+     *
+     * A doctor's own Patients page is scoped through this rather than
+     * showing the whole registry: the directory is clinic-wide and holds
+     * people who have never been near this doctor. Front-desk staff and
+     * admin keep the unscoped view (they book across every doctor);
+     * $doctor_id === 0 means "no scoping" for exactly that reason.
+     */
+    private function get_patient_ids_for_doctor($doctor_id) {
+        $doctor_id = intval($doctor_id);
+        if (!$doctor_id) return null;
+
+        $ids = [];
+        foreach (get_posts([
+            'post_type'   => 'mdbk_appointment',
+            'post_status' => \MDBK\MDBK_CPT::APPOINTMENT_STATUSES,
+            'numberposts' => -1,
+            'fields'      => 'ids',
+            'meta_query'  => [['key' => '_mdbk_doctor_id', 'value' => $doctor_id]],
+        ]) as $app_id) {
+            $pid = intval(get_post_meta($app_id, '_mdbk_patient_id', true));
+            if ($pid) $ids[$pid] = true;
+        }
+        // Plus anyone this doctor added themselves who hasn't booked yet
+        // (handle_patient_save() stamps that) — otherwise a record they
+        // just created wouldn't appear in their own list.
+        foreach (get_posts([
+            'post_type'   => 'mdbk_patient',
+            'post_status' => 'any',
+            'numberposts' => -1,
+            'fields'      => 'ids',
+            'meta_query'  => [['key' => '_mdbk_added_by_doctor', 'value' => $doctor_id]],
+        ]) as $pid) {
+            $ids[intval($pid)] = true;
+        }
+        return $ids;
+    }
+
+    /**
+     * Whether the current user may open one patient's record.
+     *
+     * Front desk/admin: any patient, as before. A doctor: only someone
+     * they have actually treated — the same scope their own Patients list
+     * is built from. Without this a doctor could read any record in the
+     * clinic by guessing an ID, since the modal is fetched by ID over
+     * AJAX. Used both to decide whether to render the trigger at all and,
+     * more importantly, to enforce it in ajax_view_patient() — a hidden
+     * link is not a permission check.
+     *
+     * Memoised per request: the Booking list asks this once per row, and
+     * the answer for a given doctor can't change mid-request.
+     */
+    private function can_view_patient($patient_id) {
+        if (current_user_can(MDBK_CAP_QUEUE)) return true;
+        if (!current_user_can(MDBK_CAP_DOCTOR)) return false;
+
+        static $own_ids = null;
+        if ($own_ids === null) {
+            $doctor_id = \MDBK\MDBK_Appointment_Manager::get_doctor_id_for_user(get_current_user_id());
+            $own_ids = $doctor_id ? $this->get_patient_ids_for_doctor($doctor_id) : [];
+        }
+        return isset($own_ids[intval($patient_id)]);
+    }
+
+    private function get_filtered_patients($search, $filter_gender, $doctor_id = 0) {
         $patients = get_posts(['post_type' => 'mdbk_patient', 'numberposts' => -1, 'orderby' => 'title', 'order' => 'ASC']);
+        // Doctor's own view — keep only the people they've actually seen.
+        $own = $this->get_patient_ids_for_doctor($doctor_id);
+        if ($own !== null) {
+            $patients = array_values(array_filter($patients, function($p) use ($own) {
+                return isset($own[$p->ID]);
+            }));
+        }
         if ($search || $filter_gender) {
             $patients = array_values(array_filter($patients, function($p) use ($search, $filter_gender) {
                 if ($filter_gender && get_post_meta($p->ID, '_mdbk_patient_gender', true) !== $filter_gender) return false;
@@ -3801,7 +3955,7 @@ class MDBK_Admin_Dashboard {
      * drift apart the way render_patient_list_html() explains for the
      * Booking page's own live-refreshed list.
      */
-    private function render_patients_results_html($patients, $has_active_filters, $paged = 1, $per_page = 25) {
+    private function render_patients_results_html($patients, $has_active_filters, $paged = 1, $per_page = 25, $doctor_id = 0) {
         $total = count($patients);
         $total_pages = (int) max(1, ceil($total / $per_page));
         $paged = min(max(1, $paged), $total_pages);
@@ -3814,7 +3968,7 @@ class MDBK_Admin_Dashboard {
         // re-scanning the entire appointment table). Scoped to just this
         // page's ids (not all $patients) now that there's pagination, so
         // the query stays cheap regardless of how many total patients match.
-        $visit_counts = $this->get_visit_counts_for_patients(wp_list_pluck($page_patients, 'ID'));
+        $visit_counts = $this->get_visit_counts_for_patients(wp_list_pluck($page_patients, 'ID'), $doctor_id);
         // Same page-scoped-query reasoning as $visit_counts above — lets
         // the Patient Directory's "Book" button (render_patient_directory_row())
         // preselect whichever doctor this SPECIFIC patient saw last time,
@@ -3886,7 +4040,7 @@ class MDBK_Admin_Dashboard {
      * patient_id => visit count for every id in $patient_ids, in one
      * grouped query — see render_patients_results_html()'s comment above.
      */
-    private function get_visit_counts_for_patients($patient_ids) {
+    private function get_visit_counts_for_patients($patient_ids, $doctor_id = 0) {
         global $wpdb;
         $patient_ids = array_filter(array_map('intval', $patient_ids));
         if (empty($patient_ids)) return [];
@@ -3895,15 +4049,27 @@ class MDBK_Admin_Dashboard {
         $status_placeholders = implode(',', array_fill(0, count($statuses), '%s'));
         $id_placeholders = implode(',', array_fill(0, count($patient_ids), '%d'));
 
+        // A doctor's own list counts only their own consultations — the
+        // unscoped total includes visits to every other doctor in the
+        // clinic, which is the same information their patient modal
+        // deliberately filters out (see ajax_view_patient()). Front
+        // desk/admin pass 0 and keep the clinic-wide total.
+        $doctor_id = intval($doctor_id);
+        $doctor_join = $doctor_id
+            ? "INNER JOIN {$wpdb->postmeta} dm ON dm.post_id = p.ID AND dm.meta_key = '_mdbk_doctor_id' AND dm.meta_value = %d"
+            : '';
+
         $sql = "SELECT pm.meta_value AS patient_id, COUNT(*) AS cnt
                 FROM {$wpdb->postmeta} pm
                 INNER JOIN {$wpdb->posts} p ON p.ID = pm.post_id
+                $doctor_join
                 WHERE pm.meta_key = '_mdbk_patient_id'
                   AND pm.meta_value IN ($id_placeholders)
                   AND p.post_type = 'mdbk_appointment'
                   AND p.post_status IN ($status_placeholders)
                 GROUP BY pm.meta_value";
-        $rows = $wpdb->get_results($wpdb->prepare($sql, array_merge($patient_ids, $statuses)));
+        $args = $doctor_id ? array_merge([$doctor_id], $patient_ids, $statuses) : array_merge($patient_ids, $statuses);
+        $rows = $wpdb->get_results($wpdb->prepare($sql, $args));
 
         $counts = [];
         foreach ($rows as $row) $counts[(int) $row->patient_id] = (int) $row->cnt;
@@ -3959,15 +4125,22 @@ class MDBK_Admin_Dashboard {
      */
     public function ajax_search_patients() {
         check_ajax_referer('mdbk_admin_nonce', 'nonce');
-        if (!current_user_can(MDBK_CAP_QUEUE)) wp_send_json_error(['message' => __('Unauthorized.', 'doctor-appointment')]);
+        // Same two-audience gate as render_patients_page(), and the same
+        // scoping applied to the query — a doctor searching must not be
+        // able to page past their own patients into the full registry.
+        $is_queue_staff = current_user_can(MDBK_CAP_QUEUE);
+        $own_doctor_id  = (!$is_queue_staff && current_user_can(MDBK_CAP_DOCTOR))
+            ? \MDBK\MDBK_Appointment_Manager::get_doctor_id_for_user(get_current_user_id())
+            : 0;
+        if (!$is_queue_staff && !$own_doctor_id) wp_send_json_error(['message' => __('Unauthorized.', 'doctor-appointment')]);
         $search = isset($_POST['s']) ? sanitize_text_field(wp_unslash($_POST['s'])) : '';
         $filter_gender = isset($_POST['filter_gender']) ? sanitize_text_field($_POST['filter_gender']) : '';
         $paged = isset($_POST['paged']) ? max(1, intval($_POST['paged'])) : 1;
         $per_page = isset($_POST['per_page']) ? self::sanitize_patients_per_page($_POST['per_page']) : 25;
-        $patients = $this->get_filtered_patients($search, $filter_gender);
+        $patients = $this->get_filtered_patients($search, $filter_gender, $own_doctor_id);
         wp_send_json_success([
             'count_html'   => $this->render_patients_count_html(count($patients), $paged, $per_page),
-            'results_html' => $this->render_patients_results_html($patients, $search !== '' || $filter_gender !== '', $paged, $per_page),
+            'results_html' => $this->render_patients_results_html($patients, $search !== '' || $filter_gender !== '', $paged, $per_page, $own_doctor_id),
         ]);
     }
 
@@ -4011,6 +4184,17 @@ class MDBK_Admin_Dashboard {
     }
 
     public function render_patients_page() {
+        // Front desk/admin manage the clinic-wide registry; a doctor gets
+        // the same page scoped to the patients they've actually treated
+        // (get_patient_ids_for_doctor()). Anyone who is neither is out.
+        $is_queue_staff = current_user_can(MDBK_CAP_QUEUE);
+        $own_doctor_id  = (!$is_queue_staff && current_user_can(MDBK_CAP_DOCTOR))
+            ? \MDBK\MDBK_Appointment_Manager::get_doctor_id_for_user(get_current_user_id())
+            : 0;
+        if (!$is_queue_staff && !$own_doctor_id) {
+            wp_die(__('Sorry, you are not allowed to access this page.', 'doctor-appointment'));
+        }
+
         $search = isset($_GET['s']) ? sanitize_text_field(wp_unslash($_GET['s'])) : '';
         $filter_gender = isset($_GET['filter_gender']) ? sanitize_text_field($_GET['filter_gender']) : '';
         $paged = isset($_GET['paged']) ? max(1, intval($_GET['paged'])) : 1;
@@ -4019,18 +4203,23 @@ class MDBK_Admin_Dashboard {
         // Only offer a gender filter option if at least one patient actually
         // has that gender recorded — computed from the full unfiltered list
         // so the option doesn't disappear once you've filtered down to it.
-        $all_patients = $this->get_filtered_patients('', '');
+        $all_patients = $this->get_filtered_patients('', '', $own_doctor_id);
         $genders_present = array_unique(array_filter(array_map(function($p) {
             return get_post_meta($p->ID, '_mdbk_patient_gender', true);
         }, $all_patients)));
         $gender_options = array_intersect(['Male', 'Female'], $genders_present);
 
-        $patients = $this->get_filtered_patients($search, $filter_gender);
+        $patients = $this->get_filtered_patients($search, $filter_gender, $own_doctor_id);
         $has_active_filters = ($search !== '' || $filter_gender !== '');
+        // "My Patients" for a doctor — the list is theirs, not the clinic's,
+        // and calling it the Patient Directory would misrepresent what's in
+        // it. Adding a registry entry is a front-desk job, so that button
+        // isn't offered here either.
+        $page_title = $own_doctor_id ? __('My Patients', 'doctor-appointment') : __('Patient Directory', 'doctor-appointment');
         ?>
         <div id="mdbk-admin-dashboard"><div class="mdbk-admin-wrapper"><?php $this->render_sidebar('patients'); ?>
             <div class="mdbk-main-content">
-                <div class="mdbk-header"><div class="mdbk-header-left"><h1><?php _e('Patient Directory', 'doctor-appointment'); ?></h1><p id="mdbk-patients-count"><?php echo $this->render_patients_count_html(count($patients), $paged, $per_page); ?></p></div><a href="#" class="mdbk-btn-add mdbk-add-patient"><?php _e('+ Add Patient', 'doctor-appointment'); ?></a></div>
+                <div class="mdbk-header"><div class="mdbk-header-left"><h1><?php echo esc_html($page_title); ?></h1><p id="mdbk-patients-count"><?php echo $this->render_patients_count_html(count($patients), $paged, $per_page); ?></p></div><a href="#" class="mdbk-btn-add mdbk-add-patient"><?php _e('+ Add Patient', 'doctor-appointment'); ?></a></div>
 
                 <div class="mdbk-filters-bar">
                     <form method="get" class="mdbk-filters-form" id="mdbk-patients-filters-form">
@@ -4061,8 +4250,16 @@ class MDBK_Admin_Dashboard {
                     </form>
                 </div>
 
-                <div id="mdbk-patients-results"><?php echo $this->render_patients_results_html($patients, $has_active_filters, $paged, $per_page); ?></div>
-            </div></div><?php $this->render_patient_modal_html(); $this->render_patient_view_modal_html(); if (current_user_can(MDBK_CAP_QUEUE)) { $this->render_appointment_modal_html(); } ?></div>
+                <div id="mdbk-patients-results"><?php echo $this->render_patients_results_html($patients, $has_active_filters, $paged, $per_page, $own_doctor_id); ?></div>
+            </div></div><?php
+            $this->render_patient_modal_html();
+            $this->render_patient_view_modal_html();
+            // The Book button above needs this modal on the page. Front
+            // desk/admin get the full doctor picker; a doctor gets it
+            // pinned to themselves, the same argument their own Booking
+            // page's "+ New Booking" already passes.
+            if ($is_queue_staff || $own_doctor_id) { $this->render_appointment_modal_html($own_doctor_id); }
+            ?></div>
         <?php
     }
 
@@ -4229,11 +4426,19 @@ class MDBK_Admin_Dashboard {
             <?php // "Patients" — the registered-patient directory (view/add/edit),
             // deliberately separate from Booking's day-to-day queue work above.
             // MDBK_CAP_QUEUE covers both front-desk staff and admin (admin has
-            // this cap granted alongside every custom one — see roles.php); a
-            // pure doctor account doesn't get this, their own patients' info
-            // already shows inline in their Booking queue rows. ?>
-            <?php if (current_user_can(MDBK_CAP_QUEUE)) : ?>
-            <li class="mdbk-menu-item <?php echo $active_page == 'patients' ? 'active' : ''; ?>" onclick="window.location.href='<?php echo esc_url(admin_url('admin.php?page=mdbk-patients')); ?>'"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg><?php _e('Patients', 'doctor-appointment'); ?></li>
+            // this cap granted alongside every custom one — see roles.php).
+            //
+            // A doctor gets the same entry, but the page behind it is scoped
+            // to the patients they have actually treated and titled "My
+            // Patients" — see render_patients_page(). Shown only once they
+            // resolve to a doctor profile, since without one the page has
+            // nothing to scope by and would refuse to load.
+            $sidebar_own_doctor = (!current_user_can(MDBK_CAP_QUEUE) && current_user_can(MDBK_CAP_DOCTOR))
+                ? \MDBK\MDBK_Appointment_Manager::get_doctor_id_for_user(get_current_user_id())
+                : 0;
+            ?>
+            <?php if (current_user_can(MDBK_CAP_QUEUE) || $sidebar_own_doctor) : ?>
+            <li class="mdbk-menu-item <?php echo $active_page == 'patients' ? 'active' : ''; ?>" onclick="window.location.href='<?php echo esc_url(admin_url('admin.php?page=mdbk-patients')); ?>'"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg><?php echo $sidebar_own_doctor ? esc_html__('My Patients', 'doctor-appointment') : esc_html__('Patients', 'doctor-appointment'); ?></li>
             <?php endif; ?>
             <?php if (current_user_can(MDBK_CAP_ADMIN)) : ?>
             <li class="mdbk-menu-item <?php echo $active_page == 'doctors' ? 'active' : ''; ?>" onclick="window.location.href='<?php echo esc_url(admin_url('admin.php?page=mdbk-doctors')); ?>'"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.5 21a8.5 8.5 0 0 0-17 0"></path><circle cx="12" cy="7.5" r="4.5"></circle></svg><?php _e('Doctors', 'doctor-appointment'); ?></li>
@@ -4288,11 +4493,26 @@ class MDBK_Admin_Dashboard {
         // lose the queue they were working on; rel="noopener" because
         // target="_blank" otherwise hands the new tab a handle back to this
         // one. ?>
+        <?php
+        // The avatar was an empty green disc for everyone. A doctor already
+        // has a profile photo on file more often than not, so show it —
+        // falling back to their initials rather than a blank circle.
+        $footer_photo = $footer_doctor_id ? get_the_post_thumbnail_url($footer_doctor_id, 'thumbnail') : '';
+        ?>
         <div class="mdbk-sidebar-footer">
-            <div class="mdbk-user-avatar"></div>
+            <div class="mdbk-user-avatar<?php echo $footer_photo ? ' has-photo' : ''; ?>">
+                <?php if ($footer_photo) : ?>
+                    <img src="<?php echo esc_url($footer_photo); ?>" alt="">
+                <?php else : ?>
+                    <span><?php echo esc_html(self::initials($footer_name)); ?></span>
+                <?php endif; ?>
+            </div>
+            <?php // title= carries the full name: it's truncated to one line
+            // below, and these names ("Dr. Dewan Md. Kudrat-A-Elahi") are
+            // routinely longer than the sidebar is wide. ?>
             <div class="mdbk-user-info">
-                <div style="font-weight: 700; font-size: 13px;"><?php echo esc_html($footer_name); ?></div>
-                <div style="font-size: 11px; opacity: 0.6;"><?php echo esc_html($footer_user->user_login); ?></div>
+                <div class="mdbk-user-info-name" title="<?php echo esc_attr($footer_name); ?>"><?php echo esc_html($footer_name); ?></div>
+                <div class="mdbk-user-info-login"><?php echo esc_html($footer_user->user_login); ?></div>
             </div>
             <a class="mdbk-sidebar-visit-site" href="<?php echo esc_url(home_url('/')); ?>" target="_blank" rel="noopener" title="<?php esc_attr_e('Visit site', 'doctor-appointment'); ?>" aria-label="<?php esc_attr_e('Visit site (opens in a new tab)', 'doctor-appointment'); ?>">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
@@ -4574,11 +4794,16 @@ class MDBK_Admin_Dashboard {
      */
     public function ajax_view_patient() {
         check_ajax_referer('mdbk_admin_nonce', 'nonce');
-        if (!current_user_can(MDBK_CAP_QUEUE)) wp_send_json_error(['message' => __('Unauthorized.', 'doctor-appointment')]);
 
         $patient_id = isset($_POST['patient_id']) ? intval($_POST['patient_id']) : 0;
         if (!$patient_id) {
             wp_send_json_error(['message' => __('Patient not found.', 'doctor-appointment')]);
+        }
+        // Per-patient, not a flat capability check: a doctor may open the
+        // records of people they've treated and no one else, so the ID
+        // being requested is part of the decision. See can_view_patient().
+        if (!$this->can_view_patient($patient_id)) {
+            wp_send_json_error(['message' => __('Unauthorized.', 'doctor-appointment')]);
         }
         $patient = get_post($patient_id);
         if ($patient && $patient->post_type !== 'mdbk_patient') $patient = null;
@@ -4592,6 +4817,19 @@ class MDBK_Admin_Dashboard {
             'orderby'     => 'meta_value',
             'order'       => 'DESC',
         ]);
+
+        // A doctor sees only their own consultations with this patient.
+        // The unfiltered history spans every doctor in the clinic, which
+        // is front-desk/admin information — what a patient was seen for
+        // elsewhere isn't this doctor's to read just because the same
+        // person also books with them. "Total Visits" below counts this
+        // filtered list too, so the number matches the rows under it.
+        if (!current_user_can(MDBK_CAP_QUEUE) && current_user_can(MDBK_CAP_DOCTOR)) {
+            $viewer_doctor_id = \MDBK\MDBK_Appointment_Manager::get_doctor_id_for_user(get_current_user_id());
+            $apps = array_values(array_filter($apps, function($a) use ($viewer_doctor_id) {
+                return intval(get_post_meta($a->ID, '_mdbk_doctor_id', true)) === intval($viewer_doctor_id);
+            }));
+        }
 
         // A booking outlives the patient record it was linked to — the
         // registry entry can be deleted (or replaced wholesale, as a demo

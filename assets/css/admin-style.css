@@ -86,7 +86,10 @@
     display: flex;
     align-items: center;
     gap: 10px;
-    margin: 4px 20px 0;
+    /* Bottom margin, not just top: this button is the last thing before
+       the footer's own top border, and with no gap it sat flush against
+       that line. */
+    margin: 4px 20px 16px;
     padding: 12px 14px;
     border-radius: 10px;
     background: rgba(0, 97, 213, 0.16);
@@ -132,12 +135,49 @@
 }
 .mdbk-sidebar-visit-site svg { display: block; }
 
+/* min-width:0 lets the name block actually shrink: a flex item defaults to
+   min-width:auto, which refuses to go below its content's own width, so
+   the ellipsis below would never trigger and a long name pushed the
+   "Visit site" button off the sidebar's edge instead. */
+.mdbk-user-info { min-width: 0; flex: 1; }
+.mdbk-user-info-name {
+    font-weight: 700;
+    font-size: 13px;
+    line-height: 1.3;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.mdbk-user-info-login {
+    font-size: 11px;
+    line-height: 1.3;
+    margin-top: 1px;
+    color: rgba(255, 255, 255, 0.5);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
 .mdbk-user-avatar {
     width: 32px;
     height: 32px;
     border-radius: 50%;
     background: #4ade80;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    font-size: 12px;
+    font-weight: 700;
+    color: #06331b;
+    text-transform: uppercase;
+    letter-spacing: .3px;
 }
+/* A real photo fills the disc — the green backdrop is only the fallback
+   behind initials, and would otherwise show as a rim around the image. */
+.mdbk-user-avatar.has-photo { background: rgba(255, 255, 255, 0.08); }
+.mdbk-user-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
 
 .mdbk-sidebar-logout {
     display: flex;
@@ -2428,5 +2468,60 @@ body.mdbk-doctor-chrome .mdbk-admin-wrapper {
     #mdbk-patient-age::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
     #mdbk-app-age,
     #mdbk-patient-age { -moz-appearance: textfield; }
+
+    /* Doctor View modal / Profile top block. .mdbk-view-col carries
+       margin-left:auto so it sits opposite the avatar on a wide screen —
+       once it wraps onto its own line here that same rule kept shoving it
+       against the right edge, leaving the labels floating away from the
+       name they belong to. Full width and flush left instead. */
+    .mdbk-view-top-row { gap: 14px; }
+    .mdbk-view-col { margin-left: 0; width: 100%; min-width: 0; }
+    /* Two columns rather than one long stack — these are short
+       label/value pairs and one per line wasted most of the width. */
+    .mdbk-view-col { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 14px; }
+    .mdbk-view-pills { gap: 6px; }
+    .mdbk-view-pill { padding: 5px 10px; }
+
+    /* The Patients list's column header labels the desktop grid's
+       columns. Each row becomes a wrapping card here (see the
+       .mdbk-patient-row rule above), so those labels line up with
+       nothing — and being a 7-item flex row itself, the header just
+       wrapped into two lines of stray words above the list. */
+    .mdbk-directory-list-header { display: none; }
+
+    /* Visits badge + Book button read as one pair, kept together on the
+       card's own line rather than splitting across a wrap. */
+    .mdbk-directory-visits-cell { display: flex; align-items: center; gap: 8px; }
+
+    /* Actions get their own full-width line, right-aligned, instead of
+       being squeezed in beside the contact chips. */
+    .mdbk-patient-row-directory .mdbk-actions { flex-basis: 100%; justify-content: flex-end; }
+
+    /* wp-admin's own mobile stylesheet blows radios/checkboxes up to 25px
+       for touch. Inside these label rows — which are display:flex — the
+       input is a flex item with nothing stopping it shrinking, so each one
+       ended up a different width depending on how long the text beside it
+       ran (measured 22px next to one option, 16px next to the other), and
+       the taller-than-wide result rendered as a squashed oval rather than
+       a circle. Pinned to one size that can't shrink, with the checked dot
+       resized to match the smaller box. */
+    .mdbk-modal input[type="radio"],
+    .mdbk-modal input[type="checkbox"] {
+        flex-shrink: 0;
+        width: 20px;
+        height: 20px;
+        min-width: 20px;
+        margin-top: 1px;
+    }
+    .mdbk-modal input[type="radio"]:checked::before {
+        width: 8px;
+        height: 8px;
+        margin: 5px;
+    }
+    .mdbk-modal input[type="checkbox"]:checked::before {
+        width: 20px;
+        height: 20px;
+        margin: -2px 0 0 -2px;
+    }
 }
 
