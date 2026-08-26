@@ -33,6 +33,7 @@ class MDBK_Admin_Dashboard {
         add_action('wp_ajax_mdbk_toggle_skip', [$this, 'ajax_toggle_skip']);
         add_action('wp_ajax_mdbk_start_visiting', [$this, 'ajax_start_visiting']);
         add_action('wp_ajax_mdbk_refresh_doctor_group', [$this, 'ajax_refresh_doctor_group']);
+        add_action('wp_ajax_mdbk_queue_signature', [$this, 'ajax_queue_signature']);
         add_action('wp_ajax_mdbk_refresh_doctor_card', [$this, 'ajax_refresh_doctor_card']);
         add_filter('login_redirect', [$this, 'doctor_login_redirect'], 10, 3);
         add_filter('edit_profile_url', [$this, 'redirect_profile_url'], 10, 3);
@@ -334,6 +335,64 @@ class MDBK_Admin_Dashboard {
      * separate per-doctor ownership check is needed here the way the
      * single-row actions above (Start Visiting etc.) need one.
      */
+    /**
+     * A short fingerprint of today's queue, so the panel can ask "has
+     * anything changed?" without pulling the queue itself.
+     *
+     * There is no push channel available here — a check-in or a new
+     * booking happens in someone else's browser (the front desk, the
+     * kiosk, the public form), and WordPress on shared hosting can't hold
+     * a socket open to announce it. Asking the server is unavoidable; what
+     * this makes cheap is asking OFTEN. One indexed meta query and a hash
+     * come back, instead of re-rendering every row and shipping the HTML
+     * on a timer whether or not a single thing moved.
+     *
+     * The hash covers exactly what the queue view can show: which
+     * appointments are on it, each one's status, whether they've checked
+     * in, and their slot — so a new booking, a check-in, a status change,
+     * a skip or a reschedule all change it, and nothing else does.
+     */
+    public function ajax_queue_signature() {
+        check_ajax_referer('mdbk_admin_nonce', 'nonce');
+        $is_queue_staff = current_user_can(MDBK_CAP_QUEUE);
+        $own_doctor_id = (!$is_queue_staff && current_user_can(MDBK_CAP_DOCTOR))
+            ? \MDBK\MDBK_Appointment_Manager::get_doctor_id_for_user(get_current_user_id())
+            : 0;
+        if (!$is_queue_staff && !$own_doctor_id) {
+            wp_send_json_error(['message' => __('Unauthorized.', 'doctor-appointment')]);
+        }
+
+        // A doctor can only ever ask about their own queue, whatever the
+        // request says — same rule ajax_refresh_doctor_group() applies.
+        $doctor_id = $is_queue_staff
+            ? (isset($_POST['doctor_id']) ? intval($_POST['doctor_id']) : 0)
+            : $own_doctor_id;
+
+        $meta_query = [['key' => '_mdbk_appointment_date', 'value' => current_time('Y-m-d')]];
+        if ($doctor_id) $meta_query[] = ['key' => '_mdbk_doctor_id', 'value' => $doctor_id];
+
+        $ids = get_posts([
+            'post_type'   => 'mdbk_appointment',
+            'post_status' => \MDBK\MDBK_CPT::APPOINTMENT_STATUSES,
+            'numberposts' => -1,
+            'fields'      => 'ids',
+            'orderby'     => 'ID',
+            'order'       => 'ASC',
+            'meta_query'  => $meta_query,
+        ]);
+
+        $parts = [];
+        foreach ($ids as $id) {
+            $parts[] = $id
+                . ':' . get_post_status($id)
+                . ':' . (get_post_meta($id, '_mdbk_checked_in', true) === 'yes' ? '1' : '0')
+                . ':' . (get_post_meta($id, '_mdbk_skipped', true) === 'yes' ? '1' : '0')
+                . ':' . get_post_meta($id, '_mdbk_slot_time', true);
+        }
+
+        wp_send_json_success(['signature' => md5(implode('|', $parts)), 'count' => count($ids)]);
+    }
+
     public function ajax_refresh_doctor_group() {
         check_ajax_referer('mdbk_admin_nonce', 'nonce');
         // Staff/admin refreshing any doctor's group in the grouped view,

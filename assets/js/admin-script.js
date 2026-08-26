@@ -2437,6 +2437,12 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     function mdbkStartSpin(icon) {
         if (!icon) return;
+        // A background refresh reuses these same click handlers (see the
+        // queue watcher further down) but must leave the control alone —
+        // spinning a button nobody pressed is what made the old timer look
+        // like the Refresh control was acting on its own.
+        const owner = icon.closest('button, a');
+        if (owner && owner.dataset.mdbkSilent === '1') return;
         if (icon._mdbkCancelStop) icon._mdbkCancelStop();
         icon.classList.add('mdbk-spin');
     }
@@ -2497,9 +2503,41 @@ document.addEventListener('DOMContentLoaded', function() {
     // no re-init call needed here.
     function mdbkSwapBreakPill(header, actionsSelector, html) {
         if (!header) return;
-        const old = header.querySelector('.mdbk-break-countdown');
-        if (old) old.remove();
-        if (!html) return;
+        const existing = header.querySelector('.mdbk-break-countdown');
+
+        let incoming = null;
+        if (html) {
+            const tmp = document.createElement('div');
+            tmp.innerHTML = html;
+            incoming = tmp.querySelector('.mdbk-break-countdown');
+        }
+
+        // No breaks configured any more — drop whatever is there.
+        if (!incoming) {
+            if (existing) existing.remove();
+            return;
+        }
+
+        if (existing) {
+            // Nothing about the schedule changed, so leave the live element
+            // exactly where it is. Replacing it on every refresh — which is
+            // what this used to do unconditionally — threw away a pill that
+            // was ticking perfectly well and put back a fresh one starting
+            // from display:none, invisible until the next tick. At one
+            // refresh every 30s that read as the timer blinking off and on
+            // in step with the sync button, as if it were the refresh that
+            // decided whether a break was on. It isn't: tick() re-reads
+            // every pill in the DOM once a second and shows or hides it
+            // against the clock on its own. All a refresh is needed for is
+            // picking up a schedule the doctor EDITED since page load.
+            if (existing.dataset.breaks === incoming.dataset.breaks) return;
+            existing.dataset.breaks = incoming.dataset.breaks;
+            // renderPill() memoises the parsed list on the element; clear it
+            // so the next tick re-reads the new schedule.
+            existing._mdbkBreaks = null;
+            return;
+        }
+
         const actions = header.querySelector(actionsSelector);
         if (actions) actions.insertAdjacentHTML('beforebegin', html);
     }
@@ -2608,39 +2646,75 @@ document.addEventListener('DOMContentLoaded', function() {
         mdbkDownloadHtmlAsImage(titleText, table.innerHTML, titleText.replace(/[^a-z0-9]+/gi, '-').toLowerCase() + '-today.png');
     });
 
-    // Today's Queue auto-refresh — periodically re-clicks every visible
-    // Refresh button inside the Today's Queue card (one per doctor group
-    // in the staff/admin grouped view, or the single one in a doctor
-    // account's own forced view), so new bookings/check-ins/serial
-    // changes show up without a manual reload. A whole-page
-    // setInterval(runSearch, ...) used to do this and was removed (see
-    // that function's own comment) because replacing the ENTIRE results
-    // markup on a timer reset every doctor group's open/closed state and
-    // the page's scroll position out from under whoever was reading it.
-    // Reusing each button's own click handler instead keeps that same
-    // "touch only this one doctor's rows" behavior a manual click
-    // already has — this just presses the button on a timer rather than
-    // introducing a second, cruder refresh path alongside it.
+    // Today's Queue stays current on its own, without the Refresh button
+    // ever moving by itself.
     //
-    // 30s, not 15s — a walk-in queue's own state (new booking, check-in,
-    // serial change) doesn't move fast enough to need a check every 15s,
-    // and the spinning Refresh icon on every tick was showing up as
-    // distractingly frequent. Half the request rate, still well inside
-    // "feels live" for what's actually a waiting room, not a stock
-    // ticker. (The break-countdown pill's own second-by-second tick,
-    // above, is unaffected — it runs client-side off the data this
-    // fetch delivers, not on this timer.)
+    // This used to press that button on a timer, which meant the icon spun
+    // and the whole list was re-rendered every 30 seconds whether or not
+    // anything had happened — and the Refresh control appeared to act on
+    // its own, which is exactly what it shouldn't do.
+    //
+    // There is no push channel to replace it with: a check-in or a new
+    // booking happens in a different browser (front desk, kiosk, the public
+    // form), and WordPress on shared hosting can't hold a socket open to
+    // announce it. So this still asks the server — but it asks the cheap
+    // question. mdbk_queue_signature returns a hash of today's queue and
+    // nothing else; only when that hash actually differs from the last one
+    // does it go and fetch the rows. A quiet waiting room now costs one
+    // small query per interval and touches neither the DOM nor the button.
+    //
+    // Refresh is left to mean what it says: a manual, deliberate reload.
     (function() {
         const card = document.getElementById('mdbk-today-queue-card');
-        if (!card) return;
-        setInterval(function() {
-            // Skip while the tab isn't visible — no one's watching it
-            // update, so there's nothing to gain from the extra requests.
-            if (document.hidden) return;
+        if (!card || typeof mdbk_admin_obj === 'undefined') return;
+        const viewDoctorId = (document.getElementById('mdbk-today-queue-list') || {}).dataset;
+
+        let signature = null;
+        let busy = false;
+
+        function pullRows() {
+            // Reuses each group's own Refresh handler so the swap logic
+            // (rows, print table, pulse dot, break pill) lives in one
+            // place — but silently: the spinner belongs to a click.
             card.querySelectorAll('.mdbk-refresh-group, .mdbk-refresh-today-card').forEach(function(btn) {
-                if (!btn.disabled) btn.click();
+                if (btn.disabled) return;
+                // Flag, click, unflag: click() dispatches synchronously, so
+                // the handler (and mdbkStartSpin) sees the flag and skips
+                // the spinner, while a real click a moment later doesn't.
+                btn.dataset.mdbkSilent = '1';
+                btn.click();
+                delete btn.dataset.mdbkSilent;
             });
-        }, 30000);
+        }
+
+        function check() {
+            if (busy || document.hidden) return;
+            busy = true;
+            const body = new URLSearchParams();
+            body.set('action', 'mdbk_queue_signature');
+            body.set('nonce', mdbk_admin_obj.nonce);
+            body.set('doctor_id', (viewDoctorId && viewDoctorId.viewDoctorId) || '0');
+            fetch(mdbk_admin_obj.ajax_url, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body.toString() })
+                .then(function(r) { return r.json(); })
+                .then(function(res) {
+                    if (!res || !res.success) return;
+                    const next = res.data.signature;
+                    // First answer just establishes the baseline — the page
+                    // was rendered from this same state moments ago.
+                    if (signature !== null && next !== signature) pullRows();
+                    signature = next;
+                })
+                .catch(function() {})
+                .finally(function() { busy = false; });
+        }
+
+        check();
+        setInterval(check, 15000);
+        // Coming back to the tab is the moment a stale queue is most
+        // obvious, so check immediately rather than waiting out the timer.
+        document.addEventListener('visibilitychange', function() {
+            if (!document.hidden) check();
+        });
     })();
 
     function setSpecialtyIconPreview(url) {
