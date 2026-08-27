@@ -1664,17 +1664,20 @@ button.mdbk-slot-btn.mdbk-slot-break { cursor: not-allowed; pointer-events: none
    handle_submission()) but the old table only ever surfaced
    name/time/status. ===== */
 .mdbk-patient-list { display: flex; flex-direction: column; }
-/* The contact chips (phone / email / address / age-gender) are sized to
-   their own content rather than to fixed tracks. Fixed widths meant the
-   space between two chips was whatever that track had left over: a phone
-   number sat in a 130px track it only half filled (54px of slack, a 64px
-   visual gap to the next chip) while an address overflowed a 120px one and
-   ran into its neighbour. Content-sized tracks make every gap the grid's
-   own 10px. Address keeps a 210px ceiling so one long address can't push
-   the rest of the row off the end — it truncates instead. */
+/* The contact chip tracks (phone / email / address / age-gender) are fixed
+   so the columns line up down the list, but each is sized to the widest
+   chip that actually appears rather than to a round number. The old
+   130/150/120/90 left a phone number in a track it half filled — a 64px
+   hole before the next chip — while an address overflowed its own and ran
+   into the one after it.
+   Measured as the chip's whole BOX, not its text: these carry 8px of side
+   padding, so "Female · 35" is 58px of text but a 75px chip, and sizing
+   the track from the text alone left it spilling out and touching the
+   duration beside it. Measured detached from the grid too, since in place
+   the track was already clamping the chip and hiding the overflow. */
 .mdbk-patient-row {
     display: grid;
-    grid-template-columns: 62px minmax(110px, 160px) 54px max-content max-content fit-content(210px) max-content 20px 1fr 90px 110px 60px;
+    grid-template-columns: 62px minmax(110px, 160px) 54px 94px 163px 220px 82px 20px 1fr 90px 110px 60px;
     align-items: center;
     gap: 10px;
     padding: 11px 26px 11px 23px;
@@ -1683,7 +1686,7 @@ button.mdbk-slot-btn.mdbk-slot-break { cursor: not-allowed; pointer-events: none
 }
 /* Only the "All Dates" ungrouped view passes $show_doctor — one extra
    track for the doctor chip, inserted right after the patient-ID slot. */
-.mdbk-patient-row-has-doctor { grid-template-columns: 62px minmax(110px, 160px) 54px 140px max-content max-content fit-content(210px) max-content 20px 1fr 90px 110px 60px; }
+.mdbk-patient-row-has-doctor { grid-template-columns: 62px minmax(110px, 160px) 54px 140px 94px 163px 220px 82px 20px 1fr 90px 110px 60px; }
 .mdbk-patient-row:last-child { border-bottom: none; }
 .mdbk-patient-row:hover { background: #f8fafc; }
 
@@ -1711,7 +1714,7 @@ button.mdbk-slot-btn.mdbk-slot-break { cursor: not-allowed; pointer-events: none
        month instead, so the gap between the two is the real column gap
        on every row. Time keeps 125px, which its own content fills
        exactly. */
-    grid-template-columns: 62px minmax(120px, 200px) max-content max-content fit-content(210px) max-content 125px 1fr 155px 125px 230px;
+    grid-template-columns: 62px minmax(120px, 200px) 94px 163px 220px 82px 88px 1fr 155px 125px 230px;
 }
 /* Front-desk staff's all-doctors view of this same page groups rows
    under a collapsible per-doctor <details> section instead (see
