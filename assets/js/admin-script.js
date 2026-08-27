@@ -1950,6 +1950,8 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('mdbk-app-patient').value = row.dataset.patient;
             document.getElementById('mdbk-app-phone').value = row.dataset.phone;
             document.getElementById('mdbk-app-email').value = row.dataset.email || '';
+            const appAddress = document.getElementById('mdbk-app-address');
+            if (appAddress) appAddress.value = row.dataset.address || '';
             document.getElementById('mdbk-app-age').value = row.dataset.age || '';
             if (appGenderSelect && row.dataset.gender) {
                 const genderOpt = findGenderOption(appGenderSelect, row.dataset.gender);
@@ -2645,6 +2647,129 @@ document.addEventListener('DOMContentLoaded', function() {
         const titleText = card.dataset.doctorName || "Today's Queue";
         mdbkDownloadHtmlAsImage(titleText, table.innerHTML, titleText.replace(/[^a-z0-9]+/gi, '-').toLowerCase() + '-today.png');
     });
+
+    // Visit stopwatch — a floating panel counting how long the consultation
+    // currently in progress has been running, plus the matching live chip on
+    // that patient's own row.
+    //
+    // The elapsed seconds are handed over by PHP (data-visit-elapsed, from
+    // _mdbk_visit_started_at against the server clock) rather than measured
+    // from page load: the visit may have started before this page was
+    // opened, and a second panel opened later must show the same number as
+    // the first. All the browser does is add the seconds since.
+    //
+    // Nothing is persisted from here. Mark Visited is what writes the final
+    // duration (ajax_mark_visited()), so a closed laptop or a refresh mid-
+    // consultation can't invent or lose time.
+    (function() {
+        const HOST_ID = 'mdbk-visit-stopwatch';
+
+        function fmt(total) {
+            const h = Math.floor(total / 3600);
+            const m = Math.floor((total % 3600) / 60);
+            const sec = total % 60;
+            const pad = (n) => (n < 10 ? '0' + n : '' + n);
+            return h ? h + ':' + pad(m) + ':' + pad(sec) : pad(m) + ':' + pad(sec);
+        }
+        // Matches MDBK_Appointment_Manager::format_duration() so the ticking
+        // chip and the value stored on completion read the same way.
+        function fmtChip(total) {
+            const h = Math.floor(total / 3600);
+            const m = Math.floor((total % 3600) / 60);
+            const sec = total % 60;
+            const pad = (n) => (n < 10 ? '0' + n : '' + n);
+            if (h) return h + 'h ' + pad(m) + 'm';
+            if (m) return m + 'm ' + pad(sec) + 's';
+            return sec + 's';
+        }
+
+        // The row being served right now, if any. Re-read every tick rather
+        // than captured once: the queue list is replaced wholesale whenever
+        // it refreshes, so a held reference would go stale within seconds.
+        function servingRow() {
+            return document.querySelector('.mdbk-my-queue-row[data-visit-elapsed]');
+        }
+
+        let baseSeconds = null;   // elapsed at the moment we last read the DOM
+        let baseAt = null;        // browser clock when we read it
+        let dismissedFor = null;  // appointment id whose panel the user closed
+
+        function ensureHost(name) {
+            let host = document.getElementById(HOST_ID);
+            if (host) return host;
+            host = document.createElement('div');
+            host.id = HOST_ID;
+            host.className = 'mdbk-visit-stopwatch';
+            host.innerHTML =
+                '<span class="mdbk-visit-stopwatch-dot"></span>' +
+                '<span class="mdbk-visit-stopwatch-body">' +
+                    '<span class="mdbk-visit-stopwatch-name"></span>' +
+                    '<span class="mdbk-visit-stopwatch-time">00:00</span>' +
+                '</span>' +
+                '<button type="button" class="mdbk-visit-stopwatch-close" aria-label="Minimise timer" title="Minimise">&minus;</button>';
+            document.body.appendChild(host);
+            // Minimise, not destroy. Removing the panel outright left no way
+            // back to a timer that is still running — the consultation
+            // carries on either way, so the control has to as well. Collapsed
+            // it keeps ticking in the corner and one click restores it.
+            host.querySelector('.mdbk-visit-stopwatch-close').addEventListener('click', function(e) {
+                e.stopPropagation();
+                const row = servingRow();
+                dismissedFor = row ? row.dataset.id : null;
+                host.classList.add('is-minimised');
+            });
+            host.addEventListener('click', function() {
+                if (!host.classList.contains('is-minimised')) return;
+                dismissedFor = null;
+                host.classList.remove('is-minimised');
+            });
+            return host;
+        }
+
+        function tick() {
+            const row = servingRow();
+            if (!row) {
+                const host = document.getElementById(HOST_ID);
+                if (host) host.remove();
+                baseSeconds = baseAt = null;
+                dismissedFor = null;
+                return;
+            }
+            // A different patient started — re-read the baseline, and let a
+            // panel the user dismissed come back for the new consultation.
+            const rowSeconds = parseInt(row.dataset.visitElapsed, 10) || 0;
+            if (baseSeconds === null || row.dataset.id !== (row.dataset.mdbkTimed || '')) {
+                row.dataset.mdbkTimed = row.dataset.id;
+                baseSeconds = rowSeconds;
+                baseAt = Date.now();
+                if (dismissedFor && dismissedFor !== row.dataset.id) dismissedFor = null;
+            }
+            const total = baseSeconds + Math.floor((Date.now() - baseAt) / 1000);
+
+            const chipHost = row.querySelector('[data-visit-timer]');
+            const chip = chipHost && chipHost.querySelector('.mdbk-visit-timer-value');
+            if (chip) chip.textContent = fmtChip(total);
+            // Clicking the row's own live chip also brings the panel back —
+            // it's the thing a doctor is already looking at when they wonder
+            // where the timer went.
+            if (chipHost && !chipHost.dataset.mdbkBound) {
+                chipHost.dataset.mdbkBound = '1';
+                chipHost.style.cursor = 'pointer';
+                chipHost.addEventListener('click', function() { dismissedFor = null; });
+            }
+
+            const host = ensureHost();
+            // Minimised is a look, not a pause — the clock underneath keeps
+            // running so restoring it never shows a stale number.
+            host.classList.toggle('is-minimised', dismissedFor === row.dataset.id);
+            host.title = dismissedFor === row.dataset.id ? 'Show visit timer' : '';
+            host.querySelector('.mdbk-visit-stopwatch-name').textContent = row.dataset.patient || 'Visit in progress';
+            host.querySelector('.mdbk-visit-stopwatch-time').textContent = fmt(total);
+        }
+
+        tick();
+        setInterval(tick, 1000);
+    })();
 
     // Today's Queue stays current on its own, without the Refresh button
     // ever moving by itself.

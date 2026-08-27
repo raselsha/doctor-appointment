@@ -835,9 +835,16 @@ class MDBK_Shortcode {
                         </div>
                     </div>
 
+                    <?php // Address replaces the old free-text symptoms box here.
+                    // What the clinic needs off this form is a way to reach and
+                    // identify the patient; symptoms are taken in the chamber,
+                    // and a public textarea invited an essay nobody read. Saved
+                    // onto the patient record (find_or_create_patient()'s
+                    // 'address' extra), not the booking — see
+                    // MDBK_Appointment_Manager::patient_address() for why. ?>
                     <div class="mdbk-form-group mdbk-form-group-last">
-                        <label><?php _e('Description of Symptoms', 'doctor-appointment'); ?></label>
-                        <textarea name="symptoms" class="mdbk-form-control" rows="3" placeholder="<?php esc_attr_e('Briefly describe your symptoms...', 'doctor-appointment'); ?>"></textarea>
+                        <label><?php _e('Address', 'doctor-appointment'); ?></label>
+                        <input type="text" name="address" class="mdbk-form-control" placeholder="<?php esc_attr_e('e.g. House 12, Road 3, Dhanmondi, Dhaka', 'doctor-appointment'); ?>">
                     </div>
                 </div>
 

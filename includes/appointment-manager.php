@@ -937,7 +937,44 @@ class MDBK_Appointment_Manager {
         }
 
         wp_update_post(['ID' => $appointment_id, 'post_status' => 'mdbk_serving']);
+        // Stamp when the consultation actually began. The panel counts up
+        // from this (so every viewer sees the same elapsed time, not their
+        // own browser's idea of when the page happened to load), and
+        // ajax_mark_visited() subtracts it to store how long the visit ran.
+        // Only set if absent: re-starting someone already timed would
+        // otherwise reset a consultation that's been running for a while.
+        if (!get_post_meta($appointment_id, '_mdbk_visit_started_at', true)) {
+            update_post_meta($appointment_id, '_mdbk_visit_started_at', current_time('timestamp'));
+        }
+        delete_post_meta($appointment_id, '_mdbk_visit_ended_at');
+        delete_post_meta($appointment_id, '_mdbk_visit_duration');
         return true;
+    }
+
+    /**
+     * How long a finished visit took, in whole seconds — 0 when the visit
+     * was never timed (closed out before this existed, or the status was
+     * changed straight from the edit form rather than through Start
+     * Visiting → Mark Visited).
+     */
+    public static function visit_duration($appointment_id) {
+        return intval(get_post_meta(intval($appointment_id), '_mdbk_visit_duration', true));
+    }
+
+    /**
+     * "12m 30s" / "45s" / "1h 05m" — a duration a person reads at a
+     * glance, not a raw second count. '' for an untimed visit so callers
+     * can fall back to a dash rather than printing a misleading "0s".
+     */
+    public static function format_duration($seconds) {
+        $seconds = intval($seconds);
+        if ($seconds <= 0) return '';
+        $h = intdiv($seconds, 3600);
+        $m = intdiv($seconds % 3600, 60);
+        $s = $seconds % 60;
+        if ($h) return sprintf('%dh %02dm', $h, $m);
+        if ($m) return sprintf('%dm %02ds', $m, $s);
+        return sprintf('%ds', $s);
     }
 
     /**
@@ -1140,6 +1177,24 @@ class MDBK_Appointment_Manager {
     }
 
     /**
+     * One booking's patient address, read live from the patient record.
+     *
+     * Deliberately NOT copied onto the appointment the way name/phone/
+     * email are. Those are captured per booking because they describe
+     * that visit; an address describes the person, changes rarely, and
+     * when it does change it should change everywhere at once — a patient
+     * who moves is corrected on their record and every booking they have,
+     * past and future, reads the new one. '' when the booking has no
+     * patient record behind it any more (see ajax_view_patient()'s own
+     * note on bookings outliving their registry entry).
+     */
+    public static function patient_address($appointment_id) {
+        $patient_id = intval(get_post_meta(intval($appointment_id), '_mdbk_patient_id', true));
+        if (!$patient_id) return '';
+        return (string) get_post_meta($patient_id, '_mdbk_patient_address', true);
+    }
+
+    /**
      * The identifier to print for one booking, wherever it is shown — the
      * badge on a queue row, the Print/Download-image table, the CSV
      * export. One function so those can never disagree: an export that
@@ -1269,6 +1324,7 @@ class MDBK_Appointment_Manager {
                 'email'  => $email,
                 'age'    => isset($data['age']) ? $data['age'] : '',
                 'gender' => isset($data['gender']) ? $data['gender'] : '',
+                'address' => isset($data['address']) ? $data['address'] : '',
             ]);
 
             // Insert as a plain draft first — inserting directly with

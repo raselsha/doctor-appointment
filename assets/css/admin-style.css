@@ -1664,9 +1664,17 @@ button.mdbk-slot-btn.mdbk-slot-break { cursor: not-allowed; pointer-events: none
    handle_submission()) but the old table only ever surfaced
    name/time/status. ===== */
 .mdbk-patient-list { display: flex; flex-direction: column; }
+/* The contact chips (phone / email / address / age-gender) are sized to
+   their own content rather than to fixed tracks. Fixed widths meant the
+   space between two chips was whatever that track had left over: a phone
+   number sat in a 130px track it only half filled (54px of slack, a 64px
+   visual gap to the next chip) while an address overflowed a 120px one and
+   ran into its neighbour. Content-sized tracks make every gap the grid's
+   own 10px. Address keeps a 210px ceiling so one long address can't push
+   the rest of the row off the end — it truncates instead. */
 .mdbk-patient-row {
     display: grid;
-    grid-template-columns: 62px minmax(110px, 160px) 54px 130px minmax(160px, 1fr) 90px 20px 1fr 90px 110px 60px;
+    grid-template-columns: 62px minmax(110px, 160px) 54px max-content max-content fit-content(210px) max-content 20px 1fr 90px 110px 60px;
     align-items: center;
     gap: 10px;
     padding: 11px 26px 11px 23px;
@@ -1675,7 +1683,7 @@ button.mdbk-slot-btn.mdbk-slot-break { cursor: not-allowed; pointer-events: none
 }
 /* Only the "All Dates" ungrouped view passes $show_doctor — one extra
    track for the doctor chip, inserted right after the patient-ID slot. */
-.mdbk-patient-row-has-doctor { grid-template-columns: 62px minmax(110px, 160px) 54px 140px 130px minmax(160px, 1fr) 90px 20px 1fr 90px 110px 60px; }
+.mdbk-patient-row-has-doctor { grid-template-columns: 62px minmax(110px, 160px) 54px 140px max-content max-content fit-content(210px) max-content 20px 1fr 90px 110px 60px; }
 .mdbk-patient-row:last-child { border-bottom: none; }
 .mdbk-patient-row:hover { background: #f8fafc; }
 
@@ -1703,7 +1711,7 @@ button.mdbk-slot-btn.mdbk-slot-break { cursor: not-allowed; pointer-events: none
        month instead, so the gap between the two is the real column gap
        on every row. Time keeps 125px, which its own content fills
        exactly. */
-    grid-template-columns: 62px minmax(120px, 200px) 130px minmax(160px, 1fr) 90px 1fr 155px 125px 230px;
+    grid-template-columns: 62px minmax(120px, 200px) max-content max-content fit-content(210px) max-content 125px 1fr 155px 125px 230px;
 }
 /* Front-desk staff's all-doctors view of this same page groups rows
    under a collapsible per-doctor <details> section instead (see
@@ -2013,6 +2021,88 @@ button.mdbk-slot-btn.mdbk-slot-break { cursor: not-allowed; pointer-events: none
 .mdbk-book-btn:hover { background: #0052b8; color: #fff; }
 .mdbk-book-btn svg { flex-shrink: 0; }
 .mdbk-chip-address svg { color: #d97706; }
+
+/* How long the visit ran — same plain icon + label + value treatment as the
+   Date and Time columns next to it, not a filled chip: it's another fact
+   about the booking, and a pill made it read as a status badge. Green only
+   while the clock is actually running, so a live timer still stands out
+   from a finished one without needing a background. */
+.mdbk-patient-row-visit-col { display: flex; align-items: center; min-width: 0; color: inherit; }
+.mdbk-patient-row-visit-col > span { display: flex; align-items: center; gap: 5px; white-space: nowrap; min-width: 0; }
+.mdbk-patient-row-visit-col svg { color: #94a3b8; flex-shrink: 0; }
+.mdbk-patient-row-visit-col .mdbk-patient-row-time-value { font-size: 12px; color: #334155; }
+.mdbk-patient-row-visit-col.is-live svg { color: #059669; }
+.mdbk-patient-row-visit-col.is-live .mdbk-patient-row-time-value { color: #047857; }
+
+/* Floating stopwatch panel — pinned bottom-right, above the content but
+   below any modal, so it stays visible while the doctor scrolls the queue
+   yet never sits on top of a dialog they opened. Sized to be read at a
+   glance mid-consultation rather than squinted at. */
+.mdbk-visit-stopwatch {
+    position: fixed;
+    right: 32px;
+    bottom: 32px;
+    z-index: 9000;
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    padding: 20px 26px;
+    border-radius: 20px;
+    background: #0f172a;
+    color: #fff;
+    box-shadow: 0 22px 50px rgba(15, 23, 42, .38);
+    font-family: inherit;
+    transition: padding .18s ease, border-radius .18s ease, gap .18s ease;
+}
+.mdbk-visit-stopwatch-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #34d399;
+    flex-shrink: 0;
+    animation: mdbk-visit-pulse 1.6s ease-in-out infinite;
+}
+@keyframes mdbk-visit-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: .35; }
+}
+/* Name above the clock, not beside it — both are inline spans, so without
+   this they ran together as "Nasima Begum00:06". */
+.mdbk-visit-stopwatch-body { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.mdbk-visit-stopwatch-name { display: block; font-size: 14px; font-weight: 600; color: rgba(255, 255, 255, .72); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 240px; }
+.mdbk-visit-stopwatch-time { font-size: 40px; font-weight: 800; letter-spacing: .5px; font-variant-numeric: tabular-nums; line-height: 1.05; }
+.mdbk-visit-stopwatch-close {
+    margin-left: 6px;
+    flex-shrink: 0;
+    width: 32px;
+    height: 32px;
+    border: 0;
+    cursor: pointer;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, .1);
+    color: rgba(255, 255, 255, .75);
+    font-size: 20px;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color .15s ease, color .15s ease;
+}
+.mdbk-visit-stopwatch-close:hover { background: rgba(255, 255, 255, .2); color: #fff; }
+
+/* Minimised: collapses to a small ticking pill rather than disappearing, so
+   a consultation that is still running is never left with no way back to
+   its timer. The whole pill is the restore target. */
+.mdbk-visit-stopwatch.is-minimised {
+    gap: 10px;
+    padding: 10px 16px;
+    border-radius: 999px;
+    cursor: pointer;
+}
+.mdbk-visit-stopwatch.is-minimised .mdbk-visit-stopwatch-name,
+.mdbk-visit-stopwatch.is-minimised .mdbk-visit-stopwatch-close { display: none; }
+.mdbk-visit-stopwatch.is-minimised .mdbk-visit-stopwatch-time { font-size: 17px; }
+.mdbk-visit-stopwatch.is-minimised:hover { background: #1e293b; }
 
 /* Staff (front-desk) list — same row shell as the Patient Directory
    above, but a WP user account has no address/age-gender/visit-count
@@ -2523,5 +2613,15 @@ body.mdbk-doctor-chrome .mdbk-admin-wrapper {
         height: 20px;
         margin: -2px 0 0 -2px;
     }
+
+    /* Stopwatch spans the width on a phone, and stays big enough to read
+       without leaning in. */
+    .mdbk-visit-stopwatch { right: 12px; bottom: 12px; left: 12px; padding: 16px 18px; gap: 14px; }
+    .mdbk-visit-stopwatch-time { font-size: 32px; }
+    .mdbk-visit-stopwatch-name { max-width: none; }
+    /* Minimised returns to a small right-hand pill — the whole point of
+       minimising is to stop occupying the width. */
+    .mdbk-visit-stopwatch.is-minimised { left: auto; padding: 9px 14px; }
+    .mdbk-visit-stopwatch.is-minimised .mdbk-visit-stopwatch-time { font-size: 16px; }
 }
 

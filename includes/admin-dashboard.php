@@ -306,6 +306,17 @@ class MDBK_Admin_Dashboard {
             wp_send_json_error(['message' => __('This patient must be started (Start Visiting) before they can be marked as visited.', 'doctor-appointment')]);
         }
 
+        // Close the stopwatch before the status flips, so the duration is
+        // computed from the same moment the row stops showing as "Visiting".
+        // Falls back to the check-in time only if the visit was never
+        // started through Start Visiting (an older row, or a status edited
+        // straight from the booking form) — and stores 0 rather than a
+        // fabricated length when there's nothing to measure from.
+        $started = intval(get_post_meta($appointment_id, '_mdbk_visit_started_at', true));
+        $ended = current_time('timestamp');
+        update_post_meta($appointment_id, '_mdbk_visit_ended_at', $ended);
+        update_post_meta($appointment_id, '_mdbk_visit_duration', $started ? max(0, $ended - $started) : 0);
+
         wp_update_post(['ID' => $appointment_id, 'post_status' => 'mdbk_completed']);
 
         // No auto-advance to whoever's next — the doctor/staff must
@@ -1158,7 +1169,12 @@ class MDBK_Admin_Dashboard {
         $p_email = isset($_POST['patient_email']) ? sanitize_email($_POST['patient_email']) : '';
         $p_age = isset($_POST['age']) ? sanitize_text_field($_POST['age']) : '';
         $p_gender = isset($_POST['gender']) ? sanitize_text_field($_POST['gender']) : '';
-        $patient_id = \MDBK\MDBK_Appointment_Manager::find_or_create_patient($p_name, $p_phone, ['email' => $p_email, 'age' => $p_age, 'gender' => $p_gender]);
+        // Address lives on the patient record only — the Bookings row reads
+        // it back from there rather than keeping a copy per booking, so a
+        // patient who moves is corrected once and every one of their
+        // bookings shows the new address.
+        $p_address = isset($_POST['patient_address']) ? sanitize_textarea_field($_POST['patient_address']) : '';
+        $patient_id = \MDBK\MDBK_Appointment_Manager::find_or_create_patient($p_name, $p_phone, ['email' => $p_email, 'age' => $p_age, 'gender' => $p_gender, 'address' => $p_address]);
 
         $post_status = \MDBK\MDBK_Appointment_Manager::status_slug_to_post_status(sanitize_text_field($_POST['status']));
         $id = wp_update_post(['ID' => $app_id, 'post_title' => "Booking: " . $p_name, 'post_status' => $post_status]);
@@ -2197,7 +2213,7 @@ class MDBK_Admin_Dashboard {
             // ever printed today's queue, wrong once the same table started
             // printing the multi-date "Upcoming Dates" section, where every
             // row could be a different day. ?>
-            <thead><tr><th><?php _e('Queue', 'doctor-appointment'); ?></th><th><?php _e('Patient', 'doctor-appointment'); ?></th><?php if ($show_doctor_column): ?><th><?php _e('Doctor', 'doctor-appointment'); ?></th><?php endif; ?><th><?php _e('Age', 'doctor-appointment'); ?></th><th><?php _e('Gender', 'doctor-appointment'); ?></th><th><?php _e('Date', 'doctor-appointment'); ?></th><th><?php _e('Time', 'doctor-appointment'); ?></th><th><?php _e('Status', 'doctor-appointment'); ?></th></tr></thead>
+            <thead><tr><th><?php _e('Queue', 'doctor-appointment'); ?></th><th><?php _e('Patient', 'doctor-appointment'); ?></th><th><?php _e('Phone', 'doctor-appointment'); ?></th><th><?php _e('Address', 'doctor-appointment'); ?></th><?php if ($show_doctor_column): ?><th><?php _e('Doctor', 'doctor-appointment'); ?></th><?php endif; ?><th><?php _e('Age', 'doctor-appointment'); ?></th><th><?php _e('Gender', 'doctor-appointment'); ?></th><th><?php _e('Date', 'doctor-appointment'); ?></th><th><?php _e('Time', 'doctor-appointment'); ?></th><th><?php _e('Visit Time', 'doctor-appointment'); ?></th><th><?php _e('Status', 'doctor-appointment'); ?></th></tr></thead>
             <tbody>
             <?php // The Queue cell used to print this loop's own 1..N counter,
             // so a printout numbered its rows Q01, Q02, Q03 no matter what
@@ -2207,10 +2223,19 @@ class MDBK_Admin_Dashboard {
             // queue number at all. display_ticket_label() is the same call
             // every visible row makes, so the print/image table and the CSV
             // now say exactly what the screen says. ?>
-            <?php foreach ($apps as $app): $t_doc_id = get_post_meta($app->ID, '_mdbk_doctor_id', true); $t_age = get_post_meta($app->ID, '_mdbk_patient_age', true); $t_gender = get_post_meta($app->ID, '_mdbk_patient_gender', true); $t_date = get_post_meta($app->ID, '_mdbk_appointment_date', true); $t_slot = get_post_meta($app->ID, '_mdbk_slot_time', true); $t_status = \MDBK\MDBK_Appointment_Manager::get_display_status_slug($app->ID); $t_badge_class = in_array($t_status, ['upcoming', 'not-checked-in'], true) ? $t_status : 'status-' . $t_status; ?>
+            <?php foreach ($apps as $app): $t_doc_id = get_post_meta($app->ID, '_mdbk_doctor_id', true); $t_phone = get_post_meta($app->ID, '_mdbk_patient_phone', true); $t_age = get_post_meta($app->ID, '_mdbk_patient_age', true); $t_gender = get_post_meta($app->ID, '_mdbk_patient_gender', true); $t_date = get_post_meta($app->ID, '_mdbk_appointment_date', true); $t_slot = get_post_meta($app->ID, '_mdbk_slot_time', true); $t_status = \MDBK\MDBK_Appointment_Manager::get_display_status_slug($app->ID); $t_badge_class = in_array($t_status, ['upcoming', 'not-checked-in'], true) ? $t_status : 'status-' . $t_status; ?>
                 <tr>
                     <td><span class="mdbk-patient-row-ticket mdbk-patient-row-queue"><?php echo esc_html(\MDBK\MDBK_Appointment_Manager::display_ticket_label($app->ID)); ?></span></td>
                     <td><strong><?php echo esc_html(get_post_meta($app->ID, '_mdbk_patient_name', true)); ?></strong></td>
+                    <?php // Printed and handed round the desk, or saved as an
+                    // image — a name with no number on it is of limited use
+                    // when someone needs to call ahead or chase a no-show.
+                    // The CSV export already carried this; the printout
+                    // didn't, so the two disagreed on what a row contained. ?>
+                    <td><?php echo $t_phone ? esc_html($t_phone) : '—'; ?></td>
+                    <?php // Same live read the on-screen row uses, so a printout
+                    // and the list it was printed from can't disagree. ?>
+                    <td><?php $t_address = \MDBK\MDBK_Appointment_Manager::patient_address($app->ID); echo $t_address ? esc_html($t_address) : '—'; ?></td>
                     <?php if ($show_doctor_column): ?><td><?php echo $t_doc_id ? esc_html(get_the_title($t_doc_id)) : esc_html__('N/A', 'doctor-appointment'); ?></td><?php endif; ?>
                     <td><?php echo $t_age ? esc_html($t_age) : '—'; ?></td>
                     <td><?php echo $t_gender ? esc_html($t_gender) : '—'; ?></td>
@@ -2224,6 +2249,9 @@ class MDBK_Admin_Dashboard {
                     // on-screen row's date chip, so the two read identically. ?>
                     <td><?php echo esc_html($t_date ? date_i18n(get_option('date_format'), strtotime($t_date)) : '—'); ?></td>
                     <td><?php echo esc_html($t_slot ? date_i18n('g:i A', strtotime($t_slot)) : '—'); ?></td>
+                    <?php // How long the consultation actually ran, for visits
+                    // timed through Start Visiting -> Mark Visited. ?>
+                    <td><?php echo esc_html(\MDBK\MDBK_Appointment_Manager::format_duration(\MDBK\MDBK_Appointment_Manager::visit_duration($app->ID)) ?: '—'); ?></td>
                     <td><span class="mdbk-badge mdbk-badge-<?php echo esc_attr($t_badge_class); ?>"><?php echo esc_html(\MDBK\MDBK_Appointment_Manager::status_display_label($t_status)); ?></span></td>
                 </tr>
             <?php endforeach; ?>
@@ -2250,6 +2278,8 @@ class MDBK_Admin_Dashboard {
         $slot_time = get_post_meta($a->ID, '_mdbk_slot_time', true);
         $ticket = \MDBK\MDBK_Appointment_Manager::display_ticket_number($a->ID);
         $patient_id = get_post_meta($a->ID, '_mdbk_patient_id', true);
+        // Read off the patient record, not this booking — see patient_address().
+        $address = \MDBK\MDBK_Appointment_Manager::patient_address($a->ID);
         $status = \MDBK\MDBK_Appointment_Manager::post_status_to_slug(get_post_status($a));
         $age_gender = trim($gender . ($age && $gender ? ' · ' : '') . $age);
         $gender_key = $gender ? strtolower($gender) : 'unknown';
@@ -2263,7 +2293,7 @@ class MDBK_Admin_Dashboard {
         $can_checkin = $status === 'waiting' && !$checked_in && $date === current_time('Y-m-d');
         ob_start();
         ?>
-        <div class="mdbk-patient-row<?php echo $show_doctor ? ' mdbk-patient-row-has-doctor' : ''; ?> mdbk-status-<?php echo esc_attr($status); ?>" data-id="<?php echo esc_attr($a->ID); ?>" data-patient="<?php echo esc_attr($p_name); ?>" data-phone="<?php echo esc_attr($phone); ?>" data-email="<?php echo esc_attr($email); ?>" data-age="<?php echo esc_attr($age); ?>" data-gender="<?php echo esc_attr($gender); ?>" data-doctor="<?php echo esc_attr($doc_id); ?>" data-specialty="<?php echo esc_attr($app_spec_id); ?>" data-date="<?php echo esc_attr($date); ?>" data-slot-time="<?php echo esc_attr($slot_time); ?>" data-status="<?php echo esc_attr($status); ?>">
+        <div class="mdbk-patient-row<?php echo $show_doctor ? ' mdbk-patient-row-has-doctor' : ''; ?> mdbk-status-<?php echo esc_attr($status); ?>" data-id="<?php echo esc_attr($a->ID); ?>" data-patient="<?php echo esc_attr($p_name); ?>" data-phone="<?php echo esc_attr($phone); ?>" data-email="<?php echo esc_attr($email); ?>" data-address="<?php echo esc_attr($address); ?>" data-age="<?php echo esc_attr($age); ?>" data-gender="<?php echo esc_attr($gender); ?>" data-doctor="<?php echo esc_attr($doc_id); ?>" data-specialty="<?php echo esc_attr($app_spec_id); ?>" data-date="<?php echo esc_attr($date); ?>" data-slot-time="<?php echo esc_attr($slot_time); ?>" data-status="<?php echo esc_attr($status); ?>">
             <?php // Same shared label as every other view — see
             // MDBK_Appointment_Manager::display_ticket_label(). ?>
             <?php $ticket_label = \MDBK\MDBK_Appointment_Manager::display_ticket_label($a->ID); ?>
@@ -2278,6 +2308,7 @@ class MDBK_Admin_Dashboard {
             <?php if ($show_doctor): ?><span class="mdbk-patient-row-chip mdbk-chip-doctor"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.5 21a8.5 8.5 0 0 0-17 0"></path><circle cx="12" cy="7.5" r="4.5"></circle></svg> <?php echo $doc_id ? esc_html(get_the_title($doc_id)) : esc_html__('N/A', 'doctor-appointment'); ?></span><?php endif; ?>
             <span class="mdbk-patient-row-chip-slot"><?php if ($phone): ?><span class="mdbk-patient-row-chip mdbk-chip-phone"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.12.9.34 1.79.66 2.64a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.44-1.44a2 2 0 0 1 2.11-.45c.85.32 1.74.54 2.64.66A2 2 0 0 1 22 16.92z"></path></svg> <?php echo esc_html($phone); ?></span><?php endif; ?></span>
             <span class="mdbk-patient-row-chip-slot"><?php if ($email): ?><span class="mdbk-patient-row-chip mdbk-chip-email"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 6l-10 7L2 6"></path><path d="M2 6h20v12H2z"></path></svg> <?php echo esc_html($email); ?></span><?php endif; ?></span>
+            <span class="mdbk-patient-row-chip-slot"><?php if ($address): ?><span class="mdbk-patient-row-chip mdbk-chip-address" title="<?php echo esc_attr($address); ?>"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg> <?php echo esc_html($address); ?></span><?php endif; ?></span>
             <span class="mdbk-patient-row-chip-slot"><?php if ($age_gender): ?><span class="mdbk-patient-row-chip mdbk-meta-pill mdbk-gender-<?php echo esc_attr($gender_key); ?>"><?php echo esc_html($age_gender); ?></span><?php endif; ?></span>
             <span class="mdbk-patient-row-note-slot"><?php if ($symptoms): ?><span class="mdbk-patient-row-note" title="<?php echo esc_attr($symptoms); ?>"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="9" y1="13" x2="15" y2="13"></line><line x1="9" y1="17" x2="13" y2="17"></line></svg></span><?php endif; ?></span>
             <span class="mdbk-patient-row-spacer"></span>
@@ -2412,7 +2443,7 @@ class MDBK_Admin_Dashboard {
         header('Content-Type: text/csv; charset=utf-8');
         header('Content-Disposition: attachment; filename="bookings-' . ($filter_date ?: 'all-dates') . '.csv"');
         $out = fopen('php://output', 'w');
-        fputcsv($out, ['Queue', 'Patient ID', 'Patient Name', 'Phone', 'Email', 'Age', 'Gender', 'Doctor', 'Date', 'Time', 'Status', 'Symptoms']);
+        fputcsv($out, ['Queue', 'Patient ID', 'Patient Name', 'Phone', 'Email', 'Address', 'Age', 'Gender', 'Doctor', 'Date', 'Time', 'Visit Time', 'Status', 'Symptoms']);
         foreach ($apps as $a) {
             $doc_id = get_post_meta($a->ID, '_mdbk_doctor_id', true);
             fputcsv($out, [
@@ -2424,11 +2455,13 @@ class MDBK_Admin_Dashboard {
                 get_post_meta($a->ID, '_mdbk_patient_name', true),
                 get_post_meta($a->ID, '_mdbk_patient_phone', true),
                 get_post_meta($a->ID, '_mdbk_patient_email', true),
+                \MDBK\MDBK_Appointment_Manager::patient_address($a->ID),
                 get_post_meta($a->ID, '_mdbk_patient_age', true),
                 get_post_meta($a->ID, '_mdbk_patient_gender', true),
                 $doc_id ? get_the_title($doc_id) : '',
                 get_post_meta($a->ID, '_mdbk_appointment_date', true),
                 get_post_meta($a->ID, '_mdbk_slot_time', true),
+                \MDBK\MDBK_Appointment_Manager::format_duration(\MDBK\MDBK_Appointment_Manager::visit_duration($a->ID)),
                 \MDBK\MDBK_Appointment_Manager::status_display_label(\MDBK\MDBK_Appointment_Manager::get_display_status_slug($a->ID)),
                 get_post_meta($a->ID, '_mdbk_symptoms', true),
             ]);
@@ -3706,6 +3739,8 @@ class MDBK_Admin_Dashboard {
         $slot_time = get_post_meta($a->ID, '_mdbk_slot_time', true);
         $ticket = \MDBK\MDBK_Appointment_Manager::display_ticket_number($a->ID);
         $patient_id = get_post_meta($a->ID, '_mdbk_patient_id', true);
+        // Read off the patient record, not this booking — see patient_address().
+        $address = \MDBK\MDBK_Appointment_Manager::patient_address($a->ID);
         $status = \MDBK\MDBK_Appointment_Manager::post_status_to_slug(get_post_status($a));
         // A ticket/queue number is only meaningful within the day it was
         // issued for (next_ticket_number() counts per doctor+date) — this
@@ -3770,7 +3805,15 @@ class MDBK_Admin_Dashboard {
         $time_display = $slot_time ? date_i18n('g:i A', strtotime($slot_time)) : '—';
         ob_start();
         ?>
-        <div class="mdbk-patient-row mdbk-my-queue-row<?php echo $row_state ? ' mdbk-row-state-' . esc_attr($row_state) : ''; ?>" data-id="<?php echo esc_attr($a->ID); ?>">
+        <?php
+        // Timing for the live stopwatch (a running visit) and the recorded
+        // length (a finished one). Both come off the server clock, so every
+        // panel watching this queue counts the same seconds.
+        $visit_started = intval(get_post_meta($a->ID, '_mdbk_visit_started_at', true));
+        $visit_duration = \MDBK\MDBK_Appointment_Manager::visit_duration($a->ID);
+        $visit_elapsed = ($status === 'serving' && $visit_started) ? max(0, current_time('timestamp') - $visit_started) : 0;
+        ?>
+        <div class="mdbk-patient-row mdbk-my-queue-row<?php echo $row_state ? ' mdbk-row-state-' . esc_attr($row_state) : ''; ?>" data-id="<?php echo esc_attr($a->ID); ?>" data-patient="<?php echo esc_attr($p_name); ?>"<?php if ($visit_elapsed || ($status === 'serving' && $visit_started)) : ?> data-visit-elapsed="<?php echo esc_attr($visit_elapsed); ?>"<?php endif; ?>>
             <span class="mdbk-patient-row-ticket-slot">
                 <?php // Queue number for today's rows that have one, Booking ID
                 // otherwise — the single rule in display_ticket_label(), shared
@@ -3790,7 +3833,29 @@ class MDBK_Admin_Dashboard {
             <?php endif; ?>
             <span class="mdbk-patient-row-chip-slot"><?php if ($phone): ?><span class="mdbk-patient-row-chip mdbk-chip-phone"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.12.9.34 1.79.66 2.64a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.44-1.44a2 2 0 0 1 2.11-.45c.85.32 1.74.54 2.64.66A2 2 0 0 1 22 16.92z"></path></svg> <?php echo esc_html($phone); ?></span><?php endif; ?></span>
             <span class="mdbk-patient-row-chip-slot"><?php if ($email): ?><span class="mdbk-patient-row-chip mdbk-chip-email"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 6l-10 7L2 6"></path><path d="M2 6h20v12H2z"></path></svg> <?php echo esc_html($email); ?></span><?php endif; ?></span>
+            <span class="mdbk-patient-row-chip-slot"><?php if ($address): ?><span class="mdbk-patient-row-chip mdbk-chip-address" title="<?php echo esc_attr($address); ?>"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg> <?php echo esc_html($address); ?></span><?php endif; ?></span>
             <span class="mdbk-patient-row-chip-slot"><?php if ($age_gender): ?><span class="mdbk-patient-row-chip mdbk-meta-pill mdbk-gender-<?php echo esc_attr($gender_key); ?>"><?php echo esc_html($age_gender); ?></span><?php endif; ?></span>
+            <?php // A finished visit carries how long it ran; a running one
+            // shows a live counter the stopwatch script ticks. Nothing is
+            // shown for a visit that was never timed. ?>
+            <?php // Presented like the Date/Time columns beside it rather than
+            // as a pill — it is another plain fact about the visit, and a
+            // filled chip made it read as a status badge. ?>
+            <span class="mdbk-patient-row-visit-col<?php echo ($status === 'serving' && $visit_started) ? ' is-live' : ''; ?>">
+                <?php if ($status === 'serving' && $visit_started) : ?>
+                    <span data-visit-timer="<?php echo esc_attr($visit_elapsed); ?>" title="<?php esc_attr_e('Visit in progress', 'doctor-appointment'); ?>">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="13" r="8"></circle><path d="M12 9v4l2 2"></path><path d="M9 2h6"></path></svg>
+                        <span class="mdbk-patient-row-time-label"><?php esc_html_e('Visit', 'doctor-appointment'); ?></span>
+                        <span class="mdbk-patient-row-time-value mdbk-visit-timer-value"><?php echo esc_html(\MDBK\MDBK_Appointment_Manager::format_duration($visit_elapsed) ?: '0s'); ?></span>
+                    </span>
+                <?php elseif ($visit_duration) : ?>
+                    <span title="<?php esc_attr_e('How long this visit took', 'doctor-appointment'); ?>">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="13" r="8"></circle><path d="M12 9v4l2 2"></path><path d="M9 2h6"></path></svg>
+                        <span class="mdbk-patient-row-time-label"><?php esc_html_e('Visit', 'doctor-appointment'); ?></span>
+                        <span class="mdbk-patient-row-time-value"><?php echo esc_html(\MDBK\MDBK_Appointment_Manager::format_duration($visit_duration)); ?></span>
+                    </span>
+                <?php endif; ?>
+            </span>
             <span class="mdbk-patient-row-spacer"></span>
             <span class="mdbk-patient-row-date-col">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="3"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
@@ -5320,6 +5385,17 @@ class MDBK_Admin_Dashboard {
                 <div class="mdbk-form-row mdbk-form-row-duo">
                     <div class="mdbk-patient-suggest-wrap"><label class="mdbk-form-label" for="mdbk-app-phone"><?php _e('Phone', 'doctor-appointment'); ?></label><input type="text" name="patient_phone" id="mdbk-app-phone" placeholder="<?php esc_attr_e('e.g. 01700-000000', 'doctor-appointment'); ?>" autocomplete="off"><div id="mdbk-app-phone-suggest" class="mdbk-patient-suggest" style="display:none;"></div></div>
                     <div><label class="mdbk-form-label" for="mdbk-app-email"><?php _e('Email', 'doctor-appointment'); ?></label><input type="email" name="patient_email" id="mdbk-app-email" placeholder="<?php esc_attr_e('e.g. patient@example.com', 'doctor-appointment'); ?>"></div>
+                </div>
+
+                <?php // Full-width row of its own: an address is longer than the
+                // paired fields around it and reads badly squeezed into half a
+                // line. Saved to the patient record AND copied onto the booking
+                // itself, the same way name/phone/email already are, so the
+                // Bookings list and its printout don't have to join back to the
+                // patient CPT for every row. ?>
+                <div class="mdbk-form-row">
+                    <label class="mdbk-form-label" for="mdbk-app-address"><?php _e('Address', 'doctor-appointment'); ?></label>
+                    <input type="text" name="patient_address" id="mdbk-app-address" placeholder="<?php esc_attr_e('e.g. House 12, Road 3, Dhanmondi, Dhaka', 'doctor-appointment'); ?>" autocomplete="off">
                 </div>
 
                 <div class="mdbk-form-row mdbk-form-row-duo">
