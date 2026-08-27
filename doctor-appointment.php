@@ -87,6 +87,9 @@ if ( ! class_exists( 'MDBK_Doctor_Appointment' ) ) {
          */
         public static function include_plugin_files() {
 
+            // Plain lookup data (BD districts/thanas) with no side effects,
+            // loaded before anything that renders a form using it.
+            require_once MDBK_PATH . 'includes/bd-locations.php';
             require_once MDBK_PATH . 'includes/cpt-register.php';
             require_once MDBK_PATH . 'includes/migrations.php';
             require_once MDBK_PATH . 'includes/roles.php';
@@ -191,6 +194,19 @@ if ( ! class_exists( 'MDBK_Doctor_Appointment' ) ) {
                 // instead of a second hardcoded Monday-first list drifting
                 // out of sync with the PHP-rendered form's own order.
                 'week_days' => \MDBK\MDBK_Appointment_Manager::get_week_day_order(),
+                // District => thanas map for the Booking and Patient
+                // modals' dependent address selects — same data the public
+                // form gets (mdbk_form_obj.locations), so the two can't
+                // disagree about what a valid pair is.
+                'locations' => \MDBK\MDBK_BD_Locations::all(),
+                'i18n_select_district' => __( 'Select district', 'doctor-appointment' ),
+                'i18n_select_thana'    => __( 'Select thana', 'doctor-appointment' ),
+                'i18n_no_thana'        => __( 'No thana found', 'doctor-appointment' ),
+                'i18n_district_first'  => __( 'Select district first', 'doctor-appointment' ),
+                'i18n_search'          => __( 'Search…', 'doctor-appointment' ),
+                'i18n_no_match'        => __( 'No match found', 'doctor-appointment' ),
+                'i18n_clear'           => __( 'Clear selection', 'doctor-appointment' ),
+                'i18n_location_required' => __( 'Please choose a district and thana.', 'doctor-appointment' ),
                 // Translated day-name labels for the JS-rendered "Doctor
                 // View" read-only modal (admin-script.js) — the day names
                 // themselves (this array's KEYS) have to stay literal
@@ -275,6 +291,20 @@ if ( ! class_exists( 'MDBK_Doctor_Appointment' ) ) {
                 // timezone-aware clock (get_option('timezone_string')/
                 // gmt_offset), unlike JS's new Date().
                 'today'    => current_time( 'Y-m-d' ),
+                // The whole district => thanas map, so picking a district
+                // refills the Thana select instantly instead of waiting on
+                // a round trip for a list that never changes.
+                'locations' => \MDBK\MDBK_BD_Locations::all(),
+                // The Thana trigger's own label is rewritten in JS as the
+                // district changes, so its two states have to be
+                // translatable from here rather than from the template.
+                'i18n_select_thana' => __( 'Select thana', 'doctor-appointment' ),
+                'i18n_no_thana'     => __( 'No thana found', 'doctor-appointment' ),
+                'i18n_district_first' => __( 'Select district first', 'doctor-appointment' ),
+                'i18n_search'       => __( 'Search…', 'doctor-appointment' ),
+                'i18n_no_match'     => __( 'No match found', 'doctor-appointment' ),
+                'i18n_clear'        => __( 'Clear selection', 'doctor-appointment' ),
+                'i18n_location_required' => __( 'Please choose a district and thana.', 'doctor-appointment' ),
             ], $this->clinic_branding_data() ) );
         }
 

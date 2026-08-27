@@ -390,7 +390,28 @@ class MDBK_Appointment_Manager {
         if (!empty($extra['email'])) {
             update_post_meta($patient_id, '_mdbk_patient_email', sanitize_email($extra['email']));
         }
-        if (!empty($extra['address'])) {
+        // Address is captured as District + Thana (two dependent
+        // dropdowns), not free text — a typed address was unusable for
+        // the thing it was actually wanted for (grouping patients by
+        // area), since "Savar", "savar" and "Sabar Thana" are three
+        // different strings for one place. Both parts are stored
+        // separately AND composed into _mdbk_patient_address, so every
+        // existing reader (booking row, print table, CSV, patient modal)
+        // keeps working untouched while the structured values stay
+        // queryable. An unrecognised pair is dropped rather than saved:
+        // the dropdowns can't produce one, so it only ever arrives from a
+        // forged POST.
+        if (isset($extra['district']) || isset($extra['thana'])) {
+            $district = sanitize_text_field(isset($extra['district']) ? $extra['district'] : '');
+            $thana    = sanitize_text_field(isset($extra['thana']) ? $extra['thana'] : '');
+            if (MDBK_BD_Locations::is_valid($district, $thana) && self::should_write_location($patient_id, $district)) {
+                update_post_meta($patient_id, '_mdbk_patient_district', $district);
+                update_post_meta($patient_id, '_mdbk_patient_thana', $thana);
+                update_post_meta($patient_id, '_mdbk_patient_address', MDBK_BD_Locations::format_address($district, $thana));
+            }
+        } elseif (!empty($extra['address'])) {
+            // Legacy free-text path — still honoured for any caller that
+            // hasn't moved to the dropdowns.
             update_post_meta($patient_id, '_mdbk_patient_address', sanitize_textarea_field($extra['address']));
         }
         // Age/gender are captured at every booking (see handle_submission()
@@ -1195,6 +1216,72 @@ class MDBK_Appointment_Manager {
     }
 
     /**
+     * The same address as patient_address(), but as its two stored parts
+     * — what the Edit forms need to re-select the right options in the
+     * District and Thana dropdowns. Reading the composed one-liner back
+     * and splitting it on the comma would work today and break the first
+     * time a district name contains one.
+     */
+    /**
+     * Whether a blank District should be written over what's already on
+     * the patient record.
+     *
+     * Patients created before the dropdowns existed have a typed
+     * _mdbk_patient_address and no district/thana of their own. Opening
+     * one of those in the Edit form shows an empty District — nobody
+     * chose that, it's just what the form has to show for data it can't
+     * represent — so saving the form unchanged must not read as "clear
+     * this patient's address" and delete a real one.
+     *
+     * A patient who DOES have a stored district is a different case: an
+     * empty District there was genuinely selected, and clearing it is a
+     * legitimate edit. Non-empty always writes.
+     */
+    public static function should_write_location($patient_id, $district) {
+        if ($district !== '') return true;
+        return get_post_meta($patient_id, '_mdbk_patient_district', true) !== '';
+    }
+
+    /**
+     * Age as the booking forms accept it: a whole number of years, 0
+     * included (a newborn), up to a bound no real patient passes. Kept
+     * next to location_error() so the public form, the admin form and
+     * their two error paths can't drift apart on what "valid" means.
+     */
+    public static function is_valid_age($age) {
+        $age = trim((string) $age);
+        if ($age === '' || !ctype_digit($age)) return false;
+        return intval($age) <= 120;
+    }
+
+    /**
+     * '' when the District/Thana pair is a complete, real location;
+     * otherwise the message to show. Both halves are required together:
+     * a district with no thana is not an address anyone can act on, and
+     * every district in MDBK_BD_Locations has thanas to choose from.
+     */
+    public static function location_error($district, $thana) {
+        $district = trim((string) $district);
+        $thana    = trim((string) $thana);
+        if ($district === '' || $thana === '') {
+            return __('Please choose a district and thana.', 'doctor-appointment');
+        }
+        if (!MDBK_BD_Locations::is_valid($district, $thana)) {
+            return __('That thana does not belong to the chosen district. Please choose again.', 'doctor-appointment');
+        }
+        return '';
+    }
+
+    public static function patient_location($appointment_id) {
+        $patient_id = intval(get_post_meta(intval($appointment_id), '_mdbk_patient_id', true));
+        if (!$patient_id) return ['district' => '', 'thana' => ''];
+        return [
+            'district' => (string) get_post_meta($patient_id, '_mdbk_patient_district', true),
+            'thana'    => (string) get_post_meta($patient_id, '_mdbk_patient_thana', true),
+        ];
+    }
+
+    /**
      * The identifier to print for one booking, wherever it is shown — the
      * badge on a queue row, the Print/Download-image table, the CSV
      * export. One function so those can never disagree: an export that
@@ -1325,7 +1412,10 @@ class MDBK_Appointment_Manager {
                 'age'    => isset($data['age']) ? $data['age'] : '',
                 'gender' => isset($data['gender']) ? $data['gender'] : '',
                 'address' => isset($data['address']) ? $data['address'] : '',
-            ]);
+            ] + (isset($data['district']) ? [
+                'district' => $data['district'],
+                'thana'    => isset($data['thana']) ? $data['thana'] : '',
+            ] : []));
 
             // Insert as a plain draft first — inserting directly with
             // post_status 'mdbk_waiting' would fire transition_post_status
@@ -1401,6 +1491,28 @@ class MDBK_Appointment_Manager {
 
         if (!empty($_POST['email']) && !is_email($_POST['email'])) {
             wp_send_json_error(__('Please enter a valid email address.', 'doctor-appointment'));
+            return;
+        }
+
+        // Age and the District/Thana pair are required on a new booking.
+        // They aren't in $required above because "empty" is the wrong test
+        // for either: age 0 is a real answer for an infant, and a district
+        // has to be checked against its thana, not just for presence.
+        // Editing an existing booking deliberately does NOT enforce this
+        // (see handle_appointment_save()) — patients recorded before these
+        // fields existed would otherwise be unsavable until someone
+        // guessed a district for them.
+        $age = isset($_POST['age']) ? trim(sanitize_text_field($_POST['age'])) : '';
+        if (!self::is_valid_age($age)) {
+            wp_send_json_error(__('Please enter the patient\'s age.', 'doctor-appointment'));
+            return;
+        }
+
+        $district = isset($_POST['district']) ? sanitize_text_field($_POST['district']) : '';
+        $thana    = isset($_POST['thana']) ? sanitize_text_field($_POST['thana']) : '';
+        $location_error = self::location_error($district, $thana);
+        if ($location_error) {
+            wp_send_json_error($location_error);
             return;
         }
 

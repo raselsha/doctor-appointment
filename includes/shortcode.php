@@ -813,8 +813,8 @@ class MDBK_Shortcode {
 
                     <div class="mdbk-form-row">
                         <div class="mdbk-form-group">
-                            <label><?php _e('Age', 'doctor-appointment'); ?></label>
-                            <input type="number" name="age" class="mdbk-form-control" placeholder="<?php esc_attr_e('Age', 'doctor-appointment'); ?>">
+                            <label><?php _e('Age', 'doctor-appointment'); ?> <span class="mdbk-required">*</span></label>
+                            <input type="number" name="age" class="mdbk-form-control" placeholder="<?php esc_attr_e('Age', 'doctor-appointment'); ?>" min="0" max="120" required>
                         </div>
                         <div class="mdbk-form-group">
                             <label><?php _e('Gender', 'doctor-appointment'); ?></label>
@@ -835,16 +835,51 @@ class MDBK_Shortcode {
                         </div>
                     </div>
 
-                    <?php // Address replaces the old free-text symptoms box here.
-                    // What the clinic needs off this form is a way to reach and
-                    // identify the patient; symptoms are taken in the chamber,
-                    // and a public textarea invited an essay nobody read. Saved
-                    // onto the patient record (find_or_create_patient()'s
-                    // 'address' extra), not the booking — see
-                    // MDBK_Appointment_Manager::patient_address() for why. ?>
-                    <div class="mdbk-form-group mdbk-form-group-last">
-                        <label><?php _e('Address', 'doctor-appointment'); ?></label>
-                        <input type="text" name="address" class="mdbk-form-control" placeholder="<?php esc_attr_e('e.g. House 12, Road 3, Dhanmondi, Dhaka', 'doctor-appointment'); ?>">
+                    <?php // District + Thana instead of one free-text address box.
+                    // Two selects rather than typing means the same place is
+                    // always spelled the same way, which is what makes the
+                    // data worth anything later. Thana is filled from whichever
+                    // district is chosen (the whole map is handed to the page —
+                    // see mdbk_form_obj.locations — so changing district costs
+                    // no round trip) and is only required once a district is
+                    // picked. Both are required to book: an address the
+                    // clinic cannot act on is not worth collecting, and
+                    // ajax_handle_submission() rejects a booking without
+                    // them. Server-side the pair is
+                    // re-checked against MDBK_BD_Locations::is_valid(), since a
+                    // select is as editable as any other input. ?>
+                    <div class="mdbk-form-row mdbk-form-group-last">
+                        <div class="mdbk-form-group">
+                            <label><?php _e('District', 'doctor-appointment'); ?> <span class="mdbk-required">*</span></label>
+                            <div class="mdbk-custom-select" id="mdbk-district-dropdown" data-clearable>
+                                <button type="button" class="mdbk-custom-select-trigger" id="mdbk-district-trigger" aria-haspopup="listbox" aria-expanded="false">
+                                    <span class="mdbk-custom-select-value mdbk-select-placeholder"><?php esc_html_e('Select district', 'doctor-appointment'); ?></span>
+                                    <span class="mdbk-custom-select-chevron"></span>
+                                </button>
+                                <div class="mdbk-custom-select-panel" id="mdbk-district-panel" role="listbox" hidden>
+                                    <?php foreach (\MDBK\MDBK_BD_Locations::districts() as $bd_district): ?>
+                                        <div class="mdbk-custom-select-option" role="option" data-value="<?php echo esc_attr($bd_district); ?>"><?php echo esc_html($bd_district); ?></div>
+                                    <?php endforeach; ?>
+                                </div>
+                                <select name="district" id="mdbk-district-select" style="display:none">
+                                    <option value=""></option>
+                                    <?php foreach (\MDBK\MDBK_BD_Locations::districts() as $bd_district): ?>
+                                        <option value="<?php echo esc_attr($bd_district); ?>"><?php echo esc_html($bd_district); ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="mdbk-form-group">
+                            <label><?php _e('Thana', 'doctor-appointment'); ?> <span class="mdbk-required">*</span></label>
+                            <div class="mdbk-custom-select is-disabled" id="mdbk-thana-dropdown" data-clearable>
+                                <button type="button" class="mdbk-custom-select-trigger" id="mdbk-thana-trigger" aria-haspopup="listbox" aria-expanded="false" disabled>
+                                    <span class="mdbk-custom-select-value mdbk-select-placeholder"><?php esc_html_e('Select district first', 'doctor-appointment'); ?></span>
+                                    <span class="mdbk-custom-select-chevron"></span>
+                                </button>
+                                <div class="mdbk-custom-select-panel" id="mdbk-thana-panel" role="listbox" hidden></div>
+                                <select name="thana" id="mdbk-thana-select" style="display:none"><option value=""></option></select>
+                            </div>
+                        </div>
                     </div>
                 </div>
 

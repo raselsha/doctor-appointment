@@ -79,6 +79,17 @@ button.mdbk-custom-select-trigger:focus {
     background: color-mix(in srgb, var(--mdbk-primary) 6%, transparent);
 }
 
+/* Thana can't be chosen before a district is, so its trigger is disabled
+   until one is — visibly, rather than silently opening an empty list. */
+.mdbk-custom-select.is-disabled button.mdbk-custom-select-trigger {
+    opacity: .55;
+    cursor: not-allowed;
+    background: #f8fafc;
+}
+/* "Select district" / "Select thana" read as prompts, not as answers —
+   the class is dropped the moment a real value is picked. */
+.mdbk-custom-select-value.mdbk-select-placeholder { color: #94a3b8; font-weight: 400; }
+
 button.mdbk-custom-select-trigger:hover {
     border-color: color-mix(in srgb, var(--mdbk-primary) 40%, transparent);
     color: #0f2a4a;
@@ -106,6 +117,10 @@ button.mdbk-custom-select-trigger:hover {
 }
 
 .mdbk-custom-select-panel {
+    /* border-box so the max-height set by positionPanel() is the panel's
+       real outer height — otherwise padding + border push it past the
+       room that was measured for it. */
+    box-sizing: border-box;
     position: absolute;
     top: calc(100% + 6px);
     left: 0;
@@ -118,6 +133,92 @@ button.mdbk-custom-select-trigger:hover {
     border-radius: 10px;
     box-shadow: 0 10px 30px rgba(15, 42, 74, .15);
     padding: 6px;
+}
+
+/* "You missed this" ring on a required select — set on submit, cleared
+   the moment the field is answered. The real control is a hidden
+   <select>, so the browser can never draw this itself. */
+.mdbk-custom-select.mdbk-field-error button.mdbk-custom-select-trigger {
+    border-color: #dc2626;
+    box-shadow: 0 0 0 3px rgba(220, 38, 38, .12);
+}
+
+/* Search row inside long panels (initCustomSelect()'s buildSearch()).
+   Sticky, and pulled out to the panel's own padding edge so it reads as a
+   header rather than a first list item — it has to stay put while the
+   options under it scroll. */
+.mdbk-select-search {
+    position: sticky;
+    top: -6px;
+    z-index: 1;
+    margin: -6px -6px 6px;
+    padding: 6px;
+    background: #fff;
+    border-bottom: 1px solid #eef2f7;
+}
+
+.mdbk-select-search[hidden] { display: none; }
+
+.mdbk-select-search-input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 8px 10px;
+    border: 1.5px solid #e1e8f0;
+    border-radius: 8px;
+    font-size: 13px;
+    font-family: inherit;
+    color: #1e293b;
+    background: #fff;
+    outline: none;
+}
+
+.mdbk-select-search-input:focus {
+    border-color: var(--mdbk-primary);
+}
+
+.mdbk-select-search-empty {
+    padding: 10px 12px;
+    font-size: 13px;
+    color: #94a3b8;
+}
+
+.mdbk-select-search-empty[hidden] { display: none; }
+
+/* Clear (×) for the optional selects — only rendered on [data-clearable]
+   and only shown once there is something to clear. Sits left of the
+   chevron, so the trigger reserves room for both when it is visible. */
+.mdbk-custom-select-clear {
+    position: absolute;
+    right: 30px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    font-size: 17px;
+    line-height: 1;
+    color: #94a3b8;
+    cursor: pointer;
+    user-select: none;
+}
+
+.mdbk-custom-select.has-value .mdbk-custom-select-clear { display: flex; }
+
+.mdbk-custom-select-clear:hover {
+    background: color-mix(in srgb, var(--mdbk-primary) 10%, transparent);
+    color: var(--mdbk-primary);
+}
+
+.mdbk-custom-select.has-value .mdbk-custom-select-value { padding-right: 24px; }
+
+/* Flipped above the trigger — set by initCustomSelect()'s positionPanel()
+   when there is more room up than down. */
+.mdbk-custom-select.mdbk-drop-up .mdbk-custom-select-panel {
+    top: auto;
+    bottom: calc(100% + 6px);
 }
 
 .mdbk-custom-select-option {

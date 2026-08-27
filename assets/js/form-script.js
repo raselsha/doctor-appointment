@@ -349,7 +349,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // browser (no control over its radius, colors, or hover state), so the
     // hidden <select> below stays purely as the data model — this button +
     // panel is the entire visible/interactive surface.
-    function initCustomSelect(container) {
+    function initCustomSelect(container, onChange) {
         if (!container) return null;
         var trigger = container.querySelector('.mdbk-custom-select-trigger');
         var panel = container.querySelector('.mdbk-custom-select-panel');
@@ -363,18 +363,220 @@ document.addEventListener('DOMContentLoaded', function() {
             trigger.setAttribute('aria-expanded', 'false');
         }
 
+        /*
+         * Panels drop downward by default. On a trigger sitting near the
+         * bottom of whatever is showing it, the list ran straight off the
+         * edge and the options below the fold were simply unreachable —
+         * very easy to hit on District/Thana, which are the last row of
+         * the form and hold the longest lists (Dhaka alone has 55).
+         *
+         * So: measure the real room on each side and flip above the
+         * trigger when there is more of it, then cap the height to what
+         * that side actually has, so the panel is always fully on screen
+         * and scrollable rather than clipped. "Room" is bounded by the
+         * nearest scrolling/clipping ancestor as well as the viewport —
+         * inside a modal whose body scrolls, the window's edges are not
+         * what cuts the panel off.
+         */
+        function availableRoom() {
+            var top = 0;
+            var bottom = window.innerHeight;
+            var node = container.parentElement;
+            while (node && node !== document.body) {
+                var overflowY = window.getComputedStyle(node).overflowY;
+                if (overflowY === 'auto' || overflowY === 'scroll' || overflowY === 'hidden') {
+                    var box = node.getBoundingClientRect();
+                    if (box.top > top) top = box.top;
+                    if (box.bottom < bottom) bottom = box.bottom;
+                }
+                node = node.parentElement;
+            }
+            return { top: top, bottom: bottom };
+        }
+
+        function positionPanel() {
+            container.classList.remove('mdbk-drop-up');
+            panel.style.maxHeight = '';
+            var rect = trigger.getBoundingClientRect();
+            var bounds = availableRoom();
+            // 6px matches the panel's CSS offset from the trigger; 12px
+            // just keeps it off the very edge.
+            var below = bounds.bottom - rect.bottom - 6 - 12;
+            var above = rect.top - bounds.top - 6 - 12;
+            var needed = panel.offsetHeight;
+            var room = below;
+            if (needed > below && above > below) {
+                container.classList.add('mdbk-drop-up');
+                room = above;
+            }
+            // The panel is border-box, so this cap is its real outer
+            // height. The floor only bites when neither side can hold even
+            // a couple of rows — there, overflowing slightly beats showing
+            // a sliver.
+            if (needed > room) panel.style.maxHeight = Math.max(96, room) + 'px';
+        }
+
         function open() {
             container.classList.add('open');
             panel.hidden = false;
             trigger.setAttribute('aria-expanded', 'true');
+            panel.scrollTop = 0;
+            if (searchWrap && !searchWrap.hidden) {
+                searchInput.value = '';
+                applyFilter();
+            }
+            positionPanel();
+            // Not on touch: focusing here would throw up the on-screen
+            // keyboard over the very list the user came to look at.
+            if (searchWrap && !searchWrap.hidden && !window.matchMedia('(pointer: coarse)').matches) {
+                searchInput.focus();
+            }
+        }
+
+        // An open panel has to keep up with whatever moves under it. The
+        // panel's own scrolling is skipped: it doesn't move the trigger,
+        // and recomputing on it would fight the user's scroll.
+        window.addEventListener('resize', function() {
+            if (container.classList.contains('open')) positionPanel();
+        });
+        window.addEventListener('scroll', function(e) {
+            if (e.target === panel) return;
+            if (container.classList.contains('open')) positionPanel();
+        }, true);
+
+        /*
+         * Type-to-filter. Scrolling 64 districts (or Dhaka's 55 thanas)
+         * to find one is the wrong way to use a list this long, so panels
+         * past a handful of options grow a search box. Short ones
+         * (Gender) don't — a filter over two items is only noise. The box
+         * is built once and kept across rebuilds; syncSearch() re-decides
+         * whether to show it after a list is replaced (Thana's list
+         * changes size with every district).
+         */
+        var SEARCH_MIN_OPTIONS = 10;
+        var searchWrap = null;
+        var searchInput = null;
+        var emptyNote = null;
+
+        function optionEls() {
+            return Array.prototype.slice.call(panel.querySelectorAll('.mdbk-custom-select-option'));
+        }
+
+        function applyFilter() {
+            var term = (searchWrap && !searchWrap.hidden && searchInput) ? searchInput.value.trim().toLowerCase() : '';
+            var shown = 0;
+            optionEls().forEach(function(opt) {
+                var hit = !term || opt.textContent.toLowerCase().indexOf(term) !== -1;
+                opt.style.display = hit ? '' : 'none';
+                if (hit) shown++;
+            });
+            if (emptyNote) emptyNote.hidden = !(term && shown === 0);
+            // Filtering changes the panel's height, so where it fits has
+            // to be worked out again.
+            if (container.classList.contains('open')) positionPanel();
+        }
+
+        function buildSearch() {
+            var obj = typeof mdbk_form_obj !== 'undefined' ? mdbk_form_obj : {};
+            searchWrap = document.createElement('div');
+            searchWrap.className = 'mdbk-select-search';
+            searchInput = document.createElement('input');
+            searchInput.type = 'text';
+            searchInput.className = 'mdbk-select-search-input';
+            searchInput.setAttribute('autocomplete', 'off');
+            searchInput.placeholder = obj.i18n_search || 'Search…';
+            searchWrap.appendChild(searchInput);
+            emptyNote = document.createElement('div');
+            emptyNote.className = 'mdbk-select-search-empty';
+            emptyNote.hidden = true;
+            emptyNote.textContent = obj.i18n_no_match || 'No match found';
+            panel.insertBefore(searchWrap, panel.firstChild);
+            panel.insertBefore(emptyNote, searchWrap.nextSibling);
+            // Clicks in the search row are not option clicks, and must not
+            // reach the document handler that closes the panel.
+            searchWrap.addEventListener('click', function(e) { e.stopPropagation(); });
+            searchInput.addEventListener('input', applyFilter);
+            searchInput.addEventListener('keydown', function(e) {
+                if (e.key !== 'Enter') return;
+                e.preventDefault();
+                // Enter takes the first match, so a unique search never
+                // needs the mouse at all.
+                var first = optionEls().filter(function(o) { return o.style.display !== 'none'; })[0];
+                if (first) first.click();
+            });
+        }
+
+        function syncSearch() {
+            var many = optionEls().length >= SEARCH_MIN_OPTIONS;
+            if (many && !searchWrap) buildSearch();
+            if (!searchWrap) return;
+            searchWrap.hidden = !many;
+            searchInput.value = '';
+            applyFilter();
+        }
+
+        /*
+         * Clear (×), only on selects marked data-clearable — the optional
+         * ones, where an accidental pick has to be undoable. Required
+         * selects with a real default (Gender, Status) get no ×, since
+         * there is no valid empty state to clear back to. Rendered as a
+         * sibling of the trigger rather than inside it: the trigger is a
+         * <button>, and a button cannot contain another one.
+         */
+        var clearBtn = null;
+        var placeholderLabel = (valueSpan && valueSpan.classList.contains('mdbk-select-placeholder'))
+            ? valueSpan.textContent : '';
+
+        function setPlaceholder(text) {
+            placeholderLabel = text;
+            if (!nativeSelect || nativeSelect.value === '') setValue('', text);
+        }
+
+        function syncClear() {
+            if (!clearBtn) return;
+            var hasValue = !!(nativeSelect && nativeSelect.value !== '');
+            container.classList.toggle('has-value', hasValue);
+        }
+
+        if (container.hasAttribute('data-clearable')) {
+            clearBtn = document.createElement('span');
+            clearBtn.className = 'mdbk-custom-select-clear';
+            clearBtn.setAttribute('role', 'button');
+            clearBtn.setAttribute('tabindex', '0');
+            var obj = typeof mdbk_form_obj !== 'undefined' ? mdbk_form_obj : {};
+            clearBtn.setAttribute('aria-label', obj.i18n_clear || 'Clear selection');
+            clearBtn.setAttribute('title', obj.i18n_clear || 'Clear selection');
+            clearBtn.textContent = '×';
+            trigger.parentNode.insertBefore(clearBtn, trigger.nextSibling);
+            clearBtn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                e.preventDefault();
+                setValue('', placeholderLabel);
+                close();
+                // Cascades the same way a real pick does — clearing
+                // District has to empty Thana too.
+                if (typeof onChange === 'function') onChange('', placeholderLabel);
+            });
+            clearBtn.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); clearBtn.click(); }
+            });
         }
 
         function setValue(value, label) {
             if (nativeSelect) nativeSelect.value = value;
-            if (valueSpan) valueSpan.textContent = label;
+            if (valueSpan) {
+                valueSpan.textContent = label;
+                // Only the clearable (optional) selects have a real empty
+                // state; on the rest an empty data-value is a genuine
+                // choice ("All ...") and must not be greyed out.
+                if (clearBtn) valueSpan.classList.toggle('mdbk-select-placeholder', String(value) === '');
+            }
             panel.querySelectorAll('.mdbk-custom-select-option').forEach(function(opt) {
                 opt.classList.toggle('selected', opt.getAttribute('data-value') === String(value));
             });
+            // Answering the field is what clears its "you missed this" ring.
+            if (String(value) !== '') container.classList.remove('mdbk-field-error');
+            syncClear();
         }
 
         trigger.addEventListener('click', function(e) {
@@ -391,10 +593,74 @@ document.addEventListener('DOMContentLoaded', function() {
             if (!opt) return;
             setValue(opt.getAttribute('data-value'), opt.textContent);
             close();
+            if (typeof onChange === 'function') onChange(opt.getAttribute('data-value'), opt.textContent);
         });
 
-        return { close: close, open: open, setValue: setValue };
+        syncSearch();
+        syncClear();
+
+        return {
+            close: close, open: open, setValue: setValue, setPlaceholder: setPlaceholder,
+            syncSearch: syncSearch, panel: panel, trigger: trigger, container: container
+        };
     }
+
+    // District -> Thana. The full map arrives with the page
+    // (mdbk_form_obj.locations), so switching district refills the Thana
+    // list with no request; a blank district leaves Thana disabled rather
+    // than showing 493 thanas with no district to place them in.
+    (function() {
+        var districtBox = document.getElementById('mdbk-district-dropdown');
+        var thanaBox = document.getElementById('mdbk-thana-dropdown');
+        if (!districtBox || !thanaBox) return;
+        var thanaSelect = document.getElementById('mdbk-thana-select');
+        var thanaPanel = document.getElementById('mdbk-thana-panel');
+        var thanaTrigger = document.getElementById('mdbk-thana-trigger');
+        var formObj = typeof mdbk_form_obj !== 'undefined' ? mdbk_form_obj : {};
+        var locations = formObj.locations || {};
+
+        var thanaInst = initCustomSelect(thanaBox);
+
+        function fillThanas(district) {
+            var list = locations[district] || [];
+            // Remove only the option rows: the panel also holds the search
+            // box initCustomSelect() built into it, which must survive
+            // every district change.
+            Array.prototype.slice.call(thanaPanel.querySelectorAll('.mdbk-custom-select-option'))
+                .forEach(function(opt) { opt.remove(); });
+            thanaSelect.innerHTML = '<option value=""></option>';
+
+            list.forEach(function(name) {
+                var opt = document.createElement('div');
+                opt.className = 'mdbk-custom-select-option';
+                opt.setAttribute('role', 'option');
+                opt.setAttribute('data-value', name);
+                opt.textContent = name;
+                thanaPanel.appendChild(opt);
+
+                var native = document.createElement('option');
+                native.value = name;
+                native.textContent = name;
+                thanaSelect.appendChild(native);
+            });
+
+            var enabled = list.length > 0;
+            thanaBox.classList.toggle('is-disabled', !enabled);
+            if (thanaTrigger) thanaTrigger.disabled = !enabled;
+            if (thanaInst) {
+                thanaInst.close();
+                thanaInst.setPlaceholder(!district
+                    ? (formObj.i18n_district_first || 'Select district first')
+                    : (enabled ? (formObj.i18n_select_thana || 'Select thana')
+                               : (formObj.i18n_no_thana || 'No thana found')));
+                // The list just changed size — Dhaka wants a search box,
+                // Jhalokati's four thanas don't.
+                thanaInst.syncSearch();
+            }
+        }
+
+        initCustomSelect(districtBox, fillThanas);
+    })();
 
     // Keep specialty-specific wrappers for backward compat (syncSpecialtySelect, loadDefaultSpecialty)
     var specialtyInst = specialtyDropdown ? initCustomSelect(specialtyDropdown) : null;
@@ -1163,6 +1429,32 @@ document.addEventListener('DOMContentLoaded', function() {
     if (modalForm) {
         modalForm.addEventListener('submit', function(e) {
             e.preventDefault();
+
+            // District and Thana are required, but their real controls are
+            // display:none <select>s — the browser cannot focus those to
+            // report a native validation message, so they are checked here
+            // instead (the server checks them again either way). Age and
+            // the rest carry plain `required` and never reach this point
+            // unfilled.
+            var missing = null;
+            var districtSelect = document.getElementById('mdbk-district-select');
+            var thanaSelect = document.getElementById('mdbk-thana-select');
+            if (districtSelect && !districtSelect.value) {
+                missing = document.getElementById('mdbk-district-dropdown');
+            } else if (thanaSelect && !thanaSelect.value) {
+                missing = document.getElementById('mdbk-thana-dropdown');
+            }
+            [document.getElementById('mdbk-district-dropdown'), document.getElementById('mdbk-thana-dropdown')]
+                .forEach(function(box) { if (box) box.classList.remove('mdbk-field-error'); });
+            if (missing) {
+                missing.classList.add('mdbk-field-error');
+                if (msgBox) {
+                    msgBox.className = 'mdbk-modal-message mdbk-error';
+                    msgBox.textContent = (mdbk_form_obj.i18n_location_required || 'Please choose a district and thana.');
+                }
+                missing.scrollIntoView({ block: 'center', behavior: 'smooth' });
+                return;
+            }
 
             var formData = new FormData(modalForm);
             formData.append('action', 'mdbk_submit_appointment');
