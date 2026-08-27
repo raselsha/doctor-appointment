@@ -36,7 +36,8 @@
     padding: 30px 0;
     display: flex;
     flex-direction: column;
-    overflow-y: auto;
+    transition: width .25s ease;
+    position: relative;
 }
 
 .mdbk-sidebar-logo {
@@ -194,6 +195,113 @@
 .mdbk-sidebar-logout:hover {
     background: rgba(239, 68, 68, .12);
     color: #ef4444;
+}
+
+/* Sidebar toggle button — sits outside the sidebar's right edge,
+   half-visible as a small tab the user can click to collapse/expand. */
+.mdbk-sidebar-toggle {
+    position: absolute;
+    top: 30px;
+    right: -20px;
+    transform: translateY(-50%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 30px;
+    border: none;
+    border-radius: 0 8px 8px 0;
+    background: #3d4149;
+    color: #e2e8f0;
+    cursor: pointer;
+    transition: background .15s ease, color .15s ease;
+    z-index: 10;
+}
+.mdbk-sidebar-toggle:hover {
+    background: #4d5159;
+    color: #fff;
+}
+.mdbk-sidebar-toggle-icon {
+    transition: transform .2s ease;
+}
+
+/* Sidebar collapsed state */
+.mdbk-sidebar.is-collapsed {
+    width: 72px;
+}
+.mdbk-sidebar.is-collapsed .mdbk-sidebar-logo {
+    padding: 0 0 20px;
+    font-size: 0;
+    text-align: center;
+}
+.mdbk-sidebar.is-collapsed .mdbk-sidebar-logo::after {
+    content: 'M';
+    font-size: 22px;
+    font-weight: 800;
+    color: #4ade80;
+}
+.mdbk-sidebar.is-collapsed .mdbk-sidebar-toggle {
+    top: 30px;
+    right: -20px;
+}
+.mdbk-sidebar.is-collapsed .mdbk-sidebar-clinic-contact {
+    display: none;
+}
+.mdbk-sidebar.is-collapsed .mdbk-menu-label {
+    display: none;
+}
+.mdbk-sidebar.is-collapsed .mdbk-menu-item {
+    padding: 15px 0;
+    justify-content: center;
+    position: relative;
+}
+.mdbk-sidebar.is-collapsed .mdbk-sidebar-wp-link {
+    margin: 4px 12px 16px;
+    padding: 12px 0;
+    justify-content: center;
+}
+.mdbk-sidebar.is-collapsed .mdbk-sidebar-wp-link .mdbk-menu-label {
+    display: none;
+}
+.mdbk-sidebar.is-collapsed .mdbk-sidebar-footer {
+    padding: 20px 12px;
+    justify-content: center;
+}
+.mdbk-sidebar.is-collapsed .mdbk-user-info {
+    display: none;
+}
+.mdbk-sidebar.is-collapsed .mdbk-sidebar-visit-site {
+    display: none;
+}
+.mdbk-sidebar.is-collapsed .mdbk-sidebar-logout {
+    padding: 12px 0;
+    justify-content: center;
+}
+.mdbk-sidebar.is-collapsed .mdbk-sidebar-logout .mdbk-menu-label {
+    display: none;
+}
+.mdbk-sidebar.is-collapsed .mdbk-sidebar-toggle-icon {
+    transform: rotate(180deg);
+}
+
+/* Tooltip for collapsed menu items */
+.mdbk-tooltip {
+    position: fixed;
+    background: #1e293b;
+    color: #fff;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 6px 12px;
+    border-radius: 6px;
+    white-space: nowrap;
+    z-index: 1000;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity .15s ease;
+}
+.mdbk-tooltip.is-visible {
+    opacity: 1;
 }
 
 /* Main Content */
@@ -1370,9 +1478,42 @@ button.mdbk-slot-btn.mdbk-slot-break { cursor: not-allowed; pointer-events: none
 .mdbk-modal-compact button.mdbk-custom-select-trigger { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; padding: 9px 12px; border: 1px solid #e2e8f0; border-radius: 12px; background: #fff; color: #1e293b; font-size: 13px; font-family: inherit; text-align: left; cursor: pointer; box-sizing: border-box; }
 .mdbk-modal-compact button.mdbk-custom-select-trigger:hover { border-color: #cbd3e1; }
 .mdbk-modal-compact .mdbk-custom-select.open button.mdbk-custom-select-trigger { outline: none; border-color: #0061d5; box-shadow: 0 0 0 3px rgba(0, 97, 213, 0.12); }
+/* Thana before a district is chosen — the list it would show doesn't
+   exist yet, so the control says so instead of opening empty. */
+.mdbk-modal-compact .mdbk-custom-select.is-disabled button.mdbk-custom-select-trigger { background: #f8fafc; color: #94a3b8; cursor: not-allowed; }
+.mdbk-modal-compact .mdbk-custom-select.is-disabled .mdbk-custom-select-chevron { border-color: #cbd5e1; }
+/* "Select district" is a prompt, not a chosen value — JS drops this class
+   the moment a real one is picked. */
+.mdbk-modal-compact .mdbk-custom-select-value.mdbk-select-placeholder { color: #94a3b8; }
 .mdbk-modal-compact .mdbk-custom-select-chevron { flex-shrink: 0; width: 7px; height: 7px; border-right: 1.5px solid #64748b; border-bottom: 1.5px solid #64748b; transform: rotate(45deg); transition: transform 0.2s ease; }
 .mdbk-modal-compact .mdbk-custom-select.open .mdbk-custom-select-chevron { transform: rotate(-135deg); }
-.mdbk-modal-compact .mdbk-custom-select-panel { position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 20; max-height: 220px; overflow-y: auto; background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; box-shadow: 0 10px 30px rgba(15, 23, 42, 0.12); padding: 6px; }
+.mdbk-modal-compact .mdbk-custom-select-panel { box-sizing: border-box; position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 20; max-height: 220px; overflow-y: auto; background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; box-shadow: 0 10px 30px rgba(15, 23, 42, 0.12); padding: 6px; }
+/* Flipped above the trigger — set by initCustomSelect()'s positionPanel()
+   when there is more room up than down. */
+.mdbk-modal-compact .mdbk-custom-select.mdbk-drop-up .mdbk-custom-select-panel { top: auto; bottom: calc(100% + 6px); }
+/* "You missed this" ring on a required select — set on submit, cleared
+   the moment the field is answered. The real control is a hidden
+   <select>, so the browser can never draw this itself. */
+.mdbk-custom-select.mdbk-field-error button.mdbk-custom-select-trigger { border-color: #dc2626; box-shadow: 0 0 0 3px rgba(220, 38, 38, .12); }
+
+/* Search row inside long panels (initCustomSelect()'s buildSearch()).
+   Sticky and pulled out to the panel's padding edge so it reads as a
+   header, not a first list item — it stays put while options scroll
+   under it. Shared by the modal and filter-bar panels below. */
+.mdbk-select-search { position: sticky; top: -6px; z-index: 1; margin: -6px -6px 6px; padding: 6px; background: #fff; border-bottom: 1px solid #eef2f7; }
+.mdbk-select-search[hidden] { display: none; }
+.mdbk-select-search-input { width: 100%; box-sizing: border-box; padding: 7px 10px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 13px; font-family: inherit; color: #1e293b; background: #fff; outline: none; }
+.mdbk-select-search-input:focus { border-color: #0061d5; box-shadow: 0 0 0 3px rgba(0, 97, 213, .1); }
+.mdbk-select-search-empty { padding: 9px 12px; font-size: 13px; color: #94a3b8; }
+.mdbk-select-search-empty[hidden] { display: none; }
+
+/* Clear (×) for the optional selects — only rendered on [data-clearable]
+   and only shown once there is something to clear. Sits left of the
+   chevron, so the trigger reserves room for both while it is visible. */
+.mdbk-custom-select-clear { position: absolute; right: 28px; top: 50%; transform: translateY(-50%); display: none; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 50%; font-size: 17px; line-height: 1; color: #94a3b8; cursor: pointer; user-select: none; }
+.mdbk-custom-select.has-value .mdbk-custom-select-clear { display: flex; }
+.mdbk-custom-select-clear:hover { background: rgba(0, 97, 213, .08); color: #0061d5; }
+.mdbk-custom-select.has-value .mdbk-custom-select-value { padding-right: 22px; }
 .mdbk-modal-compact .mdbk-custom-select-option { padding: 8px 12px; border-radius: 6px; font-size: 13px; color: #1e293b; cursor: pointer; }
 .mdbk-modal-compact .mdbk-custom-select-option:hover { background: rgba(0, 97, 213, 0.08); }
 .mdbk-modal-compact .mdbk-custom-select-option.selected { background: rgba(0, 97, 213, 0.1); color: #0061d5; font-weight: 600; }
@@ -1437,7 +1578,7 @@ button.mdbk-slot-btn.mdbk-slot-break { cursor: not-allowed; pointer-events: none
 .mdbk-dash-patient-list { list-style: none; margin: 0; padding: 4px 0; min-height: 120px; max-height: 120px; overflow-y: auto; }
 .mdbk-dash-patient-item { display: flex; align-items: center; gap: 6px; padding: 5px 14px; border-top: 1px dotted #cbd5e1; }
 .mdbk-dash-patient-item:first-child { border-top: none; }
-.mdbk-dash-patient-item .mdbk-patient-row-ticket { font-size: 9px; padding: 2px 5px; border-radius: 4px; }
+.mdbk-dash-patient-item .mdbk-patient-row-ticket { font-size: 11px; font-weight: 800; padding: 3px 8px; border-radius: 6px; min-width: 36px; text-align: center; }
 .mdbk-dash-patient-name { flex: 1; min-width: 0; font-size: 12px; font-weight: 400; color: #1e293b; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mdbk-dash-patient-age { flex-shrink: 0; font-size: 10px; color: #64748b; font-weight: 600; }
 .mdbk-dash-patient-empty { padding: 5px 14px; font-size: 12px; color: #94a3b8; font-style: italic; }
@@ -1622,7 +1763,9 @@ button.mdbk-slot-btn.mdbk-slot-break { cursor: not-allowed; pointer-events: none
 .mdbk-filters-select .mdbk-custom-select-value { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mdbk-filters-select .mdbk-custom-select-chevron { flex-shrink: 0; width: 7px; height: 7px; border-right: 1.5px solid #64748b; border-bottom: 1.5px solid #64748b; transform: rotate(45deg) translate(-2px, -2px); transition: transform .2s ease; }
 .mdbk-filters-select.open .mdbk-custom-select-chevron { transform: rotate(-135deg); }
+.mdbk-filters-select.mdbk-drop-up .mdbk-custom-select-panel { top: auto; bottom: calc(100% + 6px); }
 .mdbk-filters-select .mdbk-custom-select-panel {
+    box-sizing: border-box;
     position: absolute;
     top: calc(100% + 6px);
     left: 0;

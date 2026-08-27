@@ -23,6 +23,57 @@ document.addEventListener('DOMContentLoaded', function() {
         backdrop.addEventListener('click', closeSidebar);
     })();
 
+    // Desktop sidebar collapse/expand toggle — persisted in localStorage
+    // so the sidebar stays collapsed or expanded across page loads.
+    (function() {
+        var sidebar = document.getElementById('mdbk-sidebar');
+        var toggleBtn = document.getElementById('mdbk-sidebar-toggle');
+        if (!sidebar || !toggleBtn) return;
+
+        var STORAGE_KEY = 'mdbk_sidebar_collapsed';
+        var tooltipEl = null;
+
+        function createTooltip() {
+            tooltipEl = document.createElement('div');
+            tooltipEl.className = 'mdbk-tooltip';
+            document.body.appendChild(tooltipEl);
+        }
+
+        function showTooltip(el) {
+            if (!tooltipEl || !sidebar.classList.contains('is-collapsed')) return;
+            var label = el.getAttribute('data-tooltip');
+            if (!label) return;
+            tooltipEl.textContent = label;
+            var rect = el.getBoundingClientRect();
+            tooltipEl.style.left = (rect.right + 12) + 'px';
+            tooltipEl.style.top = (rect.top + rect.height / 2) + 'px';
+            tooltipEl.style.transform = 'translateY(-50%)';
+            tooltipEl.classList.add('is-visible');
+        }
+
+        function hideTooltip() {
+            if (tooltipEl) tooltipEl.classList.remove('is-visible');
+        }
+
+        createTooltip();
+
+        toggleBtn.addEventListener('click', function() {
+            var isCollapsed = sidebar.classList.toggle('is-collapsed');
+            localStorage.setItem(STORAGE_KEY, isCollapsed ? '1' : '0');
+            if (!isCollapsed) hideTooltip();
+        });
+
+        // Delegate hover events on menu items, WP link, and logout
+        sidebar.addEventListener('mouseover', function(e) {
+            var item = e.target.closest('.mdbk-menu-item, .mdbk-sidebar-wp-link, .mdbk-sidebar-logout');
+            if (item) showTooltip(item);
+        });
+        sidebar.addEventListener('mouseout', function(e) {
+            var item = e.target.closest('.mdbk-menu-item, .mdbk-sidebar-wp-link, .mdbk-sidebar-logout');
+            if (item) hideTooltip();
+        });
+    })();
+
     // Booking page's filters bar (date nav/search/doctor+status filters) —
     // a plain <details>/<summary> (same collapse mechanism as each doctor
     // group below it) instead of the earlier scroll-direction auto-hide
@@ -935,18 +986,217 @@ document.addEventListener('DOMContentLoaded', function() {
         const hiddenSelect = wrapper.querySelector('select');
 
         function close() { wrapper.classList.remove('open'); panel.style.display = 'none'; }
-        function open() { wrapper.classList.add('open'); panel.style.display = 'block'; }
+
+        /*
+         * Drop upward instead of downward when there is more room above.
+         * A select near the bottom of the modal otherwise ran its list
+         * off the edge, leaving the options below the fold unreachable —
+         * worst on District/Thana, the last row of the Booking form and
+         * the longest lists in it. Room is measured against the nearest
+         * scrolling/clipping ancestor as well as the window, since the
+         * modal body scrolls (.mdbk-modal-compact .mdbk-modal-body) and
+         * it, not the viewport, is what actually cuts the panel off.
+         */
+        function availableRoom() {
+            let top = 0;
+            let bottom = window.innerHeight;
+            let node = wrapper.parentElement;
+            while (node && node !== document.body) {
+                const overflowY = window.getComputedStyle(node).overflowY;
+                if (overflowY === 'auto' || overflowY === 'scroll' || overflowY === 'hidden') {
+                    const box = node.getBoundingClientRect();
+                    if (box.top > top) top = box.top;
+                    if (box.bottom < bottom) bottom = box.bottom;
+                }
+                node = node.parentElement;
+            }
+            return { top, bottom };
+        }
+
+        function positionPanel() {
+            wrapper.classList.remove('mdbk-drop-up');
+            panel.style.maxHeight = '';
+            const rect = trigger.getBoundingClientRect();
+            const bounds = availableRoom();
+            // 6px matches the panel's CSS offset from the trigger; 12px
+            // just keeps it off the very edge.
+            const below = bounds.bottom - rect.bottom - 6 - 12;
+            const above = rect.top - bounds.top - 6 - 12;
+            const needed = panel.offsetHeight;
+            let room = below;
+            if (needed > below && above > below) {
+                wrapper.classList.add('mdbk-drop-up');
+                room = above;
+            }
+            // The panel is border-box, so this cap is its real outer
+            // height. The floor only bites when neither side can hold even
+            // a couple of rows — there, overflowing slightly beats showing
+            // a sliver.
+            if (needed > room) panel.style.maxHeight = Math.max(96, room) + 'px';
+        }
+
+        function open() {
+            wrapper.classList.add('open');
+            panel.style.display = 'block';
+            panel.scrollTop = 0;
+            if (searchWrap && !searchWrap.hidden) {
+                searchInput.value = '';
+                applyFilter();
+            }
+            positionPanel();
+            // Not on touch: focusing here would throw up the on-screen
+            // keyboard over the very list the user came to look at.
+            if (searchWrap && !searchWrap.hidden && !window.matchMedia('(pointer: coarse)').matches) {
+                searchInput.focus();
+            }
+        }
+
+        // Keep an open panel with its trigger. The panel's own scrolling
+        // is skipped: it doesn't move the trigger, and recomputing on it
+        // would fight the user's scroll.
+        window.addEventListener('resize', function() {
+            if (wrapper.classList.contains('open')) positionPanel();
+        });
+        window.addEventListener('scroll', function(e) {
+            if (e.target === panel) return;
+            if (wrapper.classList.contains('open')) positionPanel();
+        }, true);
+
+        /*
+         * Type-to-filter. Scrolling 64 districts (or Dhaka's 55 thanas)
+         * to find one is the wrong way to use a list this long, so panels
+         * past a handful of options grow a search box; short ones
+         * (Gender, Status) don't, since a filter over three items is only
+         * noise. Built once and kept across rebuilds — syncSearch()
+         * re-decides whether to show it after a list is replaced, which
+         * Thana's is on every district change.
+         */
+        const SEARCH_MIN_OPTIONS = 10;
+        let searchWrap = null;
+        let searchInput = null;
+        let emptyNote = null;
+
+        function optionEls() {
+            return Array.prototype.slice.call(panel.querySelectorAll('.mdbk-custom-select-option'));
+        }
+
+        function applyFilter() {
+            const term = (searchWrap && !searchWrap.hidden && searchInput) ? searchInput.value.trim().toLowerCase() : '';
+            let shown = 0;
+            optionEls().forEach(function(opt) {
+                const hit = !term || opt.textContent.toLowerCase().indexOf(term) !== -1;
+                opt.style.display = hit ? '' : 'none';
+                if (hit) shown++;
+            });
+            if (emptyNote) emptyNote.hidden = !(term && shown === 0);
+            // Filtering changes the panel's height, so where it fits has
+            // to be worked out again.
+            if (wrapper.classList.contains('open')) positionPanel();
+        }
+
+        function buildSearch() {
+            const obj = typeof mdbk_admin_obj !== 'undefined' ? mdbk_admin_obj : {};
+            searchWrap = document.createElement('div');
+            searchWrap.className = 'mdbk-select-search';
+            searchInput = document.createElement('input');
+            searchInput.type = 'text';
+            searchInput.className = 'mdbk-select-search-input';
+            searchInput.setAttribute('autocomplete', 'off');
+            searchInput.placeholder = obj.i18n_search || 'Search…';
+            searchWrap.appendChild(searchInput);
+            emptyNote = document.createElement('div');
+            emptyNote.className = 'mdbk-select-search-empty';
+            emptyNote.hidden = true;
+            emptyNote.textContent = obj.i18n_no_match || 'No match found';
+            panel.insertBefore(searchWrap, panel.firstChild);
+            panel.insertBefore(emptyNote, searchWrap.nextSibling);
+            // Clicks in the search row are not option clicks, and must not
+            // reach the document handler that closes the panel.
+            searchWrap.addEventListener('click', function(e) { e.stopPropagation(); });
+            searchInput.addEventListener('input', applyFilter);
+            searchInput.addEventListener('keydown', function(e) {
+                if (e.key !== 'Enter') return;
+                e.preventDefault();
+                // Enter takes the first match, so a unique search never
+                // needs the mouse at all.
+                const first = optionEls().filter(function(o) { return o.style.display !== 'none'; })[0];
+                if (first) first.click();
+            });
+        }
+
+        function syncSearch() {
+            const many = optionEls().length >= SEARCH_MIN_OPTIONS;
+            if (many && !searchWrap) buildSearch();
+            if (!searchWrap) return;
+            searchWrap.hidden = !many;
+            searchInput.value = '';
+            applyFilter();
+        }
+
+        /*
+         * Clear (×), only on selects marked data-clearable — the optional
+         * ones, where an accidental pick has to be undoable. Required
+         * selects with a real default (Doctor, Status, Gender) get no ×:
+         * there is no valid empty state to clear back to. Rendered as a
+         * sibling of the trigger rather than inside it, since the trigger
+         * is a <button> and a button cannot contain another one.
+         */
+        let clearBtn = null;
+        let placeholderLabel = (valueEl && valueEl.classList.contains('mdbk-select-placeholder'))
+            ? valueEl.textContent : '';
+
+        function setPlaceholder(text) {
+            placeholderLabel = text;
+            if (hiddenSelect.value === '') setValue('', text);
+        }
+
+        function syncClear() {
+            if (!clearBtn) return;
+            wrapper.classList.toggle('has-value', hiddenSelect.value !== '');
+        }
+
+        if (wrapper.hasAttribute('data-clearable')) {
+            const obj = typeof mdbk_admin_obj !== 'undefined' ? mdbk_admin_obj : {};
+            clearBtn = document.createElement('span');
+            clearBtn.className = 'mdbk-custom-select-clear';
+            clearBtn.setAttribute('role', 'button');
+            clearBtn.setAttribute('tabindex', '0');
+            clearBtn.setAttribute('aria-label', obj.i18n_clear || 'Clear selection');
+            clearBtn.setAttribute('title', obj.i18n_clear || 'Clear selection');
+            clearBtn.textContent = '×';
+            trigger.parentNode.insertBefore(clearBtn, trigger.nextSibling);
+            clearBtn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                e.preventDefault();
+                // Goes through setValue so the cascade fires the same way
+                // a real pick does — clearing District empties Thana too.
+                setValue('', placeholderLabel);
+                close();
+            });
+            clearBtn.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); clearBtn.click(); }
+            });
+        }
 
         function setValue(value, label) {
             const changed = String(hiddenSelect.value) !== String(value);
             hiddenSelect.value = value;
-            if (valueEl) valueEl.textContent = label;
+            if (valueEl) {
+                valueEl.textContent = label;
+                // Only the clearable (optional) selects have a real empty
+                // state; elsewhere an empty data-value is a genuine choice
+                // ("All Doctors") and must not be greyed out.
+                if (clearBtn) valueEl.classList.toggle('mdbk-select-placeholder', String(value) === '');
+            }
             let selectedOpt = null;
             panel.querySelectorAll('.mdbk-custom-select-option').forEach(function(o) {
                 const isMatch = String(o.dataset.value) === String(value);
                 o.classList.toggle('selected', isMatch);
                 if (isMatch) selectedOpt = o;
             });
+            // Answering the field is what clears its "you missed this" ring.
+            if (String(value) !== '') wrapper.classList.remove('mdbk-field-error');
+            syncClear();
             // Assigning .value in script never fires 'change' the way a user
             // picking from a native <select> does, so anything listening on
             // the real control stayed unaware this wrapper had changed it —
@@ -970,7 +1220,10 @@ document.addEventListener('DOMContentLoaded', function() {
         document.addEventListener('click', function(e) { if (!wrapper.contains(e.target)) close(); });
         document.addEventListener('keydown', function(e) { if (e.key === 'Escape') close(); });
 
-        return { setValue: setValue, wrapper: wrapper, panel: panel };
+        syncSearch();
+        syncClear();
+
+        return { setValue: setValue, setPlaceholder: setPlaceholder, syncSearch: syncSearch, wrapper: wrapper, panel: panel };
     }
 
     // Case-insensitive option match — older seeded/imported records store
@@ -991,6 +1244,90 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         return match;
     }
+
+    // District + Thana pair (see includes/bd-locations.php). Thana's
+    // options don't exist in the markup — they're built from whichever
+    // district is picked, out of the map handed to the page, so switching
+    // district costs no request. Until a district is chosen the Thana
+    // control stays disabled rather than offering 493 thanas with no
+    // district to place them in.
+    //
+    // Returns { set, reset }: `set` restores a stored pair when a modal
+    // opens for editing (which has to rebuild the thana list first, or
+    // there'd be no option to select), `reset` blanks both for a fresh
+    // add.
+    function initLocationSelects(prefix) {
+        const districtWrap = document.getElementById('mdbk-' + prefix + '-district-select');
+        const thanaWrap = document.getElementById('mdbk-' + prefix + '-thana-select');
+        if (!districtWrap || !thanaWrap) return null;
+        const obj = typeof mdbk_admin_obj !== 'undefined' ? mdbk_admin_obj : {};
+        const locations = obj.locations || {};
+        const thanaPanel = document.getElementById('mdbk-' + prefix + '-thana-panel');
+        const thanaSelect = document.getElementById('mdbk-' + prefix + '-thana');
+        const thanaTrigger = document.getElementById('mdbk-' + prefix + '-thana-trigger');
+
+        function fillThanas(district) {
+            const list = locations[district] || [];
+            // Remove only the option rows: the panel also holds the search
+            // box initCustomSelect() built into it, which has to survive
+            // every district change.
+            Array.prototype.slice.call(thanaPanel.querySelectorAll('.mdbk-custom-select-option'))
+                .forEach(function(opt) { opt.remove(); });
+            thanaSelect.innerHTML = '<option value=""></option>';
+            list.forEach(function(name) {
+                const opt = document.createElement('div');
+                opt.className = 'mdbk-custom-select-option';
+                opt.dataset.value = name;
+                opt.textContent = name;
+                thanaPanel.appendChild(opt);
+                const native = document.createElement('option');
+                native.value = name;
+                native.textContent = name;
+                thanaSelect.appendChild(native);
+            });
+            const enabled = list.length > 0;
+            thanaWrap.classList.toggle('is-disabled', !enabled);
+            if (thanaTrigger) thanaTrigger.disabled = !enabled;
+            if (thanaSelectCtl) {
+                thanaSelectCtl.setPlaceholder(!district
+                    ? (obj.i18n_district_first || 'Select district first')
+                    : (enabled ? (obj.i18n_select_thana || 'Select thana')
+                               : (obj.i18n_no_thana || 'No thana found')));
+                // The list just changed size — Dhaka wants a search box,
+                // Jhalokati's four thanas don't.
+                thanaSelectCtl.syncSearch();
+            }
+            return list;
+        }
+
+        const thanaSelectCtl = initCustomSelect('mdbk-' + prefix + '-thana-select');
+        const districtSelectCtl = initCustomSelect('mdbk-' + prefix + '-district-select', function(opt, value) {
+            fillThanas(value);
+        });
+
+        function set(district, thana) {
+            district = district || '';
+            thana = thana || '';
+            if (districtSelectCtl) {
+                districtSelectCtl.setValue(district, district || (obj.i18n_select_district || 'Select district'));
+            }
+            // setValue above already refilled the thana list through the
+            // onChange, but only when the value actually changed — calling
+            // it directly makes restoring the same district twice (reopen
+            // the same row) behave the same as the first time.
+            const list = fillThanas(district);
+            if (thana && list.indexOf(thana) !== -1 && thanaSelectCtl) {
+                thanaSelectCtl.setValue(thana, thana);
+            }
+        }
+
+        function reset() { set('', ''); }
+
+        return { set: set, reset: reset };
+    }
+
+    const appLocation = initLocationSelects('app');
+    const patientLocation = initLocationSelects('patient');
 
     const doctorSpecSelect = initCustomSelect('mdbk-doc-spec-select');
     const patientGenderSelect = initCustomSelect('mdbk-patient-gender-select');
@@ -1271,7 +1608,7 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('mdbk-patient-name').value = row.dataset.name;
             document.getElementById('mdbk-patient-phone').value = row.dataset.phone;
             document.getElementById('mdbk-patient-email').value = row.dataset.email;
-            document.getElementById('mdbk-patient-address').value = row.dataset.address;
+            if (patientLocation) patientLocation.set(row.dataset.district, row.dataset.thana);
             var patientAge = document.getElementById('mdbk-patient-age');
             if (patientAge) patientAge.value = row.dataset.age || '';
             if (patientGenderSelect && row.dataset.gender) {
@@ -1289,6 +1626,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 const firstOpt = patientGenderSelect.panel.querySelector('.mdbk-custom-select-option');
                 if (firstOpt) patientGenderSelect.setValue(firstOpt.dataset.value, firstOpt.textContent);
             }
+            if (patientLocation) patientLocation.reset();
         });
     });
     const patientModalCancel = document.querySelector('#mdbk-patient-modal .mdbk-modal-cancel');
@@ -1317,7 +1655,6 @@ document.addEventListener('DOMContentLoaded', function() {
         const nameInput = document.getElementById('mdbk-patient-name');
         const emailInput = document.getElementById('mdbk-patient-email');
         const ageInput = document.getElementById('mdbk-patient-age');
-        const addressInput = document.getElementById('mdbk-patient-address');
         let debounceTimer;
         let requestToken = 0;
 
@@ -1362,7 +1699,7 @@ document.addEventListener('DOMContentLoaded', function() {
             phoneInput.value = item.dataset.phone || '';
             if (emailInput) emailInput.value = item.dataset.email || '';
             if (ageInput) ageInput.value = item.dataset.age || '';
-            if (addressInput) addressInput.value = item.dataset.address || '';
+            if (patientLocation) patientLocation.set(item.dataset.district, item.dataset.thana);
             if (patientGenderSelect && item.dataset.gender) {
                 const genderOpt = findGenderOption(patientGenderSelect, item.dataset.gender);
                 if (genderOpt) patientGenderSelect.setValue(genderOpt.dataset.value, genderOpt.textContent);
@@ -1941,7 +2278,17 @@ document.addEventListener('DOMContentLoaded', function() {
     // page-load defaults, so the ADD flow is handled entirely outside
     // initModal() below instead (openAddAppointmentModal()); only Edit
     // still goes through it.
+    // Age is required to CREATE a booking but not to edit one — most
+    // rows already on file predate the field, and a native `required`
+    // would make them unsavable. Mirrors the server-side split in
+    // handle_appointment_save() and the District/Thana check on submit.
+    function setAgeRequired(isRequired) {
+        const age = document.getElementById('mdbk-app-age');
+        if (age) age.required = isRequired;
+    }
+
     initModal('mdbk-appointment-modal', '.mdbk-edit-appointment', 'mdbk-appointment-form', 'mdbk-edit-appointment', (id, btn) => {
+        setAgeRequired(false);
         document.getElementById('mdbk-app-id').value = id;
         const title = document.getElementById('mdbk-appointment-modal-title');
         if (title) title.textContent = 'Edit Booking';
@@ -1950,8 +2297,7 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('mdbk-app-patient').value = row.dataset.patient;
             document.getElementById('mdbk-app-phone').value = row.dataset.phone;
             document.getElementById('mdbk-app-email').value = row.dataset.email || '';
-            const appAddress = document.getElementById('mdbk-app-address');
-            if (appAddress) appAddress.value = row.dataset.address || '';
+            if (appLocation) appLocation.set(row.dataset.district, row.dataset.thana);
             document.getElementById('mdbk-app-age').value = row.dataset.age || '';
             if (appGenderSelect && row.dataset.gender) {
                 const genderOpt = findGenderOption(appGenderSelect, row.dataset.gender);
@@ -2038,6 +2384,7 @@ document.addEventListener('DOMContentLoaded', function() {
         modal.style.display = 'flex';
         const title = document.getElementById('mdbk-appointment-modal-title');
         if (title) title.textContent = 'Add Booking';
+        setAgeRequired(true);
         applyLastUsedDoctorSpecialty();
         // Reset gender back to its default (Male) — form.reset() alone
         // only restores the hidden <select>'s value, not the visible
@@ -2048,6 +2395,11 @@ document.addEventListener('DOMContentLoaded', function() {
             const defaultOpt = appGenderSelect.panel.querySelector('.mdbk-custom-select-option[data-value="Male"]');
             if (defaultOpt) appGenderSelect.setValue(defaultOpt.dataset.value, defaultOpt.textContent);
         }
+        // Same reasoning as the gender reset above — form.reset() puts
+        // the hidden district/thana <select>s back to blank but leaves
+        // both triggers showing the last patient's labels, and leaves the
+        // thana list still built for the last patient's district.
+        if (appLocation) appLocation.reset();
         // Wipe any date left selected from a previous Add/Edit — the
         // applyLastUsedDoctorSpecialty() call above already kicks off a
         // fresh availability fetch for whichever doctor this reset lands on.
@@ -2079,6 +2431,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (phoneInput) phoneInput.value = row.dataset.phone || '';
             if (emailInput) emailInput.value = row.dataset.email || '';
             if (ageInput) ageInput.value = row.dataset.age || '';
+            if (appLocation) appLocation.set(row.dataset.district, row.dataset.thana);
             if (appGenderSelect && row.dataset.gender) {
                 const genderOpt = findGenderOption(appGenderSelect, row.dataset.gender);
                 if (genderOpt) appGenderSelect.setValue(genderOpt.dataset.value, genderOpt.textContent);
@@ -2111,6 +2464,27 @@ document.addEventListener('DOMContentLoaded', function() {
             if (dateInput && !dateInput.value) {
                 e.preventDefault();
                 if (dateWrap) dateWrap.classList.add('mdbk-field-error');
+                return;
+            }
+            // District and Thana are required on a NEW booking (an edit
+            // may be of a patient recorded before these fields existed —
+            // handle_appointment_save() draws the same line server-side).
+            // Their real controls are display:none <select>s, which the
+            // browser cannot focus to report a native message, so the
+            // check lives here.
+            const appId = document.getElementById('mdbk-app-id');
+            if (appId && appId.value) return;
+            const districtWrap = document.getElementById('mdbk-app-district-select');
+            const thanaWrap = document.getElementById('mdbk-app-thana-select');
+            [districtWrap, thanaWrap].forEach(function(w) { if (w) w.classList.remove('mdbk-field-error'); });
+            const district = document.getElementById('mdbk-app-district');
+            const thana = document.getElementById('mdbk-app-thana');
+            const missing = (district && !district.value) ? districtWrap
+                          : (thana && !thana.value) ? thanaWrap : null;
+            if (missing) {
+                e.preventDefault();
+                missing.classList.add('mdbk-field-error');
+                missing.scrollIntoView({ block: 'center', behavior: 'smooth' });
             }
         });
     }
@@ -2178,6 +2552,7 @@ document.addEventListener('DOMContentLoaded', function() {
             phoneInput.value = item.dataset.phone || '';
             if (emailInput) emailInput.value = item.dataset.email || '';
             if (ageInput) ageInput.value = item.dataset.age || '';
+            if (appLocation) appLocation.set(item.dataset.district, item.dataset.thana);
             if (appGenderSelect && item.dataset.gender) {
                 const genderOpt = findGenderOption(appGenderSelect, item.dataset.gender);
                 if (genderOpt) appGenderSelect.setValue(genderOpt.dataset.value, genderOpt.textContent);
