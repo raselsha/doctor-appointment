@@ -3822,6 +3822,13 @@ class MDBK_Admin_Dashboard {
         // get_serving_doctor_ids()/start_visiting()'s one-at-a-time
         // invariant).
         $doctor_id_of_row = intval(get_post_meta($a->ID, '_mdbk_doctor_id', true));
+        // Read for the Edit-Booking modal (see the wrapper div's data-*
+        // attributes below) — same values render_patient_appointment_row()
+        // already exposes for its own edit button, computed the same way,
+        // so the two icons open the identical form pre-filled the same
+        // way regardless of which date view was actually clicked from.
+        $location = \MDBK\MDBK_Appointment_Manager::patient_location($a->ID);
+        $app_spec_id = $doctor_id_of_row ? (get_the_terms($doctor_id_of_row, 'mdbk_department') ? get_the_terms($doctor_id_of_row, 'mdbk_department')[0]->term_id : '') : '';
         $someone_else_serving = isset($serving_doctor_ids[$doctor_id_of_row]);
         $can_start_visiting = $is_today && $status === 'waiting' && $checked_in && !$skipped && !$someone_else_serving;
         // Check-In straight from this page too, not just the Bookings page
@@ -3860,7 +3867,7 @@ class MDBK_Admin_Dashboard {
         $visit_duration = \MDBK\MDBK_Appointment_Manager::visit_duration($a->ID);
         $visit_elapsed = ($status === 'serving' && $visit_started) ? max(0, current_time('timestamp') - $visit_started) : 0;
         ?>
-        <div class="mdbk-patient-row mdbk-my-queue-row<?php echo $row_state ? ' mdbk-row-state-' . esc_attr($row_state) : ''; ?>" data-id="<?php echo esc_attr($a->ID); ?>" data-patient="<?php echo esc_attr($p_name); ?>"<?php if ($visit_elapsed || ($status === 'serving' && $visit_started)) : ?> data-visit-elapsed="<?php echo esc_attr($visit_elapsed); ?>"<?php endif; ?>>
+        <div class="mdbk-patient-row mdbk-my-queue-row<?php echo $row_state ? ' mdbk-row-state-' . esc_attr($row_state) : ''; ?>" data-id="<?php echo esc_attr($a->ID); ?>" data-patient="<?php echo esc_attr($p_name); ?>" data-phone="<?php echo esc_attr($phone); ?>" data-email="<?php echo esc_attr($email); ?>" data-address="<?php echo esc_attr($address); ?>" data-district="<?php echo esc_attr($location['district']); ?>" data-thana="<?php echo esc_attr($location['thana']); ?>" data-age="<?php echo esc_attr($age); ?>" data-gender="<?php echo esc_attr($gender); ?>" data-doctor="<?php echo esc_attr($doctor_id_of_row); ?>" data-specialty="<?php echo esc_attr($app_spec_id); ?>" data-date="<?php echo esc_attr($date); ?>" data-slot-time="<?php echo esc_attr($slot_time); ?>" data-status="<?php echo esc_attr($status); ?>"<?php if ($visit_elapsed || ($status === 'serving' && $visit_started)) : ?> data-visit-elapsed="<?php echo esc_attr($visit_elapsed); ?>"<?php endif; ?>>
             <span class="mdbk-patient-row-ticket-slot">
                 <?php // Queue number for today's rows that have one, Booking ID
                 // otherwise — the single rule in display_ticket_label(), shared
@@ -3961,6 +3968,17 @@ class MDBK_Admin_Dashboard {
                     <span class="mdbk-badge mdbk-badge-status-waiting" title="<?php esc_attr_e('Another patient is currently being seen', 'doctor-appointment'); ?>"><?php echo esc_html(\MDBK\MDBK_Appointment_Manager::status_display_label('waiting')); ?></span>
                 <?php else: ?>
                     <span class="mdbk-badge mdbk-badge-status-<?php echo esc_attr($status); ?>"><?php echo esc_html(\MDBK\MDBK_Appointment_Manager::status_display_label($status)); ?></span>
+                <?php endif; ?>
+                <?php // This "Today's Queue" row (the Booking page's default
+                // landing view) was the one place in the plugin with no way
+                // to fix a typo'd name/phone/age/address — every OTHER date
+                // view already had this same pencil icon
+                // (render_patient_appointment_row(), above). Same class,
+                // same data-id, same admin-only gate: the modal + save
+                // handler it opens are already wired to .mdbk-edit-appointment
+                // site-wide, so nothing beyond this markup was needed. ?>
+                <?php if (current_user_can(MDBK_CAP_ADMIN)) : ?>
+                <a href="#" class="mdbk-action-btn mdbk-edit-appointment" data-id="<?php echo esc_attr($a->ID); ?>" title="<?php esc_attr_e('Edit', 'doctor-appointment'); ?>"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"></path><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"></path></svg></a>
                 <?php endif; ?>
             </div>
         </div>
