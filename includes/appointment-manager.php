@@ -1255,21 +1255,81 @@ class MDBK_Appointment_Manager {
     }
 
     /**
-     * '' when the District/Thana pair is a complete, real location;
-     * otherwise the message to show. Both halves are required together:
-     * a district with no thana is not an address anyone can act on, and
-     * every district in MDBK_BD_Locations has thanas to choose from.
+     * '' when the District/Thana pair is acceptable; otherwise the
+     * message to show. $required (Global Settings > Booking Form Fields
+     * > Address) decides whether leaving both blank is itself the
+     * error — either way, a HALF-filled or mismatched pair is always
+     * rejected: a district with no thana (or a thana that isn't really
+     * inside the chosen district) is not an address anyone can act on,
+     * and the dropdown UI can never produce one on its own — only a
+     * hand-crafted request could, so this is the one thing that stays
+     * enforced regardless of the required/optional setting.
      */
-    public static function location_error($district, $thana) {
+    public static function location_error($district, $thana, $required = true) {
         $district = trim((string) $district);
         $thana    = trim((string) $thana);
+        if ($district === '' && $thana === '') {
+            return $required ? __('Please choose a district and thana.', 'doctor-appointment') : '';
+        }
         if ($district === '' || $thana === '') {
-            return __('Please choose a district and thana.', 'doctor-appointment');
+            return __('Please choose both a district and thana.', 'doctor-appointment');
         }
         if (!MDBK_BD_Locations::is_valid($district, $thana)) {
             return __('That thana does not belong to the chosen district. Please choose again.', 'doctor-appointment');
         }
         return '';
+    }
+
+    /**
+     * Per-field Show/Required control for the booking forms — configured
+     * in Global Settings ("Booking Form Fields") and read by BOTH the
+     * public form and the admin Add/Edit Booking modal, so the two can
+     * never disagree about what's mandatory. Only the fields where "off"
+     * is a coherent choice are covered here: Full Name, Phone, Doctor,
+     * Date and Status stay fixed — a booking with no name, no way to
+     * reach the patient, or no doctor/date isn't a booking, and nothing
+     * downstream (find_or_create_patient()'s matching, the mobile-number
+     * check, ticket assignment) works without them. Address covers
+     * District+Thana as ONE setting, not two — they're rendered and
+     * saved as a single pair (render_location_selects() /
+     * find_or_create_patient()), so a site can never end up with Thana
+     * required but District hidden, which would leave no control able to
+     * satisfy that requirement.
+     *
+     * Defaults reproduce the plugin's behavior from before this setting
+     * existed, so an install that never opens Global Settings sees no
+     * change: Age was already required, District/Thana were already
+     * required together, Email and Gender were already optional.
+     */
+    public static function field_settings() {
+        $defaults = [
+            'email'   => ['visible' => true, 'required' => false],
+            'age'     => ['visible' => true, 'required' => true],
+            'gender'  => ['visible' => true, 'required' => false],
+            'address' => ['visible' => true, 'required' => true],
+        ];
+        $stored = get_option('mdbk_field_settings', []);
+        $settings = [];
+        foreach ($defaults as $field => $default) {
+            $visible = isset($stored[$field]['visible']) ? $stored[$field]['visible'] === '1' : $default['visible'];
+            $required = isset($stored[$field]['required']) ? $stored[$field]['required'] === '1' : $default['required'];
+            // A hidden field can never be required — nothing on the form
+            // could satisfy that. Enforced here (not only when saving)
+            // so it also holds for a value written before this rule
+            // existed.
+            $settings[$field] = ['visible' => $visible, 'required' => $visible && $required];
+        }
+        return $settings;
+    }
+
+    public static function is_field_visible($field) {
+        $settings = self::field_settings();
+        return $settings[$field]['visible'] ?? true;
+    }
+
+    public static function is_field_required($field) {
+        $settings = self::field_settings();
+        return $settings[$field]['required'] ?? false;
     }
 
     public static function patient_location($appointment_id) {
@@ -1477,6 +1537,14 @@ class MDBK_Appointment_Manager {
         if (self::is_slot_enabled(isset($_POST['doctor']) ? intval($_POST['doctor']) : 0)) {
             $required[] = 'slot_time';
         }
+        // Email/Gender join the plain presence check above ONLY when
+        // Global Settings > Booking Form Fields turns them on — Age and
+        // Address (District/Thana) can't use a plain "empty" test (age 0
+        // is a real answer for an infant; a district has to be checked
+        // against its thana, not just for presence), so those two are
+        // validated separately below instead.
+        if (self::is_field_required('email')) $required[] = 'email';
+        if (self::is_field_required('gender')) $required[] = 'gender';
         foreach ($required as $field) {
             if (empty($_POST[$field])) {
                 wp_send_json_error(__('Please fill in all required fields.', 'doctor-appointment'));
@@ -1494,23 +1562,27 @@ class MDBK_Appointment_Manager {
             return;
         }
 
-        // Age and the District/Thana pair are required on a new booking.
-        // They aren't in $required above because "empty" is the wrong test
-        // for either: age 0 is a real answer for an infant, and a district
-        // has to be checked against its thana, not just for presence.
-        // Editing an existing booking deliberately does NOT enforce this
-        // (see handle_appointment_save()) — patients recorded before these
-        // fields existed would otherwise be unsavable until someone
-        // guessed a district for them.
+        // Editing an existing booking deliberately does NOT enforce either
+        // of these (see handle_appointment_save()) — patients recorded
+        // before these fields existed, or before a site turned a field's
+        // requirement on, would otherwise be unsavable until someone
+        // guessed a value for them.
         $age = isset($_POST['age']) ? trim(sanitize_text_field($_POST['age'])) : '';
-        if (!self::is_valid_age($age)) {
-            wp_send_json_error(__('Please enter the patient\'s age.', 'doctor-appointment'));
+        if (self::is_field_required('age')) {
+            if (!self::is_valid_age($age)) {
+                wp_send_json_error(__('Please enter the patient\'s age.', 'doctor-appointment'));
+                return;
+            }
+        } elseif ($age !== '' && !self::is_valid_age($age)) {
+            // Optional doesn't mean "accept garbage" — a value they did
+            // type still has to be a real age.
+            wp_send_json_error(__('Please enter a valid age.', 'doctor-appointment'));
             return;
         }
 
         $district = isset($_POST['district']) ? sanitize_text_field($_POST['district']) : '';
         $thana    = isset($_POST['thana']) ? sanitize_text_field($_POST['thana']) : '';
-        $location_error = self::location_error($district, $thana);
+        $location_error = self::location_error($district, $thana, self::is_field_required('address'));
         if ($location_error) {
             wp_send_json_error($location_error);
             return;

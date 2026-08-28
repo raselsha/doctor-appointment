@@ -687,6 +687,19 @@
     max-width: 520px;
     margin-top: 24px;
 }
+
+/* Booking Form Fields (render_global_settings_page()) — a compact table
+   inside its own card, deliberately not .mdbk-table's 20px/30px padding
+   (built for a full-width list, not four rows inside a settings card). */
+.mdbk-field-settings-table { width: 100%; border-collapse: collapse; }
+.mdbk-field-settings-table th { text-align: left; padding: 8px 6px; font-size: 11px; text-transform: uppercase; letter-spacing: .5px; color: #94a3b8; font-weight: 600; border-bottom: 1px solid #e2e8f0; }
+.mdbk-field-settings-table th:not(:first-child), .mdbk-field-settings-table td:not(:first-child) { text-align: center; width: 90px; }
+.mdbk-field-settings-table td { padding: 12px 6px; border-bottom: 1px solid #f1f5f9; font-size: 13px; font-weight: 600; color: #1e293b; }
+.mdbk-field-settings-table tr:last-child td { border-bottom: none; }
+/* A hidden field's Required toggle is disabled (server also refuses to
+   store required=1 for a hidden field either way) — dimmed so the lock
+   reads as intentional rather than a rendering glitch. */
+.mdbk-field-settings-table .mdbk-toggle:has(input:disabled) { opacity: .4; cursor: not-allowed; }
 @media (max-width: 900px) {
     .mdbk-settings-grid { grid-template-columns: 1fr; }
 }

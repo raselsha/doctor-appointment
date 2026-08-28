@@ -793,6 +793,20 @@ class MDBK_Shortcode {
                 </div>
             </div>
 
+            <?php
+            // Global Settings > Booking Form Fields — Full Name/Mobile stay
+            // fixed (see MDBK_Appointment_Manager::field_settings()'s own
+            // docblock for why); these four are the only ones a site can
+            // turn off or make optional.
+            $mdbk_show_email = \MDBK\MDBK_Appointment_Manager::is_field_visible('email');
+            $mdbk_req_email = \MDBK\MDBK_Appointment_Manager::is_field_required('email');
+            $mdbk_show_age = \MDBK\MDBK_Appointment_Manager::is_field_visible('age');
+            $mdbk_req_age = \MDBK\MDBK_Appointment_Manager::is_field_required('age');
+            $mdbk_show_gender = \MDBK\MDBK_Appointment_Manager::is_field_visible('gender');
+            $mdbk_req_gender = \MDBK\MDBK_Appointment_Manager::is_field_required('gender');
+            $mdbk_show_address = \MDBK\MDBK_Appointment_Manager::is_field_visible('address');
+            $mdbk_req_address = \MDBK\MDBK_Appointment_Manager::is_field_required('address');
+            ?>
             <div class="mdbk-section" id="mdbk-details-section" style="display:none">
                 <div class="mdbk-card-section">
                     <div class="mdbk-form-group">
@@ -805,19 +819,25 @@ class MDBK_Shortcode {
                             <label><?php _e('Mobile Number', 'doctor-appointment'); ?> <span class="mdbk-required">*</span></label>
                             <input type="tel" name="mobile" class="mdbk-form-control" placeholder="<?php esc_attr_e('01XXXXXXXXX', 'doctor-appointment'); ?>" pattern="^(?:\+?880|0)1[3-9]\d{8}$" title="<?php esc_attr_e('Enter a valid Bangladeshi mobile number, e.g. 01XXXXXXXXX', 'doctor-appointment'); ?>" required>
                         </div>
+                        <?php if ($mdbk_show_email): ?>
                         <div class="mdbk-form-group">
-                            <label><?php _e('Email', 'doctor-appointment'); ?> <span class="mdbk-optional"><?php _e('(optional)', 'doctor-appointment'); ?></span></label>
-                            <input type="email" name="email" class="mdbk-form-control" placeholder="<?php esc_attr_e('you@example.com', 'doctor-appointment'); ?>">
+                            <label><?php _e('Email', 'doctor-appointment'); ?> <?php if ($mdbk_req_email): ?><span class="mdbk-required">*</span><?php else: ?><span class="mdbk-optional"><?php _e('(optional)', 'doctor-appointment'); ?></span><?php endif; ?></label>
+                            <input type="email" name="email" class="mdbk-form-control" placeholder="<?php esc_attr_e('you@example.com', 'doctor-appointment'); ?>"<?php echo $mdbk_req_email ? ' required' : ''; ?>>
                         </div>
+                        <?php endif; ?>
                     </div>
 
+                    <?php if ($mdbk_show_age || $mdbk_show_gender): ?>
                     <div class="mdbk-form-row">
+                        <?php if ($mdbk_show_age): ?>
                         <div class="mdbk-form-group">
-                            <label><?php _e('Age', 'doctor-appointment'); ?> <span class="mdbk-required">*</span></label>
-                            <input type="number" name="age" class="mdbk-form-control" placeholder="<?php esc_attr_e('Age', 'doctor-appointment'); ?>" min="0" max="120" required>
+                            <label><?php _e('Age', 'doctor-appointment'); ?> <?php if ($mdbk_req_age): ?><span class="mdbk-required">*</span><?php else: ?><span class="mdbk-optional"><?php _e('(optional)', 'doctor-appointment'); ?></span><?php endif; ?></label>
+                            <input type="number" name="age" class="mdbk-form-control" placeholder="<?php esc_attr_e('Age', 'doctor-appointment'); ?>" min="0" max="120"<?php echo $mdbk_req_age ? ' required' : ''; ?>>
                         </div>
+                        <?php endif; ?>
+                        <?php if ($mdbk_show_gender): ?>
                         <div class="mdbk-form-group">
-                            <label><?php _e('Gender', 'doctor-appointment'); ?></label>
+                            <label><?php _e('Gender', 'doctor-appointment'); ?> <?php if ($mdbk_req_gender): ?><span class="mdbk-required">*</span><?php else: ?><span class="mdbk-optional"><?php _e('(optional)', 'doctor-appointment'); ?></span><?php endif; ?></label>
                             <div class="mdbk-custom-select" data-custom-select="gender">
                                 <button type="button" class="mdbk-custom-select-trigger" aria-haspopup="listbox" aria-expanded="false">
                                     <span class="mdbk-custom-select-value"><?php _e('Male', 'doctor-appointment'); ?></span>
@@ -827,13 +847,15 @@ class MDBK_Shortcode {
                                     <div class="mdbk-custom-select-option selected" role="option" data-value="Male"><?php _e('Male', 'doctor-appointment'); ?></div>
                                     <div class="mdbk-custom-select-option" role="option" data-value="Female"><?php _e('Female', 'doctor-appointment'); ?></div>
                                 </div>
-                                <select name="gender" class="mdbk-form-control" style="display:none">
+                                <select name="gender" class="mdbk-form-control" style="display:none"<?php echo $mdbk_req_gender ? ' required' : ''; ?>>
                                     <option value="Male" selected><?php _e('Male', 'doctor-appointment'); ?></option>
                                     <option value="Female"><?php _e('Female', 'doctor-appointment'); ?></option>
                                 </select>
                             </div>
                         </div>
+                        <?php endif; ?>
                     </div>
+                    <?php endif; ?>
 
                     <?php // District + Thana instead of one free-text address box.
                     // Two selects rather than typing means the same place is
@@ -841,16 +863,17 @@ class MDBK_Shortcode {
                     // data worth anything later. Thana is filled from whichever
                     // district is chosen (the whole map is handed to the page —
                     // see mdbk_form_obj.locations — so changing district costs
-                    // no round trip) and is only required once a district is
-                    // picked. Both are required to book: an address the
-                    // clinic cannot act on is not worth collecting, and
-                    // ajax_handle_submission() rejects a booking without
-                    // them. Server-side the pair is
-                    // re-checked against MDBK_BD_Locations::is_valid(), since a
-                    // select is as editable as any other input. ?>
+                    // no round trip). Visibility/required for the pair as a
+                    // whole is one Global Settings switch ("Address"), not
+                    // two — District and Thana are always saved together
+                    // (find_or_create_patient()), so there's no coherent way
+                    // to require one without the other. Server-side the pair
+                    // is re-checked against MDBK_BD_Locations::is_valid(),
+                    // since a select is as editable as any other input. ?>
+                    <?php if ($mdbk_show_address): ?>
                     <div class="mdbk-form-row mdbk-form-group-last">
                         <div class="mdbk-form-group">
-                            <label><?php _e('District', 'doctor-appointment'); ?> <span class="mdbk-required">*</span></label>
+                            <label><?php _e('District', 'doctor-appointment'); ?> <?php if ($mdbk_req_address): ?><span class="mdbk-required">*</span><?php else: ?><span class="mdbk-optional"><?php _e('(optional)', 'doctor-appointment'); ?></span><?php endif; ?></label>
                             <div class="mdbk-custom-select" id="mdbk-district-dropdown" data-clearable>
                                 <button type="button" class="mdbk-custom-select-trigger" id="mdbk-district-trigger" aria-haspopup="listbox" aria-expanded="false">
                                     <span class="mdbk-custom-select-value mdbk-select-placeholder"><?php esc_html_e('Select district', 'doctor-appointment'); ?></span>
@@ -870,7 +893,7 @@ class MDBK_Shortcode {
                             </div>
                         </div>
                         <div class="mdbk-form-group">
-                            <label><?php _e('Thana', 'doctor-appointment'); ?> <span class="mdbk-required">*</span></label>
+                            <label><?php _e('Thana', 'doctor-appointment'); ?> <?php if ($mdbk_req_address): ?><span class="mdbk-required">*</span><?php else: ?><span class="mdbk-optional"><?php _e('(optional)', 'doctor-appointment'); ?></span><?php endif; ?></label>
                             <div class="mdbk-custom-select is-disabled" id="mdbk-thana-dropdown" data-clearable>
                                 <button type="button" class="mdbk-custom-select-trigger" id="mdbk-thana-trigger" aria-haspopup="listbox" aria-expanded="false" disabled>
                                     <span class="mdbk-custom-select-value mdbk-select-placeholder"><?php esc_html_e('Select district first', 'doctor-appointment'); ?></span>
@@ -881,6 +904,7 @@ class MDBK_Shortcode {
                             </div>
                         </div>
                     </div>
+                    <?php endif; ?>
                 </div>
 
                 <button type="submit" class="mdbk-submit-btn">

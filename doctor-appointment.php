@@ -207,6 +207,14 @@ if ( ! class_exists( 'MDBK_Doctor_Appointment' ) ) {
                 'i18n_no_match'        => __( 'No match found', 'doctor-appointment' ),
                 'i18n_clear'           => __( 'Clear selection', 'doctor-appointment' ),
                 'i18n_location_required' => __( 'Please choose a district and thana.', 'doctor-appointment' ),
+                // Global Settings > Booking Form Fields — read by the
+                // Add/Edit Booking modal's own submit-guard
+                // (admin-script.js), same source of truth
+                // MDBK_Appointment_Manager::is_field_required('address')
+                // gives the server. render_appointment_modal_html()'s own
+                // PHP conditional is what actually removes the District/
+                // Thana elements from the DOM when the field is hidden.
+                'address_required' => \MDBK\MDBK_Appointment_Manager::is_field_required( 'address' ),
                 // Translated day-name labels for the JS-rendered "Doctor
                 // View" read-only modal (admin-script.js) — the day names
                 // themselves (this array's KEYS) have to stay literal
@@ -305,6 +313,12 @@ if ( ! class_exists( 'MDBK_Doctor_Appointment' ) ) {
                 'i18n_no_match'     => __( 'No match found', 'doctor-appointment' ),
                 'i18n_clear'        => __( 'Clear selection', 'doctor-appointment' ),
                 'i18n_location_required' => __( 'Please choose a district and thana.', 'doctor-appointment' ),
+                // Global Settings > Booking Form Fields — read by the
+                // public form's own submit-guard (form-script.js); the
+                // template's own PHP conditional (render_booking_widget_fields())
+                // is what actually removes the District/Thana elements
+                // from the DOM when the field is hidden.
+                'address_required' => \MDBK\MDBK_Appointment_Manager::is_field_required( 'address' ),
             ], $this->clinic_branding_data() ) );
         }
 

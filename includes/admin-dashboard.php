@@ -1093,19 +1093,34 @@ class MDBK_Admin_Dashboard {
         $app_id = !empty($_POST['app_id']) ? intval($_POST['app_id']) : 0;
 
         if (!$app_id) {
-            // Same completeness rules the public form is held to — a
-            // booking taken at the desk is no less of a booking. Only on
-            // CREATE: editing an existing one stays savable even when its
-            // patient predates these fields, so nobody has to invent a
-            // district just to correct a phone number.
+            // Same Global Settings > Booking Form Fields rules the public
+            // form is held to (ajax_handle_submission()) — a booking taken
+            // at the desk is no less of a booking. Only on CREATE: editing
+            // an existing one stays savable even when its patient predates
+            // a field, or predates a site turning that field's requirement
+            // on.
+            if (\MDBK\MDBK_Appointment_Manager::is_field_required('email') && empty($_POST['patient_email'])) {
+                wp_redirect(admin_url('admin.php?page=mdbk-schedule&error=' . urlencode(__('Please fill in all required fields.', 'doctor-appointment'))));
+                exit;
+            }
+            if (\MDBK\MDBK_Appointment_Manager::is_field_required('gender') && empty($_POST['gender'])) {
+                wp_redirect(admin_url('admin.php?page=mdbk-schedule&error=' . urlencode(__('Please fill in all required fields.', 'doctor-appointment'))));
+                exit;
+            }
             $new_age = isset($_POST['age']) ? trim(sanitize_text_field($_POST['age'])) : '';
-            if (!\MDBK\MDBK_Appointment_Manager::is_valid_age($new_age)) {
-                wp_redirect(admin_url('admin.php?page=mdbk-schedule&error=' . urlencode(__('Please enter the patient\'s age.', 'doctor-appointment'))));
+            if (\MDBK\MDBK_Appointment_Manager::is_field_required('age')) {
+                if (!\MDBK\MDBK_Appointment_Manager::is_valid_age($new_age)) {
+                    wp_redirect(admin_url('admin.php?page=mdbk-schedule&error=' . urlencode(__('Please enter the patient\'s age.', 'doctor-appointment'))));
+                    exit;
+                }
+            } elseif ($new_age !== '' && !\MDBK\MDBK_Appointment_Manager::is_valid_age($new_age)) {
+                wp_redirect(admin_url('admin.php?page=mdbk-schedule&error=' . urlencode(__('Please enter a valid age.', 'doctor-appointment'))));
                 exit;
             }
             $new_location_error = \MDBK\MDBK_Appointment_Manager::location_error(
                 isset($_POST['patient_district']) ? sanitize_text_field($_POST['patient_district']) : '',
-                isset($_POST['patient_thana']) ? sanitize_text_field($_POST['patient_thana']) : ''
+                isset($_POST['patient_thana']) ? sanitize_text_field($_POST['patient_thana']) : '',
+                \MDBK\MDBK_Appointment_Manager::is_field_required('address')
             );
             if ($new_location_error) {
                 wp_redirect(admin_url('admin.php?page=mdbk-schedule&error=' . urlencode($new_location_error)));
@@ -1334,6 +1349,24 @@ class MDBK_Admin_Dashboard {
         // handle_doctor_save()). The legacy mdbk_queue_serial_mode option is
         // left in place untouched: queue_serial_mode() still reads it as the
         // site-wide default for any doctor who never chose their own mode.
+
+        // Booking Form Fields — one Visible/Required pair per configurable
+        // field, shared by the public form and the admin Add/Edit Booking
+        // modal (see MDBK_Appointment_Manager::field_settings() for which
+        // fields these are and why the rest aren't here). A field posted
+        // as required but NOT visible is stored as visible-off,
+        // required-off rather than trusting a client-side toggle a
+        // browser extension or a hand-edited request could send out of
+        // sync with its own visible checkbox — a hidden field can never
+        // be required, since nothing on the form could satisfy it.
+        $field_settings = [];
+        foreach (['email', 'age', 'gender', 'address'] as $field) {
+            $visible = !empty($_POST['field_settings'][$field]['visible']);
+            $required = $visible && !empty($_POST['field_settings'][$field]['required']);
+            $field_settings[$field] = ['visible' => $visible ? '1' : '', 'required' => $required ? '1' : ''];
+        }
+        update_option('mdbk_field_settings', $field_settings);
+
         wp_redirect(admin_url('admin.php?page=mdbk-global-settings&success=1'));
         exit;
     }
@@ -1435,6 +1468,13 @@ class MDBK_Admin_Dashboard {
         $color_primary = get_option('mdbk_color_primary', self::DEFAULT_COLOR_PRIMARY);
         $color_secondary = get_option('mdbk_color_secondary', self::DEFAULT_COLOR_SECONDARY);
         $enable_live_queue = get_option('mdbk_enable_live_queue', 'yes') !== 'no';
+        $field_settings = \MDBK\MDBK_Appointment_Manager::field_settings();
+        $field_labels = [
+            'email'   => __('Email', 'doctor-appointment'),
+            'age'     => __('Age', 'doctor-appointment'),
+            'gender'  => __('Gender', 'doctor-appointment'),
+            'address' => __('Address (District/Thana)', 'doctor-appointment'),
+        ];
         ?>
         <div id="mdbk-admin-dashboard"><div class="mdbk-admin-wrapper"><?php $this->render_sidebar('global-settings'); ?>
             <div class="mdbk-main-content mdbk-main-content-fixed-header">
@@ -1493,6 +1533,33 @@ class MDBK_Admin_Dashboard {
                             <label class="mdbk-form-label" for="mdbk-enable-live-queue" style="margin:0;"><?php _e('Enable Live Queue (the public [mdbk_queue_list] display)', 'doctor-appointment'); ?></label>
                         </div>
                         <p class="mdbk-form-hint"><?php _e('When off, the Live Queue page(s) show a simple "not available" message instead of the queue — useful if you don\'t want walk-in patients\' names visible on a public screen.', 'doctor-appointment'); ?></p>
+                    </div>
+
+                    <div class="mdbk-card" style="padding:24px;">
+                        <h3 style="margin:0 0 16px; font-size:15px;"><?php _e('Booking Form Fields', 'doctor-appointment'); ?></h3>
+                        <p class="mdbk-form-hint" style="margin-top:0;"><?php _e('Controls the public booking page and the Add/Edit Booking modal alike — Full Name, Phone, Doctor and Date always show and are always required. A field turned off here disappears from both forms entirely; "Required" only applies while its own field is shown.', 'doctor-appointment'); ?></p>
+                        <table class="mdbk-field-settings-table">
+                            <thead><tr><th><?php _e('Field', 'doctor-appointment'); ?></th><th><?php _e('Show', 'doctor-appointment'); ?></th><th><?php _e('Required', 'doctor-appointment'); ?></th></tr></thead>
+                            <tbody>
+                            <?php foreach ($field_labels as $field_key => $field_label): $fs = $field_settings[$field_key]; ?>
+                                <tr>
+                                    <td><?php echo esc_html($field_label); ?></td>
+                                    <td>
+                                        <label class="mdbk-toggle">
+                                            <input type="checkbox" class="mdbk-field-visible-checkbox" name="field_settings[<?php echo esc_attr($field_key); ?>][visible]" value="1" <?php checked($fs['visible']); ?>>
+                                            <span class="mdbk-toggle-slider"></span>
+                                        </label>
+                                    </td>
+                                    <td>
+                                        <label class="mdbk-toggle">
+                                            <input type="checkbox" class="mdbk-field-required-checkbox" name="field_settings[<?php echo esc_attr($field_key); ?>][required]" value="1" <?php checked($fs['required']); ?> <?php disabled(!$fs['visible']); ?>>
+                                            <span class="mdbk-toggle-slider"></span>
+                                        </label>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                            </tbody>
+                        </table>
                     </div>
 
                     </div>
@@ -5518,6 +5585,18 @@ class MDBK_Admin_Dashboard {
             $terms = get_the_terms($d->ID, 'mdbk_department');
             $doctor_specs[$d->ID] = $terms && !is_wp_error($terms) && !empty($terms) ? $terms[0]->term_id : '';
         }
+        // Global Settings > Booking Form Fields — same source of truth the
+        // public form reads (render_booking_widget_fields() in
+        // shortcode.php), so a field's visible/required state can never
+        // disagree between the two.
+        $mdbk_show_email = \MDBK\MDBK_Appointment_Manager::is_field_visible('email');
+        $mdbk_req_email = \MDBK\MDBK_Appointment_Manager::is_field_required('email');
+        $mdbk_show_age = \MDBK\MDBK_Appointment_Manager::is_field_visible('age');
+        $mdbk_req_age = \MDBK\MDBK_Appointment_Manager::is_field_required('age');
+        $mdbk_show_gender = \MDBK\MDBK_Appointment_Manager::is_field_visible('gender');
+        $mdbk_req_gender = \MDBK\MDBK_Appointment_Manager::is_field_required('gender');
+        $mdbk_show_address = \MDBK\MDBK_Appointment_Manager::is_field_visible('address');
+        $mdbk_req_address = \MDBK\MDBK_Appointment_Manager::is_field_required('address');
         ?>
         <div id="mdbk-appointment-modal" class="mdbk-modal mdbk-modal-compact"><div class="mdbk-modal-content">
             <div class="mdbk-modal-head"><h2 id="mdbk-appointment-modal-title"><?php _e('Add Booking', 'doctor-appointment'); ?></h2><span class="mdbk-modal-close">&times;</span></div>
@@ -5613,7 +5692,9 @@ class MDBK_Admin_Dashboard {
 
                 <div class="mdbk-form-row mdbk-form-row-duo">
                     <div class="mdbk-patient-suggest-wrap"><label class="mdbk-form-label" for="mdbk-app-phone"><?php _e('Phone', 'doctor-appointment'); ?></label><input type="text" name="patient_phone" id="mdbk-app-phone" placeholder="<?php esc_attr_e('e.g. 01700-000000', 'doctor-appointment'); ?>" autocomplete="off"><div id="mdbk-app-phone-suggest" class="mdbk-patient-suggest" style="display:none;"></div></div>
-                    <div><label class="mdbk-form-label" for="mdbk-app-email"><?php _e('Email', 'doctor-appointment'); ?></label><input type="email" name="patient_email" id="mdbk-app-email" placeholder="<?php esc_attr_e('e.g. patient@example.com', 'doctor-appointment'); ?>"></div>
+                    <?php if ($mdbk_show_email): ?>
+                    <div><label class="mdbk-form-label" for="mdbk-app-email"><?php _e('Email', 'doctor-appointment'); ?><?php echo $mdbk_req_email ? ' *' : ''; ?></label><input type="email" name="patient_email" id="mdbk-app-email" placeholder="<?php esc_attr_e('e.g. patient@example.com', 'doctor-appointment'); ?>"<?php echo $mdbk_req_email ? ' required' : ''; ?>></div>
+                    <?php endif; ?>
                 </div>
 
                 <?php // Address is a District + Thana pair, not free text —
@@ -5621,13 +5702,21 @@ class MDBK_Admin_Dashboard {
                 // the Phone/Email and Age/Gender rows around it. Saved to
                 // the patient record only (patient_address() reads it back
                 // live for the Bookings list), since an address describes
-                // the person rather than the visit. ?>
-                <?php $this->render_location_selects('app', true); ?>
+                // the person rather than the visit. Visible/required is
+                // one Global Settings switch for the pair, same reasoning
+                // as the public form (shortcode.php). ?>
+                <?php if ($mdbk_show_address): ?>
+                <?php $this->render_location_selects('app', $mdbk_req_address); ?>
+                <?php endif; ?>
 
+                <?php if ($mdbk_show_age || $mdbk_show_gender): ?>
                 <div class="mdbk-form-row mdbk-form-row-duo">
-                    <div><label class="mdbk-form-label" for="mdbk-app-age"><?php _e('Age', 'doctor-appointment'); ?> *</label><input type="number" name="age" id="mdbk-app-age" min="0" max="120" placeholder="<?php esc_attr_e('e.g. 32', 'doctor-appointment'); ?>" required></div>
+                    <?php if ($mdbk_show_age): ?>
+                    <div><label class="mdbk-form-label" for="mdbk-app-age"><?php _e('Age', 'doctor-appointment'); ?><?php echo $mdbk_req_age ? ' *' : ''; ?></label><input type="number" name="age" id="mdbk-app-age" min="0" max="120" placeholder="<?php esc_attr_e('e.g. 32', 'doctor-appointment'); ?>"<?php echo $mdbk_req_age ? ' required' : ''; ?>></div>
+                    <?php endif; ?>
+                    <?php if ($mdbk_show_gender): ?>
                     <div>
-                        <label class="mdbk-form-label" for="mdbk-app-gender-trigger"><?php _e('Gender', 'doctor-appointment'); ?></label>
+                        <label class="mdbk-form-label" for="mdbk-app-gender-trigger"><?php _e('Gender', 'doctor-appointment'); ?><?php echo $mdbk_req_gender ? ' *' : ''; ?></label>
                         <div class="mdbk-custom-select" id="mdbk-app-gender-select">
                             <button type="button" class="mdbk-custom-select-trigger" id="mdbk-app-gender-trigger">
                                 <span class="mdbk-custom-select-value"><?php _e('Male', 'doctor-appointment'); ?></span>
@@ -5637,13 +5726,15 @@ class MDBK_Admin_Dashboard {
                                 <div class="mdbk-custom-select-option selected" data-value="Male"><?php _e('Male', 'doctor-appointment'); ?></div>
                                 <div class="mdbk-custom-select-option" data-value="Female"><?php _e('Female', 'doctor-appointment'); ?></div>
                             </div>
-                            <select name="gender" id="mdbk-app-gender" style="display:none;">
+                            <select name="gender" id="mdbk-app-gender" style="display:none;"<?php echo $mdbk_req_gender ? ' required' : ''; ?>>
                                 <option value="Male"><?php _e('Male', 'doctor-appointment'); ?></option>
                                 <option value="Female"><?php _e('Female', 'doctor-appointment'); ?></option>
                             </select>
                         </div>
                     </div>
+                    <?php endif; ?>
                 </div>
+                <?php endif; ?>
 
                 <div class="mdbk-form-row mdbk-form-row-duo">
                     <div class="mdbk-date-picker-wrap" id="mdbk-app-date-wrap">

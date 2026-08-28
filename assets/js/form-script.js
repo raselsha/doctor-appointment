@@ -1430,19 +1430,28 @@ document.addEventListener('DOMContentLoaded', function() {
         modalForm.addEventListener('submit', function(e) {
             e.preventDefault();
 
-            // District and Thana are required, but their real controls are
-            // display:none <select>s — the browser cannot focus those to
-            // report a native validation message, so they are checked here
-            // instead (the server checks them again either way). Age and
-            // the rest carry plain `required` and never reach this point
-            // unfilled.
+            // District/Thana are only required when Global Settings >
+            // Booking Form Fields says so (mdbk_form_obj.address_required —
+            // see MDBK_Appointment_Manager::field_settings()); when the
+            // field is hidden entirely, the elements below don't exist in
+            // the DOM at all (render_booking_widget_fields()'s own PHP
+            // conditional), so the null checks already skip this. Their
+            // real controls are display:none <select>s either way — the
+            // browser cannot focus those to report a native validation
+            // message, so this is checked here instead (the server checks
+            // it again regardless). Age/Email/Gender's required-ness is
+            // instead expressed as a plain `required` attribute (present
+            // only when their own setting says so) and never reach this
+            // point unfilled.
             var missing = null;
-            var districtSelect = document.getElementById('mdbk-district-select');
-            var thanaSelect = document.getElementById('mdbk-thana-select');
-            if (districtSelect && !districtSelect.value) {
-                missing = document.getElementById('mdbk-district-dropdown');
-            } else if (thanaSelect && !thanaSelect.value) {
-                missing = document.getElementById('mdbk-thana-dropdown');
+            if (mdbk_form_obj.address_required) {
+                var districtSelect = document.getElementById('mdbk-district-select');
+                var thanaSelect = document.getElementById('mdbk-thana-select');
+                if (districtSelect && !districtSelect.value) {
+                    missing = document.getElementById('mdbk-district-dropdown');
+                } else if (thanaSelect && !thanaSelect.value) {
+                    missing = document.getElementById('mdbk-thana-dropdown');
+                }
             }
             [document.getElementById('mdbk-district-dropdown'), document.getElementById('mdbk-thana-dropdown')]
                 .forEach(function(box) { if (box) box.classList.remove('mdbk-field-error'); });

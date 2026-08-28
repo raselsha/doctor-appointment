@@ -2487,14 +2487,21 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (dateWrap) dateWrap.classList.add('mdbk-field-error');
                 return;
             }
-            // District and Thana are required on a NEW booking (an edit
-            // may be of a patient recorded before these fields existed —
-            // handle_appointment_save() draws the same line server-side).
+            // District/Thana are required on a NEW booking only when
+            // Global Settings > Booking Form Fields says so
+            // (mdbk_admin_obj.address_required — same source of truth the
+            // public form reads). Editing an existing one never enforces
+            // this (may be of a patient recorded before the field existed,
+            // or before a site turned its requirement on) —
+            // handle_appointment_save() draws the same line server-side.
             // Their real controls are display:none <select>s, which the
             // browser cannot focus to report a native message, so the
-            // check lives here.
+            // check lives here; when the field is hidden entirely it
+            // doesn't exist in the DOM at all (render_appointment_modal_html()'s
+            // own PHP conditional), so the null checks below already skip it.
             const appId = document.getElementById('mdbk-app-id');
             if (appId && appId.value) return;
+            if (!mdbk_admin_obj.address_required) return;
             const districtWrap = document.getElementById('mdbk-app-district-select');
             const thanaWrap = document.getElementById('mdbk-app-thana-select');
             [districtWrap, thanaWrap].forEach(function(w) { if (w) w.classList.remove('mdbk-field-error'); });
@@ -3362,6 +3369,24 @@ document.addEventListener('DOMContentLoaded', function() {
             if (secondary && secondary.dataset.default) secondary.value = secondary.dataset.default;
         });
     }
+
+    // Booking Form Fields (Global Settings) — a hidden field can never be
+    // required, since nothing on the form could satisfy that (the server
+    // enforces the same rule on save, handle_global_settings_save()).
+    // Unchecking Show live-disables and unchecks Required so a half-
+    // toggled row can never look savable; re-checking Show just re-enables
+    // the checkbox rather than restoring whatever Required was set to
+    // before — the admin has to make that call again deliberately, same
+    // as if they were configuring the field for the first time.
+    document.querySelectorAll('.mdbk-field-visible-checkbox').forEach(function(visibleBox) {
+        const row = visibleBox.closest('tr');
+        const requiredBox = row ? row.querySelector('.mdbk-field-required-checkbox') : null;
+        if (!requiredBox) return;
+        visibleBox.addEventListener('change', function() {
+            requiredBox.disabled = !visibleBox.checked;
+            if (!visibleBox.checked) requiredBox.checked = false;
+        });
+    });
 
     // License card (Global Settings) — Activate/Deactivate/Refresh, each a
     // direct admin-ajax call with its own button-disable-while-in-flight
