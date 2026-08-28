@@ -1140,6 +1140,11 @@ class MDBK_Admin_Dashboard {
             if ($post_status !== 'mdbk_waiting') {
                 wp_update_post(['ID' => $id, 'post_status' => $post_status]);
             }
+            // Manual staff/admin flag, never patient-set — deliberately not
+            // part of handle_submission() (shared with the public form),
+            // so this is set directly here instead of threaded through
+            // $data above.
+            update_post_meta($id, '_mdbk_is_emergency', !empty($_POST['is_emergency']) ? 'yes' : '');
             wp_redirect(admin_url('admin.php?page=mdbk-schedule&success=1'));
             exit;
         }
@@ -1234,6 +1239,7 @@ class MDBK_Admin_Dashboard {
             update_post_meta($id, '_mdbk_patient_email', $p_email);
             update_post_meta($id, '_mdbk_patient_age', $p_age);
             update_post_meta($id, '_mdbk_patient_gender', $p_gender);
+            update_post_meta($id, '_mdbk_is_emergency', !empty($_POST['is_emergency']) ? 'yes' : '');
             update_post_meta($id, '_mdbk_doctor_id', $doctor_id);
             update_post_meta($id, '_mdbk_appointment_date', $date);
             update_post_meta($id, '_mdbk_slot_time', $slot_time);
@@ -2331,6 +2337,10 @@ class MDBK_Admin_Dashboard {
         $age_gender = trim($gender . ($age && $gender ? ' · ' : '') . $age);
         $gender_key = $gender ? strtolower($gender) : 'unknown';
         $app_spec_id = $doc_id ? (get_the_terms($doc_id, 'mdbk_department') ? get_the_terms($doc_id, 'mdbk_department')[0]->term_id : '') : '';
+        // Staff/admin-set flag (Edit modal) — a doctor scanning this list
+        // needs to catch it at a glance, so it tints the whole row rather
+        // than sitting in a chip they'd have to read individually.
+        $is_emergency = get_post_meta($a->ID, '_mdbk_is_emergency', true) === 'yes';
         // A "Check In" button takes over the status badge's slot (not a new
         // grid column — the row's grid-template-columns is fixed-width and
         // sized only for the icon-only Edit/Delete actions) for today's
@@ -2340,16 +2350,17 @@ class MDBK_Admin_Dashboard {
         $can_checkin = $status === 'waiting' && !$checked_in && $date === current_time('Y-m-d');
         ob_start();
         ?>
-        <div class="mdbk-patient-row<?php echo $show_doctor ? ' mdbk-patient-row-has-doctor' : ''; ?> mdbk-status-<?php echo esc_attr($status); ?>" data-id="<?php echo esc_attr($a->ID); ?>" data-patient="<?php echo esc_attr($p_name); ?>" data-phone="<?php echo esc_attr($phone); ?>" data-email="<?php echo esc_attr($email); ?>" data-address="<?php echo esc_attr($address); ?>" data-district="<?php echo esc_attr($location['district']); ?>" data-thana="<?php echo esc_attr($location['thana']); ?>" data-age="<?php echo esc_attr($age); ?>" data-gender="<?php echo esc_attr($gender); ?>" data-doctor="<?php echo esc_attr($doc_id); ?>" data-specialty="<?php echo esc_attr($app_spec_id); ?>" data-date="<?php echo esc_attr($date); ?>" data-slot-time="<?php echo esc_attr($slot_time); ?>" data-status="<?php echo esc_attr($status); ?>">
+        <div class="mdbk-patient-row<?php echo $show_doctor ? ' mdbk-patient-row-has-doctor' : ''; ?><?php echo $is_emergency ? ' mdbk-row-emergency' : ''; ?> mdbk-status-<?php echo esc_attr($status); ?>" data-id="<?php echo esc_attr($a->ID); ?>" data-patient="<?php echo esc_attr($p_name); ?>" data-phone="<?php echo esc_attr($phone); ?>" data-email="<?php echo esc_attr($email); ?>" data-address="<?php echo esc_attr($address); ?>" data-district="<?php echo esc_attr($location['district']); ?>" data-thana="<?php echo esc_attr($location['thana']); ?>" data-age="<?php echo esc_attr($age); ?>" data-gender="<?php echo esc_attr($gender); ?>" data-doctor="<?php echo esc_attr($doc_id); ?>" data-specialty="<?php echo esc_attr($app_spec_id); ?>" data-date="<?php echo esc_attr($date); ?>" data-slot-time="<?php echo esc_attr($slot_time); ?>" data-status="<?php echo esc_attr($status); ?>" data-emergency="<?php echo esc_attr($is_emergency ? 'yes' : ''); ?>">
             <?php // Same shared label as every other view — see
             // MDBK_Appointment_Manager::display_ticket_label(). ?>
             <?php $ticket_label = \MDBK\MDBK_Appointment_Manager::display_ticket_label($a->ID); ?>
             <?php $is_queue_label = strpos($ticket_label, 'Q') === 0; ?>
             <span class="mdbk-patient-row-ticket-slot"><span class="mdbk-patient-row-ticket <?php echo $is_queue_label ? 'mdbk-patient-row-queue' : 'mdbk-patient-row-bookingid'; ?>" title="<?php echo $is_queue_label ? esc_attr__('Queue number', 'doctor-appointment') : esc_attr__('Booking ID', 'doctor-appointment'); ?>"><?php echo esc_html($ticket_label); ?></span></span>
+            <?php $emergency_flag = $is_emergency ? '<span class="mdbk-emergency-flag" title="' . esc_attr__('Emergency', 'doctor-appointment') . '"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg></span>' : ''; ?>
             <?php if ($patient_id && $this->can_view_patient($patient_id)) : ?>
-                <a href="#" class="mdbk-patient-row-name mdbk-view-patient" data-id="<?php echo esc_attr($patient_id); ?>" title="<?php esc_attr_e('View patient', 'doctor-appointment'); ?>"><?php echo esc_html($p_name); ?></a>
+                <a href="#" class="mdbk-patient-row-name mdbk-view-patient" data-id="<?php echo esc_attr($patient_id); ?>" title="<?php esc_attr_e('View patient', 'doctor-appointment'); ?>"><?php echo $emergency_flag; ?><?php echo esc_html($p_name); ?></a>
             <?php else : ?>
-                <span class="mdbk-patient-row-name"><?php echo esc_html($p_name); ?></span>
+                <span class="mdbk-patient-row-name"><?php echo $emergency_flag; ?><?php echo esc_html($p_name); ?></span>
             <?php endif; ?>
             <span class="mdbk-patient-row-ticket-slot"><?php if ($patient_id): ?><span class="mdbk-patient-row-ticket mdbk-patient-row-pid" title="<?php esc_attr_e('Patient ID', 'doctor-appointment'); ?>">P<?php echo esc_html($patient_id); ?></span><?php endif; ?></span>
             <?php if ($show_doctor): ?><span class="mdbk-patient-row-chip mdbk-chip-doctor"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.5 21a8.5 8.5 0 0 0-17 0"></path><circle cx="12" cy="7.5" r="4.5"></circle></svg> <?php echo $doc_id ? esc_html(get_the_title($doc_id)) : esc_html__('N/A', 'doctor-appointment'); ?></span><?php endif; ?>
@@ -3829,6 +3840,11 @@ class MDBK_Admin_Dashboard {
         // way regardless of which date view was actually clicked from.
         $location = \MDBK\MDBK_Appointment_Manager::patient_location($a->ID);
         $app_spec_id = $doctor_id_of_row ? (get_the_terms($doctor_id_of_row, 'mdbk_department') ? get_the_terms($doctor_id_of_row, 'mdbk_department')[0]->term_id : '') : '';
+        // Staff/admin-set flag (Edit modal) — this is the view a doctor
+        // actually watches during the day, so it's the one that matters
+        // most for "catch it at a glance"; tints the whole row rather than
+        // a chip they'd have to read individually.
+        $is_emergency = get_post_meta($a->ID, '_mdbk_is_emergency', true) === 'yes';
         $someone_else_serving = isset($serving_doctor_ids[$doctor_id_of_row]);
         $can_start_visiting = $is_today && $status === 'waiting' && $checked_in && !$skipped && !$someone_else_serving;
         // Check-In straight from this page too, not just the Bookings page
@@ -3867,7 +3883,7 @@ class MDBK_Admin_Dashboard {
         $visit_duration = \MDBK\MDBK_Appointment_Manager::visit_duration($a->ID);
         $visit_elapsed = ($status === 'serving' && $visit_started) ? max(0, current_time('timestamp') - $visit_started) : 0;
         ?>
-        <div class="mdbk-patient-row mdbk-my-queue-row<?php echo $row_state ? ' mdbk-row-state-' . esc_attr($row_state) : ''; ?>" data-id="<?php echo esc_attr($a->ID); ?>" data-patient="<?php echo esc_attr($p_name); ?>" data-phone="<?php echo esc_attr($phone); ?>" data-email="<?php echo esc_attr($email); ?>" data-address="<?php echo esc_attr($address); ?>" data-district="<?php echo esc_attr($location['district']); ?>" data-thana="<?php echo esc_attr($location['thana']); ?>" data-age="<?php echo esc_attr($age); ?>" data-gender="<?php echo esc_attr($gender); ?>" data-doctor="<?php echo esc_attr($doctor_id_of_row); ?>" data-specialty="<?php echo esc_attr($app_spec_id); ?>" data-date="<?php echo esc_attr($date); ?>" data-slot-time="<?php echo esc_attr($slot_time); ?>" data-status="<?php echo esc_attr($status); ?>"<?php if ($visit_elapsed || ($status === 'serving' && $visit_started)) : ?> data-visit-elapsed="<?php echo esc_attr($visit_elapsed); ?>"<?php endif; ?>>
+        <div class="mdbk-patient-row mdbk-my-queue-row<?php echo $row_state ? ' mdbk-row-state-' . esc_attr($row_state) : ''; ?><?php echo $is_emergency ? ' mdbk-row-emergency' : ''; ?>" data-id="<?php echo esc_attr($a->ID); ?>" data-patient="<?php echo esc_attr($p_name); ?>" data-phone="<?php echo esc_attr($phone); ?>" data-email="<?php echo esc_attr($email); ?>" data-address="<?php echo esc_attr($address); ?>" data-district="<?php echo esc_attr($location['district']); ?>" data-thana="<?php echo esc_attr($location['thana']); ?>" data-age="<?php echo esc_attr($age); ?>" data-gender="<?php echo esc_attr($gender); ?>" data-doctor="<?php echo esc_attr($doctor_id_of_row); ?>" data-specialty="<?php echo esc_attr($app_spec_id); ?>" data-date="<?php echo esc_attr($date); ?>" data-slot-time="<?php echo esc_attr($slot_time); ?>" data-status="<?php echo esc_attr($status); ?>" data-emergency="<?php echo esc_attr($is_emergency ? 'yes' : ''); ?>"<?php if ($visit_elapsed || ($status === 'serving' && $visit_started)) : ?> data-visit-elapsed="<?php echo esc_attr($visit_elapsed); ?>"<?php endif; ?>>
             <span class="mdbk-patient-row-ticket-slot">
                 <?php // Queue number for today's rows that have one, Booking ID
                 // otherwise — the single rule in display_ticket_label(), shared
@@ -3880,10 +3896,11 @@ class MDBK_Admin_Dashboard {
                 <?php $is_queue_label = strpos($ticket_label, 'Q') === 0; ?>
                 <span class="mdbk-patient-row-ticket <?php echo $is_queue_label ? 'mdbk-patient-row-queue' : 'mdbk-patient-row-bookingid'; ?>" title="<?php echo $is_queue_label ? esc_attr__('Queue number', 'doctor-appointment') : esc_attr__('Booking ID', 'doctor-appointment'); ?>"><?php echo esc_html($ticket_label); ?></span>
             </span>
+            <?php $emergency_flag = $is_emergency ? '<span class="mdbk-emergency-flag" title="' . esc_attr__('Emergency', 'doctor-appointment') . '"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg></span>' : ''; ?>
             <?php if ($patient_id && $this->can_view_patient($patient_id)) : ?>
-                <a href="#" class="mdbk-patient-row-name mdbk-view-patient" data-id="<?php echo esc_attr($patient_id); ?>" title="<?php esc_attr_e('View patient', 'doctor-appointment'); ?>"><?php echo esc_html($p_name); ?></a>
+                <a href="#" class="mdbk-patient-row-name mdbk-view-patient" data-id="<?php echo esc_attr($patient_id); ?>" title="<?php esc_attr_e('View patient', 'doctor-appointment'); ?>"><?php echo $emergency_flag; ?><?php echo esc_html($p_name); ?></a>
             <?php else : ?>
-                <span class="mdbk-patient-row-name"><?php echo esc_html($p_name); ?></span>
+                <span class="mdbk-patient-row-name"><?php echo $emergency_flag; ?><?php echo esc_html($p_name); ?></span>
             <?php endif; ?>
             <span class="mdbk-patient-row-chip-slot"><?php if ($phone): ?><span class="mdbk-patient-row-chip mdbk-chip-phone"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.12.9.34 1.79.66 2.64a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.44-1.44a2 2 0 0 1 2.11-.45c.85.32 1.74.54 2.64.66A2 2 0 0 1 22 16.92z"></path></svg> <?php echo esc_html($phone); ?></span><?php endif; ?></span>
             <span class="mdbk-patient-row-chip-slot"><?php if ($email): ?><span class="mdbk-patient-row-chip mdbk-chip-email"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 6l-10 7L2 6"></path><path d="M2 6h20v12H2z"></path></svg> <?php echo esc_html($email); ?></span><?php endif; ?></span>
@@ -5502,7 +5519,23 @@ class MDBK_Admin_Dashboard {
                             </select>
                         </div>
                     </div>
-                    <div></div>
+                    <?php // Manual flag, not a workflow status — a patient can be
+                    // "waiting" AND an emergency at the same time, so this
+                    // lives beside Status rather than as one more of its
+                    // options. Tints the row red on every list view a
+                    // doctor or staff member sees it on (render_patient_
+                    // appointment_row()/render_my_queue_patient_row()) so
+                    // it reads as urgent at a glance, not just on open. ?>
+                    <div>
+                        <label class="mdbk-form-label" for="mdbk-app-emergency"><?php _e('Emergency', 'doctor-appointment'); ?></label>
+                        <div class="mdbk-app-emergency-field">
+                            <label class="mdbk-toggle mdbk-toggle-danger">
+                                <input type="checkbox" name="is_emergency" id="mdbk-app-emergency" value="1">
+                                <span class="mdbk-toggle-slider"></span>
+                            </label>
+                            <span class="mdbk-form-hint"><?php _e('Highlights this patient\'s row for the doctor', 'doctor-appointment'); ?></span>
+                        </div>
+                    </div>
                 </div>
                 </div>
 

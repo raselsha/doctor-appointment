@@ -2318,6 +2318,8 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('mdbk-app-email').value = row.dataset.email || '';
             if (appLocation) appLocation.set(row.dataset.district, row.dataset.thana);
             document.getElementById('mdbk-app-age').value = row.dataset.age || '';
+            const emergencyBox = document.getElementById('mdbk-app-emergency');
+            if (emergencyBox) emergencyBox.checked = row.dataset.emergency === 'yes';
             if (appGenderSelect && row.dataset.gender) {
                 const genderOpt = findGenderOption(appGenderSelect, row.dataset.gender);
                 if (genderOpt) appGenderSelect.setValue(genderOpt.dataset.value, genderOpt.textContent);

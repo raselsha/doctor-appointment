@@ -848,6 +848,16 @@
 .mdbk-toggle-slider::before { content: ""; position: absolute; width: 16px; height: 16px; left: 2px; top: 2px; background: #fff; border-radius: 50%; transition: transform 0.2s ease; }
 .mdbk-toggle input:checked + .mdbk-toggle-slider { background: #0061d5; }
 .mdbk-toggle input:checked + .mdbk-toggle-slider::before { transform: translateX(16px); }
+/* Red instead of the default blue when ON — this one specific toggle
+   (Edit Booking modal's Emergency flag) needs to read as urgent rather
+   than as a routine setting the moment it's switched on. */
+.mdbk-toggle-danger input:checked + .mdbk-toggle-slider { background: #dc2626; }
+
+/* Sits beside the Status select (same modal row) — height-matched to its
+   ~38px trigger button so the two form controls line up on one baseline
+   instead of the toggle's own shorter box sitting high in its column. */
+.mdbk-app-emergency-field { display: flex; align-items: center; gap: 8px; height: 38px; }
+.mdbk-app-emergency-field .mdbk-form-hint { margin: 0; }
 
 .mdbk-icon-btn { display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 10px; border: 1px solid #e2e8f0; background: #fff; color: #64748b; cursor: pointer; text-decoration: none; transition: all 0.2s ease; }
 .mdbk-icon-btn:hover { background: rgba(0, 97, 213, 0.08); color: #0061d5; border-color: rgba(0, 97, 213, 0.3); }
@@ -1893,6 +1903,33 @@ button.mdbk-slot-btn.mdbk-slot-break { cursor: not-allowed; pointer-events: none
    line restores the separator without fighting the row's own color. */
 .mdbk-my-queue-row.mdbk-row-state-serving { border-bottom-color: #a7f3d0; }
 .mdbk-my-queue-row.mdbk-row-state-waiting-checked-in { border-bottom-color: #fed7aa; }
+
+/* Emergency — a manual staff/admin flag (Edit modal), not a workflow
+   state, so it has to read as more urgent than the green/orange states
+   above regardless of which one a row is also in (e.g. an emergency
+   patient who has already checked in). Declared after them so it wins
+   the tie on equal specificity, on both row templates — the plain
+   history-list view (.mdbk-patient-row) never gets a state tint at all,
+   so there's no lower-priority color to out-rank there. */
+.mdbk-patient-row.mdbk-row-emergency,
+.mdbk-my-queue-row.mdbk-row-state-serving.mdbk-row-emergency,
+.mdbk-my-queue-row.mdbk-row-state-waiting-checked-in.mdbk-row-emergency,
+.mdbk-my-queue-row.mdbk-row-emergency {
+    background: #fef2f2;
+    border-bottom-color: #fecaca;
+}
+/* The color alone doesn't survive print/CSV or a colorblind reading, so
+   every emergency row also gets this small icon inline in its name cell
+   (render_patient_appointment_row()/render_my_queue_patient_row()) —
+   inside the existing name grid cell, not a new column, since both row
+   templates are fixed-track grids where adding a sibling element would
+   shift every column after it out of alignment. */
+.mdbk-emergency-flag {
+    display: inline-flex;
+    color: #dc2626;
+    margin-right: 4px;
+    vertical-align: -2px;
+}
 
 /* One doctor's break countdown (admin-script.js), centered against
    whichever heading is that doctor's own — their .mdbk-doctor-group-header
