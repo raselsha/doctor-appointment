@@ -35,6 +35,7 @@ class MDBK_Admin_Dashboard {
         add_action('wp_ajax_mdbk_refresh_doctor_group', [$this, 'ajax_refresh_doctor_group']);
         add_action('wp_ajax_mdbk_queue_signature', [$this, 'ajax_queue_signature']);
         add_action('wp_ajax_mdbk_refresh_doctor_card', [$this, 'ajax_refresh_doctor_card']);
+        add_action('wp_ajax_mdbk_server_clock', [$this, 'ajax_server_clock']);
         add_filter('login_redirect', [$this, 'doctor_login_redirect'], 10, 3);
         add_filter('edit_profile_url', [$this, 'redirect_profile_url'], 10, 3);
         add_filter('admin_body_class', [$this, 'admin_body_class']);
@@ -61,15 +62,49 @@ class MDBK_Admin_Dashboard {
      * render_break_countdown_el() for why it isn't a Unix timestamp.
      */
     public function print_server_clock() {
+        echo '<span id="mdbk-server-clock" style="display:none;" data-now-seconds="' . esc_attr(self::server_now_seconds()) . '"></span>';
+    }
+
+    /**
+     * The site's wall clock as seconds since midnight, to the millisecond.
+     *
+     * Deliberately not a Unix timestamp — see render_break_countdown_el().
+     */
+    private static function server_now_seconds() {
         $now = new \DateTimeImmutable('now', wp_timezone());
-        $seconds = round(
+        return round(
             intval($now->format('H')) * 3600
             + intval($now->format('i')) * 60
             + intval($now->format('s'))
             + intval($now->format('u')) / 1000000,
             3
         );
-        echo '<span id="mdbk-server-clock" style="display:none;" data-now-seconds="' . esc_attr($seconds) . '"></span>';
+    }
+
+    /**
+     * AJAX: the site's wall clock, nothing else.
+     *
+     * The break countdown anchors itself to a server reading once, at
+     * page load, and then counts elapsed browser time on top. That was
+     * enough back when this screen refreshed itself, but it doesn't —
+     * refreshing a doctor group is a button — so a panel left open all
+     * evening (which is exactly how the chamber uses it) had no way to
+     * ever correct its baseline. One machine whose system clock got
+     * stepped by an hour mid-session showed every break coming an hour
+     * early for the rest of the day, and only a reload fixed it.
+     *
+     * The client now re-reads the real clock from here periodically and
+     * whenever the tab comes back to the foreground, so any such gap
+     * closes on its own within a few minutes. Kept as its own endpoint
+     * rather than folded into the group refresh because it has to be
+     * cheap enough to call on a timer — no queries, no rendering.
+     */
+    public function ajax_server_clock() {
+        check_ajax_referer('mdbk_admin_nonce', 'nonce');
+        if (!current_user_can(MDBK_CAP_QUEUE) && !current_user_can(MDBK_CAP_DOCTOR)) {
+            wp_send_json_error(['message' => __('Unauthorized.', 'doctor-appointment')]);
+        }
+        wp_send_json_success(['now' => self::server_now_seconds()]);
     }
 
     /**
@@ -3650,14 +3685,7 @@ class MDBK_Admin_Dashboard {
             $list[] = ['name' => $b['name'], 'from' => $b['from'], 'to' => $b['to']];
         }
         if (empty($list)) return '';
-        $now = new \DateTimeImmutable('now', wp_timezone());
-        $seconds_now = round(
-            intval($now->format('H')) * 3600
-            + intval($now->format('i')) * 60
-            + intval($now->format('s'))
-            + intval($now->format('u')) / 1000000,
-            3
-        );
+        $seconds_now = self::server_now_seconds();
         // Every break goes to JS, not just the next one — the page can
         // sit open for hours, and the pill has to roll on to the next
         // break by itself once the current one ends rather than needing

@@ -1498,7 +1498,11 @@ class MDBK_Shortcode {
             wp_send_json_success(['fragment' => self::render_queue_body($doctor_id)]);
         }
         $body = self::render_queue_list_body($doctor_id);
-        wp_send_json_success(['fragment' => $body['html'], 'count' => $body['count']]);
+        // A fresh clock reading on every poll, so a waiting-room screen
+        // left running for days re-anchors its "on break" timing off the
+        // server every 12 seconds instead of trusting a baseline taken
+        // once at page load — see queue-view-script.js's initServerBase().
+        wp_send_json_success(['fragment' => $body['html'], 'count' => $body['count'], 'now' => self::server_now_seconds()]);
     }
 
     /**

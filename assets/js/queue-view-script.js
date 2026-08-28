@@ -76,6 +76,8 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(function(data) {
                 if (!data || !data.success || !data.data || typeof data.data.fragment !== 'string') return;
 
+                setServerNow(data.data.now);
+
                 var tmp = document.createElement('div');
                 tmp.innerHTML = data.data.fragment;
 
@@ -185,19 +187,33 @@ document.addEventListener('DOMContentLoaded', function() {
         // whenever this script got to run — the gap between the two is
         // page parse + asset load, and counting it as zero elapsed time
         // would leave the notice permanently that far behind.
-        var anchor = Date.now();
+        var anchor = performance.now();
         try {
             var nav = performance.getEntriesByType('navigation')[0];
-            if (nav && nav.responseStart > 0 && typeof performance.timeOrigin === 'number') {
-                anchor = performance.timeOrigin + nav.responseStart;
-            }
+            if (nav && nav.responseStart > 0) anchor = nav.responseStart;
         } catch (e) {}
         serverBase = { server: stamp, at: anchor };
     }
 
+    // Re-anchored off every poll (see refreshInstance) so a waiting-room
+    // screen that's been running for days doesn't accumulate error, and
+    // recovers within one poll from anything that disturbs the browser's
+    // sense of elapsed time.
+    function setServerNow(seconds) {
+        var stamp = parseFloat(seconds);
+        if (isNaN(stamp)) return;
+        serverBase = { server: stamp, at: performance.now() };
+    }
+
     function nowSecondsOfDay() {
         if (!serverBase) return -1;
-        return (serverBase.server + (Date.now() - serverBase.at) / 1000) % 86400;
+        // performance.now(), not Date.now(): what's wanted is elapsed
+        // time, and the system clock isn't that — it can be stepped
+        // (NTP correction, a manual change), and a step would be carried
+        // as permanent error by a baseline taken once at load. The admin
+        // panel had exactly that happen: an hour's step meant every
+        // break was announced an hour early until the page was reloaded.
+        return (serverBase.server + (performance.now() - serverBase.at) / 1000) % 86400;
     }
 
     function toSeconds(hm) {

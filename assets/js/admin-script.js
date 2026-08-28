@@ -2936,6 +2936,15 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
+        // Every one of these carries a clock reading that was true when
+        // the response came back, so a refresh doubles as a free
+        // re-anchor for the countdown's baseline — worth taking, since
+        // pressing Refresh is the instinctive thing to do when the pill
+        // looks wrong, and before this it did nothing for the clock.
+        if (typeof window.mdbkSetBreakClock === 'function') {
+            window.mdbkSetBreakClock(incoming.dataset.serverNowSeconds);
+        }
+
         if (existing) {
             // Nothing about the schedule changed, so leave the live element
             // exactly where it is. Replacing it on every refresh — which is
@@ -3726,41 +3735,60 @@ document.addEventListener('DOMContentLoaded', function() {
         function pad2(n) { return (n < 10 ? '0' : '') + n; }
         function nowSecondsOfDay() {
             if (!base) return -1;
-            return (base.server + (Date.now() - base.at) / 1000) % 86400;
+            return (base.server + (performance.now() - base.at) / 1000) % 86400;
         }
 
-        // The moment the server's reading was true, in browser-clock ms.
+        // The moment the server's reading was true, on the monotonic
+        // clock.
         //
-        // Deliberately NOT Date.now(): this admin page takes seconds to
-        // parse its HTML and run its scripts, so by the time this line
-        // executes the server's stamp is already several seconds stale —
-        // and treating "now" as the anchor silently counts that gap as
-        // zero elapsed time, leaving the countdown permanently that far
-        // behind (measured ~4.4s on a full Today's Queue). Navigation
-        // Timing's responseStart is when the first byte of THAT SAME
-        // response reached the browser, which is within a few hundred ms
-        // of when PHP read the clock, so anchoring there leaves only
-        // render-to-flush plus network transit as the error.
+        // performance.now(), not Date.now(): elapsed time is the whole
+        // point here, and Date.now() doesn't measure elapsed time — it
+        // reports the system clock, which can be stepped. A machine
+        // whose clock was an hour slow at page load and then got
+        // NTP-corrected upward hands back an extra hour of "elapsed",
+        // and since the baseline is never revisited the countdown then
+        // announces every break an hour early until someone reloads.
+        // That's a real report from the live chamber panel, which sits
+        // open all evening. performance.now() is monotonic and immune
+        // to that; the periodic re-sync below covers what it can't (it
+        // may stall while the machine is suspended).
         //
         // Which end of the response to anchor to depends on where in it
         // the reading was taken: #mdbk-server-clock is printed last, so
         // it left the server at responseEnd, while a pill's stamp is
-        // taken partway through and is closest to responseStart.
+        // taken partway through and is closest to responseStart. Both
+        // navigation-timing marks are already on performance.now()'s
+        // own timebase, so they're used as-is.
         //
-        // Only valid for the markup this navigation delivered — a pill
-        // that arrived later via AJAX carries its own fresh stamp and
-        // must anchor to now instead, hence the firstPass gate.
-        function anchorMs(atResponseEnd) {
-            if (!firstPass) return Date.now();
+        // Anchoring there rather than at "whenever this script got to
+        // run" matters: the page takes seconds to parse and execute, and
+        // counting that gap as zero elapsed time left the countdown
+        // permanently that far behind (measured ~4.4s on a full Today's
+        // Queue).
+        //
+        // Only valid for the markup this navigation delivered — a
+        // reading that arrived later, over AJAX, was true when the
+        // response came back, hence the firstPass gate.
+        function anchorAt(atResponseEnd) {
+            if (!firstPass) return performance.now();
             try {
                 const nav = performance.getEntriesByType('navigation')[0];
                 const mark = atResponseEnd ? nav && nav.responseEnd : nav && nav.responseStart;
-                if (mark > 0 && typeof performance.timeOrigin === 'number') {
-                    return performance.timeOrigin + mark;
-                }
+                if (mark > 0) return mark;
             } catch (e) {}
-            return Date.now();
+            return performance.now();
         }
+
+        // Re-anchors the shared baseline to a server reading that was
+        // true just now. Every fresh reading the page receives comes
+        // through here — the periodic re-sync below, and each pill that
+        // arrives with a group refresh (mdbkSwapBreakPill, further up).
+        function setServerNow(seconds) {
+            const stamp = parseFloat(seconds);
+            if (isNaN(stamp)) return;
+            base = { server: stamp, at: performance.now() };
+        }
+        window.mdbkSetBreakClock = setServerNow;
 
         // Rebuilds the pill's two-part markup (plain name + enlarged
         // countdown-digits chunk, or just plain text once "on break now"
@@ -3890,11 +3918,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 const clockEl = firstPass ? document.getElementById('mdbk-server-clock') : null;
                 const stamp = clockEl ? parseFloat(clockEl.dataset.nowSeconds) : NaN;
                 if (!isNaN(stamp)) {
-                    base = { server: stamp, at: anchorMs(true) };
+                    base = { server: stamp, at: anchorAt(true) };
                 } else {
                     for (let i = 0; i < pills.length; i++) {
                         const s = parseFloat(pills[i].dataset.serverNowSeconds);
-                        if (!isNaN(s)) { base = { server: s, at: anchorMs(false) }; break; }
+                        if (!isNaN(s)) { base = { server: s, at: anchorAt(false) }; break; }
                     }
                 }
             }
@@ -3916,6 +3944,39 @@ document.addEventListener('DOMContentLoaded', function() {
             const delay = now < 0 ? 1000 : Math.max(50, Math.round((Math.floor(now) + 1 - now) * 1000) + 20);
             setTimeout(function() { tick(); schedule(); }, delay);
         })();
+
+        // Nothing on this screen refreshes itself — a doctor group is
+        // refreshed by pressing its Refresh button — so a panel opened at
+        // the start of a shift is still running on the baseline it took
+        // at page load hours later. Anything that disturbs the browser's
+        // sense of elapsed time in between (a suspended machine stalling
+        // the monotonic clock, a tab frozen while backgrounded) would
+        // otherwise stay wrong for the rest of the day.
+        //
+        // So: re-read the real clock every few minutes, and again the
+        // moment the tab comes back to the foreground — that second one
+        // is what actually matters, since a stall is most likely
+        // precisely while nobody was looking. Only ever while visible;
+        // there's no point paying for a request to correct a countdown
+        // no one can see, and it would just be throttled anyway.
+        const RESYNC_MS = 5 * 60 * 1000;
+        let lastSyncAt = 0;
+        function resync() {
+            if (typeof mdbk_admin_obj === 'undefined') return;
+            if (document.hidden) return;
+            if (!document.querySelector('.mdbk-break-countdown')) return;
+            if (performance.now() - lastSyncAt < 30000) return;
+            lastSyncAt = performance.now();
+            const body = new URLSearchParams();
+            body.set('action', 'mdbk_server_clock');
+            body.set('nonce', mdbk_admin_obj.nonce);
+            fetch(mdbk_admin_obj.ajax_url, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body.toString() })
+                .then(function(r) { return r.json(); })
+                .then(function(res) { if (res && res.success) setServerNow(res.data.now); })
+                .catch(function() {});
+        }
+        setInterval(resync, RESYNC_MS);
+        document.addEventListener('visibilitychange', function() { if (!document.hidden) resync(); });
     })();
 
     // ---- Doctors grid: search, specialty filter, pagination, grid/list view ----
