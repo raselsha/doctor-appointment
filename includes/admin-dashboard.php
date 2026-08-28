@@ -452,7 +452,12 @@ class MDBK_Admin_Dashboard {
 
         $list_html = $this->render_queue_rows($apps, $is_visiting ? [$doctor_id => true] : []);
         ob_start();
-        $this->render_today_queue_table($apps, false);
+        // $is_today (already computed above) is exactly the same
+        // "which section is this" flag render_patient_list_html() passes
+        // through as $hide_date — Today's Queue only, never the
+        // multi-date Upcoming Dates table this same AJAX endpoint also
+        // refreshes.
+        $this->render_today_queue_table($apps, false, $is_today);
         $print_table_html = ob_get_clean();
 
         // The break-countdown pill (render_break_countdown_el()) lives in
@@ -2249,21 +2254,27 @@ class MDBK_Admin_Dashboard {
     // "View All" popup and each per-doctor card's "View All" popup — the
     // only difference between the two is whether the Doctor column is
     // useful (it isn't when the popup is already scoped to one doctor).
-    private function render_today_queue_table($apps, $show_doctor_column) {
+    private function render_today_queue_table($apps, $show_doctor_column, $hide_date = false) {
         if (empty($apps)) {
             echo '<p style="text-align:center; opacity:0.6; padding:30px 0;">' . esc_html__('No bookings found.', 'doctor-appointment') . '</p>';
             return;
         }
         ?>
         <table class="mdbk-table">
-            <?php // Date sits beside Time, same pairing the on-screen row shows.
-            // It used to be missing entirely: the printed/exported sheet
-            // carried a time with no day against it, and the clinic header
-            // above the table doesn't name one either — fine while this only
-            // ever printed today's queue, wrong once the same table started
-            // printing the multi-date "Upcoming Dates" section, where every
-            // row could be a different day. ?>
-            <thead><tr><th><?php _e('Queue', 'doctor-appointment'); ?></th><th><?php _e('Patient', 'doctor-appointment'); ?></th><th><?php _e('Phone', 'doctor-appointment'); ?></th><th><?php _e('Address', 'doctor-appointment'); ?></th><?php if ($show_doctor_column): ?><th><?php _e('Doctor', 'doctor-appointment'); ?></th><?php endif; ?><th><?php _e('Age', 'doctor-appointment'); ?></th><th><?php _e('Gender', 'doctor-appointment'); ?></th><th><?php _e('Date', 'doctor-appointment'); ?></th><th><?php _e('Time', 'doctor-appointment'); ?></th><th><?php _e('Visit Time', 'doctor-appointment'); ?></th><th><?php _e('Status', 'doctor-appointment'); ?></th></tr></thead>
+            <?php // Date sits beside Time, same pairing the on-screen row shows —
+            // UNLESS $hide_date is set, meaning every row here is already
+            // known to be the same single day (every caller that renders
+            // this table already knows whether it asked for one date or
+            // many; see the two calls inside render_patient_list_html(),
+            // which pass $is_today_group straight through as $hide_date).
+            // There, a per-row date repeated on every single line is pure
+            // noise — the callers that set it also print that one date
+            // once in their own heading instead (data-print-date, read by
+            // admin-script.js's print/image handlers). The multi-date
+            // "Upcoming Dates" table keeps this column: it's the one
+            // place a row's date is real information, not a repeat of
+            // what the heading already said. ?>
+            <thead><tr><th><?php _e('Queue', 'doctor-appointment'); ?></th><th><?php _e('Patient', 'doctor-appointment'); ?></th><th><?php _e('Phone', 'doctor-appointment'); ?></th><th><?php _e('Address', 'doctor-appointment'); ?></th><?php if ($show_doctor_column): ?><th><?php _e('Doctor', 'doctor-appointment'); ?></th><?php endif; ?><th><?php _e('Age', 'doctor-appointment'); ?></th><th><?php _e('Gender', 'doctor-appointment'); ?></th><?php if (!$hide_date): ?><th><?php _e('Date', 'doctor-appointment'); ?></th><?php endif; ?><th><?php _e('Time', 'doctor-appointment'); ?></th><th><?php _e('Visit Time', 'doctor-appointment'); ?></th><th><?php _e('Status', 'doctor-appointment'); ?></th></tr></thead>
             <tbody>
             <?php // The Queue cell used to print this loop's own 1..N counter,
             // so a printout numbered its rows Q01, Q02, Q03 no matter what
@@ -2296,8 +2307,14 @@ class MDBK_Admin_Dashboard {
                     // printed table matched what's on screen instead of the
                     // raw stored value. ?>
                     <?php // Site's own Settings > General date format, same as the
-                    // on-screen row's date chip, so the two read identically. ?>
-                    <td><?php echo esc_html($t_date ? date_i18n(get_option('date_format'), strtotime($t_date)) : '—'); ?></td>
+                    // on-screen row's date chip, so the two read identically.
+                    // Must mirror the <th> above exactly — this <td> was left
+                    // unconditional when $hide_date was added, so a Today's
+                    // Queue table (no "Date" <th>) still emitted this cell,
+                    // shifting every following column one slot right of its
+                    // own header (Time's value landing under "Visit Time",
+                    // and so on) instead of actually vanishing. ?>
+                    <?php if (!$hide_date): ?><td><?php echo esc_html($t_date ? date_i18n(get_option('date_format'), strtotime($t_date)) : '—'); ?></td><?php endif; ?>
                     <td><?php echo esc_html($t_slot ? date_i18n('g:i A', strtotime($t_slot)) : '—'); ?></td>
                     <?php // How long the consultation actually ran, for visits
                     // timed through Start Visiting -> Mark Visited. ?>
@@ -2497,14 +2514,27 @@ class MDBK_Admin_Dashboard {
         if (!$is_queue_staff) $filter_doctor = $own_doctor_id;
         $apps = $this->get_filtered_appointments($filter_date, $filter_doctor, $filter_status);
 
+        // Set only by Today's Queue's own Export CSV links (both the
+        // grouped view's per-doctor button and the single-doctor Today
+        // card's) — never by the date-filtered history view's, even when
+        // that happens to be filtered to today too. render_today_queue_table()
+        // already drops this same column from the on-screen/print table
+        // for exactly this one case (every row here is the same day, so
+        // repeating it on every line was pure noise); the CSV now matches.
+        // The filename below still carries the date either way.
+        $hide_date_column = isset($_GET['mdbk_today_queue']);
+
         nocache_headers();
         header('Content-Type: text/csv; charset=utf-8');
         header('Content-Disposition: attachment; filename="bookings-' . ($filter_date ?: 'all-dates') . '.csv"');
         $out = fopen('php://output', 'w');
-        fputcsv($out, ['Queue', 'Patient ID', 'Patient Name', 'Phone', 'Email', 'Address', 'Age', 'Gender', 'Doctor', 'Date', 'Time', 'Visit Time', 'Status', 'Symptoms']);
+        $header_row = ['Queue', 'Patient ID', 'Patient Name', 'Phone', 'Email', 'Address', 'Age', 'Gender', 'Doctor'];
+        if (!$hide_date_column) $header_row[] = 'Date';
+        $header_row = array_merge($header_row, ['Time', 'Visit Time', 'Status', 'Symptoms']);
+        fputcsv($out, $header_row);
         foreach ($apps as $a) {
             $doc_id = get_post_meta($a->ID, '_mdbk_doctor_id', true);
-            fputcsv($out, [
+            $row = [
                 // Same label the on-screen row shows — this export spans
                 // every date, and a queue number means nothing outside its
                 // own day, so non-today rows carry their Booking ID.
@@ -2517,12 +2547,15 @@ class MDBK_Admin_Dashboard {
                 get_post_meta($a->ID, '_mdbk_patient_age', true),
                 get_post_meta($a->ID, '_mdbk_patient_gender', true),
                 $doc_id ? get_the_title($doc_id) : '',
-                get_post_meta($a->ID, '_mdbk_appointment_date', true),
+            ];
+            if (!$hide_date_column) $row[] = get_post_meta($a->ID, '_mdbk_appointment_date', true);
+            $row = array_merge($row, [
                 get_post_meta($a->ID, '_mdbk_slot_time', true),
                 \MDBK\MDBK_Appointment_Manager::format_duration(\MDBK\MDBK_Appointment_Manager::visit_duration($a->ID)),
                 \MDBK\MDBK_Appointment_Manager::status_display_label(\MDBK\MDBK_Appointment_Manager::get_display_status_slug($a->ID)),
                 get_post_meta($a->ID, '_mdbk_symptoms', true),
             ]);
+            fputcsv($out, $row);
         }
         fclose($out);
         exit;
@@ -2965,7 +2998,11 @@ class MDBK_Admin_Dashboard {
             . '<button type="button" class="mdbk-icon-btn mdbk-collapse-all" title="' . esc_attr__('Collapse All', 'doctor-appointment') . '"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="17 11 12 6 7 11"></polyline><polyline points="17 18 12 13 7 18"></polyline></svg></button>'
             . '</div>';
         ?>
-        <div class="mdbk-card" id="mdbk-today-queue-card" style="margin-bottom:20px;" data-doctor-id="<?php echo esc_attr($doctor_id); ?>" data-doctor-name="<?php echo $doctor_id ? esc_attr(get_the_title($doctor_id)) : ''; ?>">
+        <?php // Same data-print-date convention as the grouped view's own
+        // .mdbk-doctor-group (render_patient_list_html()) — always today,
+        // since this card only ever shows a pure doctor account's own
+        // Today's Queue. ?>
+        <div class="mdbk-card" id="mdbk-today-queue-card" style="margin-bottom:20px;" data-doctor-id="<?php echo esc_attr($doctor_id); ?>" data-doctor-name="<?php echo $doctor_id ? esc_attr(get_the_title($doctor_id)) : ''; ?>" data-print-date="<?php echo esc_attr(date_i18n(get_option('date_format'), strtotime(current_time('Y-m-d')))); ?>">
             <div class="mdbk-card-header">
                 <h3><?php _e("Today's Queue", 'doctor-appointment'); ?></h3>
                 <?php if ($group_by_doctor) : ?>
@@ -3018,7 +3055,12 @@ class MDBK_Admin_Dashboard {
                         </label>
                         <button type="button" class="mdbk-icon-btn mdbk-refresh-today-card" title="<?php esc_attr_e('Refresh', 'doctor-appointment'); ?>"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg></button>
                         <button type="button" class="mdbk-icon-btn mdbk-print-today-card" title="<?php esc_attr_e('Print', 'doctor-appointment'); ?>"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg></button>
-                        <?php $today_export_url = wp_nonce_url(add_query_arg(['page' => 'mdbk-schedule', 'filter_date' => current_time('Y-m-d'), 'filter_doctor' => $doctor_id, 'mdbk_export' => 'csv'], admin_url('admin.php')), 'mdbk_export_csv'); ?>
+                        <?php // mdbk_today_queue=1 tells handle_schedule_export() this
+                        // came from Today's Queue specifically (not the
+                        // date-filtered history view, which can also carry
+                        // filter_date=today by coincidence) — same marker
+                        // as the grouped view's own export URL below. ?>
+                        <?php $today_export_url = wp_nonce_url(add_query_arg(['page' => 'mdbk-schedule', 'filter_date' => current_time('Y-m-d'), 'filter_doctor' => $doctor_id, 'mdbk_today_queue' => '1', 'mdbk_export' => 'csv'], admin_url('admin.php')), 'mdbk_export_csv'); ?>
                         <a href="<?php echo esc_url($today_export_url); ?>" class="mdbk-icon-btn" title="<?php esc_attr_e('Export CSV', 'doctor-appointment'); ?>"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg></a>
                         <button type="button" class="mdbk-icon-btn mdbk-download-today-card-image" title="<?php esc_attr_e('Download as Image', 'doctor-appointment'); ?>"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg></button>
                     </span>
@@ -3026,7 +3068,10 @@ class MDBK_Admin_Dashboard {
             </div>
             <?php if ($doctor_id) : ?>
             <div class="mdbk-today-card-print-table" style="display:none;">
-                <?php $this->render_today_queue_table($today_apps_display, false); ?>
+                <?php // Always Today's Queue — this whole card only ever shows
+                // a pure doctor account's own today ($today_apps_display),
+                // never the multi-date Upcoming section below it. ?>
+                <?php $this->render_today_queue_table($today_apps_display, false, true); ?>
             </div>
             <?php endif; ?>
             <?php if ($today_apps_display): ?>
@@ -3620,7 +3665,17 @@ class MDBK_Admin_Dashboard {
             if ($doc_name === '') $doc_name = __('Unassigned', 'doctor-appointment');
             $count = count($doc_apps);
             $export_args = ['page' => 'mdbk-schedule', 'filter_doctor' => $doc_id, 'mdbk_export' => 'csv'];
-            if ($is_today_group) $export_args['filter_date'] = current_time('Y-m-d');
+            if ($is_today_group) {
+                $export_args['filter_date'] = current_time('Y-m-d');
+                // Marks this export as Today's Queue specifically, so
+                // handle_schedule_export() can drop the (now-redundant)
+                // per-row Date column the same way the on-screen table
+                // already does — without this, the Upcoming Dates group's
+                // own export (no filter_date, genuinely multi-date) would
+                // be indistinguishable from a same-day coincidence on the
+                // date-filtered history view, which keeps its Date column.
+                $export_args['mdbk_today_queue'] = '1';
+            }
             $doc_export_url = wp_nonce_url(add_query_arg($export_args, admin_url('admin.php')), 'mdbk_export_csv');
             // Per-doctor Live Queue on/off — an independent override on top
             // of Global Settings' own master switch (see render_queue_list()
@@ -3646,7 +3701,14 @@ class MDBK_Admin_Dashboard {
             $show_visiting_dot = $is_today_group && $doc_id;
             $doctor_is_visiting = $show_visiting_dot && isset($serving_doctor_ids[$doc_id]);
 
-            $html .= '<details class="mdbk-doctor-group" data-doctor-id="' . esc_attr($doc_id) . '" data-is-today="' . ($is_today_group ? '1' : '0') . '" open>';
+            // Read by admin-script.js's Print/CSV/Image handlers to build
+            // "Dr. X — <date>" as the printed heading, now that the table
+            // itself (render_today_queue_table() above) no longer repeats
+            // that same date on every row. Only set for Today's Queue —
+            // the Upcoming Dates group has no single date to name here,
+            // its rows genuinely differ.
+            $print_date = $is_today_group ? date_i18n(get_option('date_format'), strtotime(current_time('Y-m-d'))) : '';
+            $html .= '<details class="mdbk-doctor-group" data-doctor-id="' . esc_attr($doc_id) . '" data-is-today="' . ($is_today_group ? '1' : '0') . '" data-print-date="' . esc_attr($print_date) . '" open>';
             $html .= '<summary class="mdbk-doctor-group-header">';
             if ($show_visiting_dot) {
                 $html .= '<span class="mdbk-live-pulse-dot' . ($doctor_is_visiting ? ' mdbk-live-pulse-active' : '') . '" title="' . esc_attr__('Doctor is currently visiting a patient', 'doctor-appointment') . '"></span> ';
@@ -3690,7 +3752,11 @@ class MDBK_Admin_Dashboard {
             $html .= '</div>';
             $html .= '<div class="mdbk-doctor-group-print-table" style="display:none;">';
             ob_start();
-            $this->render_today_queue_table($doc_apps, false);
+            // Today's Queue groups only ($is_today_group) — the multi-date
+            // "Upcoming Dates" table keeps its per-row Date column, since
+            // there a row's date is real information the single date this
+            // group's own heading would otherwise imply is wrong.
+            $this->render_today_queue_table($doc_apps, false, $is_today_group);
             $html .= ob_get_clean();
             $html .= '</div>';
             $html .= '</details>';

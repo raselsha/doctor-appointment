@@ -2648,6 +2648,19 @@ document.addEventListener('DOMContentLoaded', function() {
     function mdbkBuildPrintBody(titleText, bodyHtml) {
         return mdbkBuildClinicHeaderHtml() + '<h2>' + titleText + '</h2>' + bodyHtml;
     }
+    // Today's Queue's Print/CSV/Image actions used to repeat the same
+    // date on every single row of the table (every row IS today, so it
+    // was the same value N times over) — render_today_queue_table() now
+    // drops that column for Today's Queue specifically (PHP passes
+    // hide_date=true) and instead stamps the date once on the group's own
+    // data-print-date attribute, read here to fold it into the heading
+    // right beside the doctor's name instead. Empty/absent (the
+    // multi-date Upcoming Dates group, which sets no data-print-date)
+    // leaves the heading exactly as it was — just the name, since that
+    // table still carries a real per-row date.
+    function mdbkTitleWithDate(name, dateAttr) {
+        return dateAttr ? name + ' — ' + dateAttr : name;
+    }
 
     // Print just this modal's table — window.print() on the main page would
     // try to print the whole admin screen behind the overlay, so this opens
@@ -2693,7 +2706,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const name = group.querySelector('.mdbk-doctor-group-name');
         const table = group.querySelector('.mdbk-doctor-group-print-table');
         if (!table) return;
-        const titleText = name ? name.textContent : 'Print';
+        const titleText = mdbkTitleWithDate(name ? name.textContent : 'Print', group.dataset.printDate);
         const win = window.open('', '_blank', 'width=900,height=700');
         if (!win) return;
         win.document.write(
@@ -2761,7 +2774,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const name = group.querySelector('.mdbk-doctor-group-name');
         const table = group.querySelector('.mdbk-doctor-group-print-table');
         if (!table) return;
-        const titleText = name ? name.textContent : 'Patients';
+        const titleText = mdbkTitleWithDate(name ? name.textContent : 'Patients', group.dataset.printDate);
         mdbkDownloadHtmlAsImage(titleText, table.innerHTML, titleText.replace(/[^a-z0-9]+/gi, '-').toLowerCase() + '-patients.png');
     });
 
@@ -3021,7 +3034,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!card) return;
         const table = card.querySelector('.mdbk-today-card-print-table');
         if (!table) return;
-        const titleText = card.dataset.doctorName || "Today's Queue";
+        const titleText = mdbkTitleWithDate(card.dataset.doctorName || "Today's Queue", card.dataset.printDate);
         const win = window.open('', '_blank', 'width=900,height=700');
         if (!win) return;
         win.document.write(
@@ -3040,7 +3053,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!card) return;
         const table = card.querySelector('.mdbk-today-card-print-table');
         if (!table) return;
-        const titleText = card.dataset.doctorName || "Today's Queue";
+        const titleText = mdbkTitleWithDate(card.dataset.doctorName || "Today's Queue", card.dataset.printDate);
         mdbkDownloadHtmlAsImage(titleText, table.innerHTML, titleText.replace(/[^a-z0-9]+/gi, '-').toLowerCase() + '-today.png');
     });
 
