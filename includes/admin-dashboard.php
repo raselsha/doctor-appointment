@@ -4705,7 +4705,16 @@ class MDBK_Admin_Dashboard {
             <span class="mdbk-menu-label"><?php _e('Logout', 'doctor-appointment'); ?></span>
         </a>
         </div>
-        <script>try{if(localStorage.getItem('mdbk_sidebar_collapsed')==='1')document.getElementById('mdbk-sidebar').classList.add('is-collapsed')}catch(e){}</script>
+        <?php // 782px matches the plugin's one mobile breakpoint everywhere
+        // else (admin-style.css's @media rules, WP's own admin_body_class
+        // check). Below it .mdbk-sidebar is the off-canvas drawer, not the
+        // desktop icon-rail is-collapsed was built for — applying the
+        // class there before admin-script.js even runs (this fires before
+        // the collapse toggle gets hidden on mobile) squeezed the drawer
+        // down to 72px and hid every label, unreadable on a phone, purely
+        // because a DESKTOP session had collapsed it earlier in this same
+        // browser (localStorage doesn't know about viewport width). ?>
+        <script>try{if(window.innerWidth > 782 && localStorage.getItem('mdbk_sidebar_collapsed')==='1')document.getElementById('mdbk-sidebar').classList.add('is-collapsed')}catch(e){}</script>
         <?php
     }
 

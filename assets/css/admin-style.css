@@ -2583,6 +2583,14 @@ body.mdbk-doctor-chrome .mdbk-admin-wrapper {
        already do for every login. */
     body.mdbk-doctor-chrome .mdbk-admin-wrapper { top: 0; left: 0; right: 0; bottom: 0; }
     .mdbk-mobile-menu-toggle { display: flex; }
+    /* The desktop collapse-to-icons toggle has no purpose here — mobile
+       already gets its own off-canvas hamburger drawer above, and this
+       button's own is-collapsed state was never designed against the
+       drawer's open/closed one. Left showing (its default `display:flex`
+       has no breakpoint of its own), it just sat there half-overlapping
+       the sidebar's edge and, if tapped, added is-collapsed on top of
+       is-open — a state combination nothing else accounts for. */
+    .mdbk-sidebar-toggle { display: none; }
     /* translateX (not display:none) so the slide transition has something
        to animate, and so the sidebar's own scroll position/DOM state
        survives being toggled shut instead of resetting every time. */

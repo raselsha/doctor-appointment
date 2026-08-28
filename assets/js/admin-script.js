@@ -63,6 +63,25 @@ document.addEventListener('DOMContentLoaded', function() {
             if (!isCollapsed) hideTooltip();
         });
 
+        // is-collapsed only means anything on the desktop icon-rail layout
+        // (782px+) — below that .mdbk-sidebar is the off-canvas drawer
+        // instead, which has no icon-rail state of its own. The bootstrap
+        // inline script already skips adding this class on a page loaded
+        // narrow, but dragging a desktop browser window narrower crosses
+        // the breakpoint live, with the class already sitting there from
+        // before the resize — CSS alone can't tell "desktop, collapsed"
+        // apart from "mobile, stale flag" (an .is-collapsed rule has to
+        // win regardless of viewport for the desktop case to work at
+        // all), so the drawer would squeeze to the 72px rail width the
+        // moment it's opened. Restores it automatically back past 782px,
+        // matching what was actually stored.
+        window.addEventListener('resize', function() {
+            var isDesktop = window.innerWidth > 782;
+            var wantsCollapsed = localStorage.getItem(STORAGE_KEY) === '1';
+            sidebar.classList.toggle('is-collapsed', isDesktop && wantsCollapsed);
+            if (!isDesktop) hideTooltip();
+        });
+
         // Delegate hover events on menu items, WP link, and logout
         sidebar.addEventListener('mouseover', function(e) {
             var item = e.target.closest('.mdbk-menu-item, .mdbk-sidebar-wp-link, .mdbk-sidebar-logout');
