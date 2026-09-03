@@ -2438,8 +2438,18 @@ document.addEventListener('DOMContentLoaded', function() {
     // (no page navigation to the Booking page), prefilled from the
     // clicked row's own data-name/phone/email/age/gender (already on
     // .mdbk-patient-row-directory for the View/Edit flows).
-    document.querySelectorAll('.mdbk-book-appointment').forEach(function(btn) {
-        btn.addEventListener('click', function(e) {
+    //
+    // Delegated on document (not bound once per matched button at load,
+    // like initModal()'s own open-triggers just above) — this button
+    // lives inside the Patient Directory's live-search results fragment
+    // (see #mdbk-patients-results' innerHTML swap), so a per-element
+    // binding here went dead on every row a search re-rendered: "Book"
+    // worked fresh off a full page load but not after typing a search,
+    // since the newly injected buttons had never been through this
+    // forEach at all.
+    document.addEventListener('click', function(e) {
+        const btn = e.target.closest('.mdbk-book-appointment');
+        if (btn) {
             e.preventDefault();
             const row = btn.closest('.mdbk-patient-row-directory');
             if (!row) return;
@@ -2470,7 +2480,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 const doctorOpt = appDoctorSelect.panel.querySelector('.mdbk-custom-select-option[data-value="' + row.dataset.lastDoctorId + '"]');
                 if (doctorOpt) appDoctorSelect.setValue(doctorOpt.dataset.value, doctorOpt.textContent);
             }
-        });
+        }
     });
 
     // The Date field is now a hidden <input>, not a native
