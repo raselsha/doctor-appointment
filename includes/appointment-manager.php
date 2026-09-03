@@ -14,6 +14,7 @@ class MDBK_Appointment_Manager {
         'serving'   => 'mdbk_serving',
         'completed' => 'mdbk_completed',
         'no-show'   => 'mdbk_no_show',
+        'cancelled' => 'mdbk_cancelled',
     ];
 
     /**
@@ -117,6 +118,7 @@ class MDBK_Appointment_Manager {
             'serving'         => __('Visiting', 'doctor-appointment'),
             'completed'       => __('Visited', 'doctor-appointment'),
             'no-show'         => __('No Show', 'doctor-appointment'),
+            'cancelled'       => __('Cancelled', 'doctor-appointment'),
             'not-checked-in'  => __('Not Checked In', 'doctor-appointment'),
             'upcoming'        => __('Upcoming', 'doctor-appointment'),
         ];
@@ -911,6 +913,36 @@ class MDBK_Appointment_Manager {
         // this same request (both the kiosk and chamber check-in handlers
         // read one right after calling this).
         self::flush_checkin_rank_cache();
+
+        return true;
+    }
+
+    /**
+     * Staff-initiated cancellation — only allowed while a booking is still
+     * 'mdbk_waiting' AND not yet checked in, matching mark_checked_in()'s
+     * own guard so the two actions can never race (a booking that's been
+     * checked in is committed to the day's queue and must be handled as a
+     * no-show/visit instead). Soft-cancels via post_status rather than
+     * deleting the post, so the record (and its slot) stays in history and
+     * visible on the Bookings page instead of vanishing outright — that's
+     * what the existing hard "Delete" action is for.
+     */
+    public static function cancel_booking($appointment_id) {
+        $appointment_id = intval($appointment_id);
+        if (!$appointment_id || get_post_type($appointment_id) !== 'mdbk_appointment') {
+            return __('Invalid appointment.', 'doctor-appointment');
+        }
+        if (get_post_status($appointment_id) !== 'mdbk_waiting') {
+            return __('Only a waiting, not-yet-checked-in booking can be cancelled.', 'doctor-appointment');
+        }
+        if (get_post_meta($appointment_id, '_mdbk_checked_in', true) === 'yes') {
+            return __('This patient has already checked in and can no longer be cancelled.', 'doctor-appointment');
+        }
+
+        $updated = wp_update_post(['ID' => $appointment_id, 'post_status' => 'mdbk_cancelled'], true);
+        if (is_wp_error($updated)) {
+            return $updated->get_error_message();
+        }
 
         return true;
     }

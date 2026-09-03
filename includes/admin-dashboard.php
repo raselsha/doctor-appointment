@@ -30,6 +30,7 @@ class MDBK_Admin_Dashboard {
         add_action('wp_ajax_mdbk_search_patient_phone', [$this, 'ajax_search_patient_phone']);
         add_action('wp_ajax_mdbk_mark_visited', [$this, 'ajax_mark_visited']);
         add_action('wp_ajax_mdbk_admin_checkin', [$this, 'ajax_admin_checkin']);
+        add_action('wp_ajax_mdbk_cancel_booking', [$this, 'ajax_cancel_booking']);
         add_action('wp_ajax_mdbk_toggle_skip', [$this, 'ajax_toggle_skip']);
         add_action('wp_ajax_mdbk_start_visiting', [$this, 'ajax_start_visiting']);
         add_action('wp_ajax_mdbk_refresh_doctor_group', [$this, 'ajax_refresh_doctor_group']);
@@ -682,6 +683,34 @@ class MDBK_Admin_Dashboard {
 
         $show_doctor = isset($_POST['show_doctor']) && $_POST['show_doctor'] === '1';
         wp_send_json_success(['mode' => 'row', 'fragment' => $this->render_patient_appointment_row(get_post($appointment_id), $show_doctor)]);
+    }
+
+    /**
+     * Cancel a booking straight from the Bookings page — only offered
+     * (see render_patient_appointment_row()'s $can_cancel) while the
+     * booking is still waiting and not yet checked in; MDBK_Appointment_
+     * Manager::cancel_booking() re-checks the same guard server-side.
+     * Same capability as check-in (MDBK_CAP_QUEUE, not manage_options) so
+     * front-desk staff can cancel a booking too, not just admins.
+     */
+    public function ajax_cancel_booking() {
+        check_ajax_referer('mdbk_admin_nonce', 'nonce');
+        if (!current_user_can(MDBK_CAP_QUEUE)) {
+            wp_send_json_error(['message' => __('Unauthorized.', 'doctor-appointment')]);
+        }
+
+        $appointment_id = isset($_POST['appointment_id']) ? intval($_POST['appointment_id']) : 0;
+        if (!$appointment_id || get_post_type($appointment_id) !== 'mdbk_appointment') {
+            wp_send_json_error(['message' => __('Invalid appointment.', 'doctor-appointment')]);
+        }
+
+        $result = \MDBK\MDBK_Appointment_Manager::cancel_booking($appointment_id);
+        if ($result !== true) {
+            wp_send_json_error(['message' => $result]);
+        }
+
+        $show_doctor = isset($_POST['show_doctor']) && $_POST['show_doctor'] === '1';
+        wp_send_json_success(['fragment' => $this->render_patient_appointment_row(get_post($appointment_id), $show_doctor)]);
     }
 
     public function handle_delete_actions() {
@@ -2487,6 +2516,11 @@ class MDBK_Admin_Dashboard {
         // someone in directly from this list without a QR token.
         $checked_in = get_post_meta($a->ID, '_mdbk_checked_in', true) === 'yes';
         $can_checkin = $status === 'waiting' && !$checked_in && $date === current_time('Y-m-d');
+        // Cancel stays offered for ANY not-yet-checked-in waiting booking,
+        // not just today's (unlike $can_checkin) — a patient can cancel a
+        // future date just as well as today's, since check-in is the only
+        // thing that's date-gated.
+        $can_cancel = $status === 'waiting' && !$checked_in;
         ob_start();
         ?>
         <div class="mdbk-patient-row<?php echo $show_doctor ? ' mdbk-patient-row-has-doctor' : ''; ?><?php echo $is_emergency ? ' mdbk-row-emergency' : ''; ?> mdbk-status-<?php echo esc_attr($status); ?>" data-id="<?php echo esc_attr($a->ID); ?>" data-patient="<?php echo esc_attr($p_name); ?>" data-phone="<?php echo esc_attr($phone); ?>" data-email="<?php echo esc_attr($email); ?>" data-address="<?php echo esc_attr($address); ?>" data-district="<?php echo esc_attr($location['district']); ?>" data-thana="<?php echo esc_attr($location['thana']); ?>" data-age="<?php echo esc_attr($age); ?>" data-gender="<?php echo esc_attr($gender); ?>" data-doctor="<?php echo esc_attr($doc_id); ?>" data-specialty="<?php echo esc_attr($app_spec_id); ?>" data-date="<?php echo esc_attr($date); ?>" data-slot-time="<?php echo esc_attr($slot_time); ?>" data-status="<?php echo esc_attr($status); ?>" data-emergency="<?php echo esc_attr($is_emergency ? 'yes' : ''); ?>">
@@ -2526,6 +2560,17 @@ class MDBK_Admin_Dashboard {
                 // Invoice stays limited to today's and past visits only. ?>
                 <?php if ($status === 'completed' && $date <= current_time('Y-m-d') && current_user_can(MDBK_CAP_QUEUE)) : ?>
                 <a href="#" class="mdbk-action-btn mdbk-open-invoice" data-id="<?php echo esc_attr($a->ID); ?>" title="<?php esc_attr_e('Invoice', 'doctor-appointment'); ?>"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="9" y1="13" x2="15" y2="13"></line><line x1="9" y1="17" x2="15" y2="17"></line></svg></a>
+                <?php endif; ?>
+                <?php // Cancel — soft-cancels the booking (keeps the record,
+                // frees the slot) instead of the hard "Delete" below, and
+                // only while there's still something meaningful to cancel:
+                // once checked in the patient is already committed to
+                // today's queue. Same MDBK_CAP_QUEUE gate as Check In/
+                // Invoice above, not the admin-only gate Edit/Delete use,
+                // so front-desk staff handling a phoned-in cancellation
+                // don't need an admin around. ?>
+                <?php if ($can_cancel && current_user_can(MDBK_CAP_QUEUE)) : ?>
+                <a href="#" class="mdbk-action-btn mdbk-action-btn-red mdbk-cancel-booking-btn" data-id="<?php echo esc_attr($a->ID); ?>" title="<?php esc_attr_e('Cancel booking', 'doctor-appointment'); ?>"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg></a>
                 <?php endif; ?>
                 <?php if (current_user_can(MDBK_CAP_ADMIN)) : ?>
                 <a href="#" class="mdbk-action-btn mdbk-edit-appointment" data-id="<?php echo esc_attr($a->ID); ?>"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"></path><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"></path></svg></a>
@@ -2833,7 +2878,7 @@ class MDBK_Admin_Dashboard {
             // "Completed" for a status every badge, table and export calls
             // "Visited".
             $status_choices = [];
-            foreach (['waiting', 'serving', 'completed', 'no-show'] as $slug) {
+            foreach (['waiting', 'serving', 'completed', 'no-show', 'cancelled'] as $slug) {
                 $status_choices[$slug] = \MDBK\MDBK_Appointment_Manager::status_display_label($slug);
             }
             $status_label = $filter_status && isset($status_choices[$filter_status])

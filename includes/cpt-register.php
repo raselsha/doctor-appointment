@@ -15,7 +15,7 @@ class MDBK_CPT {
      * Use this instead of post_status => 'any' anywhere mdbk_appointment is
      * queried by status — 'any' silently excludes exclude_from_search statuses.
      */
-    const APPOINTMENT_STATUSES = [ 'mdbk_waiting', 'mdbk_serving', 'mdbk_completed', 'mdbk_no_show' ];
+    const APPOINTMENT_STATUSES = [ 'mdbk_waiting', 'mdbk_serving', 'mdbk_completed', 'mdbk_no_show', 'mdbk_cancelled' ];
 
     public function __construct() {
         add_action( 'init', [$this, 'create_post_type'] );
@@ -70,6 +70,16 @@ class MDBK_CPT {
             'show_in_admin_all_list'    => true,
             'show_in_admin_status_list' => true,
             'label_count'               => _n_noop( 'No Show <span class="count">(%s)</span>', 'No Show <span class="count">(%s)</span>', 'doctor-appointment' ),
+        ] );
+
+        register_post_status( 'mdbk_cancelled', [
+            'label'                     => _x( 'Cancelled', 'appointment status', 'doctor-appointment' ),
+            'public'                    => false,
+            'internal'                  => true,
+            'exclude_from_search'       => true,
+            'show_in_admin_all_list'    => true,
+            'show_in_admin_status_list' => true,
+            'label_count'               => _n_noop( 'Cancelled <span class="count">(%s)</span>', 'Cancelled <span class="count">(%s)</span>', 'doctor-appointment' ),
         ] );
     }
 
