@@ -17,6 +17,7 @@ class MDBK_Admin_Dashboard {
         add_action('admin_init', [$this, 'handle_schedule_export']);
         add_action('admin_init', [$this, 'handle_change_password_save']);
         add_action('admin_init', [$this, 'handle_global_settings_save']);
+        add_action('admin_init', [$this, 'handle_sms_settings_save']);
         add_action('wp_ajax_mdbk_toggle_doctor_active', [$this, 'ajax_toggle_doctor_active']);
         add_action('wp_ajax_mdbk_toggle_doctor_live_queue', [$this, 'ajax_toggle_doctor_live_queue']);
         add_action('wp_ajax_mdbk_toggle_specialty_active', [$this, 'ajax_toggle_specialty_active']);
@@ -1353,6 +1354,12 @@ class MDBK_Admin_Dashboard {
                 // memo of that list can't be trusted for the rest of this
                 // request.
                 \MDBK\MDBK_Appointment_Manager::flush_checkin_rank_cache();
+                // The patient is expecting a different day or time to the
+                // one now on the books, so this is the one change to a
+                // booking they have to be told about. Fired here rather
+                // than off the status transition because a reschedule
+                // usually doesn't change the status at all.
+                do_action('mdbk_appointment_rescheduled', $id, $old_date, $old_slot_time);
             }
             // Only booking-order mode keeps a stored number to maintain
             // here. Check-in-order mode derives each patient's number from
@@ -1669,6 +1676,268 @@ class MDBK_Admin_Dashboard {
         <?php
     }
 
+    /**
+     * Saves the SMS screen.
+     *
+     * The API key is treated the way a password field is: the form renders
+     * it masked, and a submit that comes back holding the mask means "you
+     * didn't touch it", not "set the key to a row of dots". Without that,
+     * saving a template change would silently destroy the credential.
+     */
+    public function handle_sms_settings_save() {
+        if (!isset($_POST['mdbk_save_sms_settings'])) return;
+        if (!current_user_can(MDBK_CAP_ADMIN)) wp_die(__('You do not have permission to do this.', 'doctor-appointment'));
+        check_admin_referer('mdbk_save_sms_settings');
+
+        $existing = \MDBK\MDBK_SMS::settings();
+
+        $api_key = isset($_POST['sms_api_key']) ? trim(sanitize_text_field(wp_unslash($_POST['sms_api_key']))) : '';
+        if ($api_key === self::SMS_KEY_MASK) $api_key = $existing['api_key'];
+
+        $settings = [
+            'enabled'        => !empty($_POST['sms_enabled']),
+            'api_key'        => $api_key,
+            'sender_id'      => isset($_POST['sms_sender_id']) ? trim(sanitize_text_field(wp_unslash($_POST['sms_sender_id']))) : '',
+            'reminder_hours' => isset($_POST['sms_reminder_hours']) ? max(1, min(168, intval($_POST['sms_reminder_hours']))) : 3,
+            'log_retention'  => isset($_POST['sms_log_retention']) ? max(0, min(365, intval($_POST['sms_log_retention']))) : 30,
+            'events'         => [],
+        ];
+
+        foreach (\MDBK\MDBK_SMS::events() as $key => $event) {
+            // wp_unslash + sanitize_textarea_field, never sanitize_text_field:
+            // a template is allowed to contain line breaks, and stripping
+            // them would silently rewrite what the clinic wrote.
+            $template = isset($_POST['sms_template'][$key])
+                ? sanitize_textarea_field(wp_unslash($_POST['sms_template'][$key]))
+                : $event['template'];
+            $settings['events'][$key] = [
+                'enabled'  => !empty($_POST['sms_event'][$key]),
+                'template' => $template,
+            ];
+        }
+
+        update_option(\MDBK\MDBK_SMS::OPTION, $settings);
+        delete_transient('mdbk_sms_balance');
+
+        wp_redirect(admin_url('admin.php?page=mdbk-sms-settings&success=1'));
+        exit;
+    }
+
+    /**
+     * What the API key field shows instead of the key itself. Any string
+     * the gateway could never issue works; this one is obviously a mask
+     * rather than a value, which is the point.
+     */
+    const SMS_KEY_MASK = '••••••••••••••••';
+
+    public function render_sms_settings_page() {
+        if (!current_user_can(MDBK_CAP_ADMIN)) {
+            wp_die(__('You do not have permission to access this page.', 'doctor-appointment'));
+        }
+
+        $settings     = \MDBK\MDBK_SMS::settings();
+        $events       = \MDBK\MDBK_SMS::events();
+        $placeholders = \MDBK\MDBK_SMS::placeholders();
+        $log          = \MDBK\MDBK_SMS::recent_log(25);
+        // Read from cache only — opening this page shouldn't block on the
+        // gateway, and the Refresh button next to it fetches a live figure
+        // on demand.
+        $balance = $settings['api_key'] !== '' ? get_transient('mdbk_sms_balance') : false;
+        ?>
+        <div id="mdbk-admin-dashboard"><div class="mdbk-admin-wrapper"><?php $this->render_sidebar('sms-settings'); ?>
+            <div class="mdbk-main-content mdbk-main-content-fixed-header">
+                <div class="mdbk-header"><div class="mdbk-header-left"><h1><?php _e('SMS', 'doctor-appointment'); ?></h1></div></div>
+                <div class="mdbk-global-settings-scroll-wrap">
+                <?php if (isset($_GET['success'])) : ?>
+                    <p style="color:#16A34A; font-weight:600; margin-top:0;"><?php _e('SMS settings saved.', 'doctor-appointment'); ?></p>
+                <?php endif; ?>
+
+                <form method="POST" id="mdbk-sms-settings-form">
+                    <?php wp_nonce_field('mdbk_save_sms_settings'); ?>
+
+                    <div class="mdbk-card" style="padding:24px;">
+                        <h3 style="margin:0 0 4px; font-size:15px;"><?php _e('Gateway', 'doctor-appointment'); ?></h3>
+                        <p class="mdbk-form-hint" style="margin:0 0 18px;">
+                            <?php printf(
+                                /* translators: %s = link to the SMS provider's API page */
+                                esc_html__('Messages are sent through %s. Create an account there, then paste the API key from its "API" page below.', 'doctor-appointment'),
+                                '<a href="https://sms.bd/api" target="_blank" rel="noopener noreferrer">sms.bd</a>'
+                            ); ?>
+                        </p>
+
+                        <div class="mdbk-sms-enable-row">
+                            <label class="mdbk-toggle">
+                                <input type="checkbox" name="sms_enabled" value="1" <?php checked($settings['enabled']); ?>>
+                                <span class="mdbk-toggle-slider"></span>
+                            </label>
+                            <div>
+                                <strong><?php _e('Send SMS notifications', 'doctor-appointment'); ?></strong>
+                                <div class="mdbk-form-hint"><?php _e('The master switch. With this off nothing is sent, whatever the individual messages below say.', 'doctor-appointment'); ?></div>
+                            </div>
+                        </div>
+
+                        <div class="mdbk-form-row mdbk-form-row-duo" style="margin-top:18px;">
+                            <div>
+                                <label class="mdbk-form-label" for="mdbk-sms-api-key"><?php _e('API Key', 'doctor-appointment'); ?></label>
+                                <input type="text" name="sms_api_key" id="mdbk-sms-api-key" class="mdbk-input" autocomplete="off"
+                                       value="<?php echo esc_attr($settings['api_key'] !== '' ? self::SMS_KEY_MASK : ''); ?>"
+                                       placeholder="<?php esc_attr_e('Paste your sms.bd API key', 'doctor-appointment'); ?>">
+                                <div class="mdbk-form-hint"><?php _e('Leave the dots untouched to keep the saved key.', 'doctor-appointment'); ?></div>
+                            </div>
+                            <div>
+                                <label class="mdbk-form-label" for="mdbk-sms-sender-id"><?php _e('Sender ID', 'doctor-appointment'); ?></label>
+                                <input type="text" name="sms_sender_id" id="mdbk-sms-sender-id" class="mdbk-input"
+                                       value="<?php echo esc_attr($settings['sender_id']); ?>"
+                                       placeholder="<?php esc_attr_e('Optional — e.g. MedBook', 'doctor-appointment'); ?>">
+                                <div class="mdbk-form-hint"><?php _e('Only use a Sender ID the gateway has approved for your account, or every send is rejected.', 'doctor-appointment'); ?></div>
+                            </div>
+                        </div>
+
+                        <div class="mdbk-sms-balance-row">
+                            <span class="mdbk-form-label" style="margin:0;"><?php _e('Account balance', 'doctor-appointment'); ?></span>
+                            <strong id="mdbk-sms-balance"><?php echo is_array($balance) && !empty($balance['balance']) ? esc_html($balance['balance']) : '—'; ?></strong>
+                            <button type="button" class="mdbk-btn-outline mdbk-btn-sm" id="mdbk-sms-balance-refresh"><?php _e('Check', 'doctor-appointment'); ?></button>
+                            <span class="mdbk-sms-inline-msg" id="mdbk-sms-balance-msg"></span>
+                        </div>
+                    </div>
+
+                    <div class="mdbk-card" style="padding:24px; margin-top:20px;">
+                        <h3 style="margin:0 0 4px; font-size:15px;"><?php _e('Timing & history', 'doctor-appointment'); ?></h3>
+                        <p class="mdbk-form-hint" style="margin:0 0 18px;"><?php _e('Applies to the reminder message below, and to how long sent messages are kept.', 'doctor-appointment'); ?></p>
+                        <div class="mdbk-form-row mdbk-form-row-duo">
+                            <div>
+                                <label class="mdbk-form-label" for="mdbk-sms-reminder-hours"><?php _e('Send the reminder this many hours before', 'doctor-appointment'); ?></label>
+                                <input type="number" min="1" max="168" step="1" name="sms_reminder_hours" id="mdbk-sms-reminder-hours" class="mdbk-input" value="<?php echo esc_attr($settings['reminder_hours']); ?>">
+                                <div class="mdbk-form-hint"><?php _e('Counted from the appointment time. Checked every 15 minutes, and never sent twice for the same booking.', 'doctor-appointment'); ?></div>
+                            </div>
+                            <div>
+                                <label class="mdbk-form-label" for="mdbk-sms-log-retention"><?php _e('Keep the SMS log for this many days', 'doctor-appointment'); ?></label>
+                                <input type="number" min="0" max="365" step="1" name="sms_log_retention" id="mdbk-sms-log-retention" class="mdbk-input" value="<?php echo esc_attr($settings['log_retention']); ?>">
+                                <div class="mdbk-form-hint"><?php _e('0 keeps every message forever.', 'doctor-appointment'); ?></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mdbk-card" style="padding:24px; margin-top:20px;">
+                        <h3 style="margin:0 0 4px; font-size:15px;"><?php _e('Messages', 'doctor-appointment'); ?></h3>
+                        <p class="mdbk-form-hint" style="margin:0 0 6px;"><?php _e('Switch on only the moments worth paying for. Each message is billed separately, per recipient.', 'doctor-appointment'); ?></p>
+                        <p class="mdbk-form-hint" style="margin:0 0 18px;">
+                            <strong><?php _e('Length matters:', 'doctor-appointment'); ?></strong>
+                            <?php _e('an English message fits 160 characters in one SMS, but any Bangla character at all switches it to Unicode, where one SMS is only 70 characters. The counter under each box shows what you will actually be charged.', 'doctor-appointment'); ?>
+                        </p>
+
+                        <div class="mdbk-sms-placeholders">
+                            <span class="mdbk-form-label" style="margin:0 8px 0 0;"><?php _e('Click to insert:', 'doctor-appointment'); ?></span>
+                            <?php foreach ($placeholders as $token => $desc) : ?>
+                                <button type="button" class="mdbk-sms-token" data-token="<?php echo esc_attr($token); ?>" title="<?php echo esc_attr($desc); ?>"><?php echo esc_html($token); ?></button>
+                            <?php endforeach; ?>
+                        </div>
+
+                        <?php foreach ($events as $key => $event) :
+                            $conf = $settings['events'][$key];
+                            $counts = \MDBK\MDBK_SMS::count_message($conf['template']);
+                            ?>
+                            <div class="mdbk-sms-event <?php echo $conf['enabled'] ? '' : 'mdbk-sms-event-off'; ?>" data-event="<?php echo esc_attr($key); ?>">
+                                <div class="mdbk-sms-event-head">
+                                    <label class="mdbk-toggle">
+                                        <input type="checkbox" class="mdbk-sms-event-toggle" name="sms_event[<?php echo esc_attr($key); ?>]" value="1" <?php checked($conf['enabled']); ?>>
+                                        <span class="mdbk-toggle-slider"></span>
+                                    </label>
+                                    <div class="mdbk-sms-event-title">
+                                        <strong><?php echo esc_html($event['label']); ?></strong>
+                                        <span class="mdbk-sms-audience mdbk-sms-audience-<?php echo esc_attr($event['audience']); ?>">
+                                            <?php echo $event['audience'] === 'doctor' ? esc_html__('to doctor', 'doctor-appointment') : esc_html__('to patient', 'doctor-appointment'); ?>
+                                        </span>
+                                        <div class="mdbk-form-hint"><?php echo esc_html($event['description']); ?></div>
+                                    </div>
+                                </div>
+                                <textarea class="mdbk-input mdbk-sms-template" name="sms_template[<?php echo esc_attr($key); ?>]" rows="3"><?php echo esc_textarea($conf['template']); ?></textarea>
+                                <div class="mdbk-sms-counter" data-counter>
+                                    <span class="mdbk-sms-count-enc"><?php echo $counts['encoding'] === 'unicode' ? esc_html__('Unicode', 'doctor-appointment') : esc_html__('English', 'doctor-appointment'); ?></span>
+                                    <span class="mdbk-sms-count-chars"><?php printf(esc_html__('%d characters', 'doctor-appointment'), $counts['length']); ?></span>
+                                    <span class="mdbk-sms-count-parts <?php echo $counts['parts'] > 1 ? 'mdbk-sms-count-warn' : ''; ?>"><?php printf(esc_html(_n('%d SMS', '%d SMS', $counts['parts'], 'doctor-appointment')), $counts['parts']); ?></span>
+                                </div>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+
+                    <div class="mdbk-global-settings-save-row">
+                        <button type="submit" name="mdbk_save_sms_settings" class="mdbk-btn-save"><?php _e('Save SMS Settings', 'doctor-appointment'); ?></button>
+                    </div>
+                </form>
+
+                <?php // Outside the settings form on purpose — a test send is an
+                      // action, not a setting, and nesting a second form would
+                      // make Enter in the number field save the whole page. ?>
+                <div class="mdbk-card" style="padding:24px; margin-top:20px;">
+                    <h3 style="margin:0 0 4px; font-size:15px;"><?php _e('Send a test message', 'doctor-appointment'); ?></h3>
+                    <p class="mdbk-form-hint" style="margin:0 0 18px;"><?php _e('Sends immediately using the saved key — save your changes first. This costs one message.', 'doctor-appointment'); ?></p>
+                    <div class="mdbk-form-row mdbk-form-row-duo">
+                        <div>
+                            <label class="mdbk-form-label" for="mdbk-sms-test-to"><?php _e('Send to', 'doctor-appointment'); ?></label>
+                            <input type="text" id="mdbk-sms-test-to" class="mdbk-input" placeholder="<?php esc_attr_e('e.g. 01700000000', 'doctor-appointment'); ?>">
+                        </div>
+                        <div>
+                            <label class="mdbk-form-label" for="mdbk-sms-test-message"><?php _e('Message', 'doctor-appointment'); ?></label>
+                            <textarea id="mdbk-sms-test-message" class="mdbk-input mdbk-sms-template" rows="2"><?php esc_html_e('Test message from MedBook.', 'doctor-appointment'); ?></textarea>
+                            <div class="mdbk-sms-counter" data-counter></div>
+                        </div>
+                    </div>
+                    <div style="margin-top:14px; display:flex; align-items:center; gap:12px;">
+                        <button type="button" class="mdbk-btn-outline mdbk-btn-sm" id="mdbk-sms-test-send"><?php _e('Send test', 'doctor-appointment'); ?></button>
+                        <span class="mdbk-sms-inline-msg" id="mdbk-sms-test-msg"></span>
+                    </div>
+                </div>
+
+                <div class="mdbk-card" style="padding:24px; margin-top:20px;">
+                    <h3 style="margin:0 0 18px; font-size:15px;"><?php _e('Recent messages', 'doctor-appointment'); ?></h3>
+                    <?php if (empty($log)) : ?>
+                        <p class="mdbk-form-hint" style="margin:0;"><?php _e('Nothing sent yet.', 'doctor-appointment'); ?></p>
+                    <?php else : ?>
+                    <div style="overflow-x:auto;">
+                        <table class="mdbk-table mdbk-sms-log-table">
+                            <thead><tr>
+                                <th><?php _e('When', 'doctor-appointment'); ?></th>
+                                <th><?php _e('To', 'doctor-appointment'); ?></th>
+                                <th><?php _e('Event', 'doctor-appointment'); ?></th>
+                                <th><?php _e('Message', 'doctor-appointment'); ?></th>
+                                <th><?php _e('SMS', 'doctor-appointment'); ?></th>
+                                <th><?php _e('Result', 'doctor-appointment'); ?></th>
+                            </tr></thead>
+                            <tbody>
+                            <?php foreach ($log as $row) :
+                                $status = get_post_meta($row->ID, '_mdbk_sms_status', true);
+                                $error  = get_post_meta($row->ID, '_mdbk_sms_error', true);
+                                $event_key = get_post_meta($row->ID, '_mdbk_sms_event', true);
+                                $event_label = isset($events[$event_key]) ? $events[$event_key]['label'] : $event_key;
+                                ?>
+                                <tr>
+                                    <td><?php echo esc_html(get_the_date(get_option('date_format') . ', ' . get_option('time_format'), $row)); ?></td>
+                                    <td><?php echo esc_html(get_post_meta($row->ID, '_mdbk_sms_to', true)); ?></td>
+                                    <td><?php echo esc_html($event_label); ?></td>
+                                    <td class="mdbk-sms-log-message"><?php echo esc_html(get_post_meta($row->ID, '_mdbk_sms_message', true)); ?></td>
+                                    <td><?php echo esc_html(get_post_meta($row->ID, '_mdbk_sms_parts', true)); ?></td>
+                                    <td>
+                                        <?php if ($status === 'sent') : ?>
+                                            <span class="mdbk-sms-ok"><?php _e('Sent', 'doctor-appointment'); ?></span>
+                                        <?php else : ?>
+                                            <span class="mdbk-sms-fail" title="<?php echo esc_attr($error); ?>"><?php _e('Failed', 'doctor-appointment'); ?></span>
+                                        <?php endif; ?>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                    <?php endif; ?>
+                </div>
+
+                </div>
+            </div>
+        </div></div>
+        <?php
+    }
+
     public function render_license_page() {
         if (!current_user_can(MDBK_CAP_ADMIN)) {
             wp_die(__('You do not have permission to access this page.', 'doctor-appointment'));
@@ -1801,7 +2070,7 @@ class MDBK_Admin_Dashboard {
         // the door; 'read' is the floor both roles clear.
         add_submenu_page('mdbk-home', 'Patients', 'Patients', 'read', 'mdbk-patients', [$this, 'render_patients_page']);
 
-        $hidden_pages = ['mdbk-doctors' => 'render_doctors_page', 'mdbk-staff' => 'render_staff_page', 'mdbk-specialties' => 'render_specialties_page', 'mdbk-global-settings' => 'render_global_settings_page', 'mdbk-license' => 'render_license_page'];
+        $hidden_pages = ['mdbk-doctors' => 'render_doctors_page', 'mdbk-staff' => 'render_staff_page', 'mdbk-specialties' => 'render_specialties_page', 'mdbk-global-settings' => 'render_global_settings_page', 'mdbk-sms-settings' => 'render_sms_settings_page', 'mdbk-license' => 'render_license_page'];
         foreach($hidden_pages as $slug => $cb) add_submenu_page('mdbk-home', $slug, $slug, MDBK_CAP_ADMIN, $slug, [$this, $cb]);
 
         // "Chamber QR" — a one-time "print this and hang it in the
@@ -4925,6 +5194,7 @@ class MDBK_Admin_Dashboard {
             <?php if (current_user_can(MDBK_CAP_ADMIN)) : ?>
             <li class="mdbk-menu-item <?php echo $active_page == 'specialties' ? 'active' : ''; ?>" data-tooltip="<?php esc_attr_e('Specialties', 'doctor-appointment'); ?>" onclick="window.location.href='<?php echo esc_url(admin_url('admin.php?page=mdbk-specialties')); ?>'"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41L13.42 20.58a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path><line x1="7" y1="7" x2="7.01" y2="7"></line></svg><span class="mdbk-menu-label"><?php _e('Specialties', 'doctor-appointment'); ?></span></li>
             <li class="mdbk-menu-item <?php echo $active_page == 'global-settings' ? 'active' : ''; ?>" data-tooltip="<?php esc_attr_e('Settings', 'doctor-appointment'); ?>" onclick="window.location.href='<?php echo esc_url(admin_url('admin.php?page=mdbk-global-settings')); ?>'"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg><span class="mdbk-menu-label"><?php _e('Settings', 'doctor-appointment'); ?></span></li>
+            <li class="mdbk-menu-item <?php echo $active_page == 'sms-settings' ? 'active' : ''; ?>" data-tooltip="<?php esc_attr_e('SMS', 'doctor-appointment'); ?>" onclick="window.location.href='<?php echo esc_url(admin_url('admin.php?page=mdbk-sms-settings')); ?>'"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg><span class="mdbk-menu-label"><?php _e('SMS', 'doctor-appointment'); ?></span></li>
             <li class="mdbk-menu-item <?php echo $active_page == 'license' ? 'active' : ''; ?>" data-tooltip="<?php esc_attr_e('License', 'doctor-appointment'); ?>" onclick="window.location.href='<?php echo esc_url(admin_url('admin.php?page=mdbk-license')); ?>'"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="7.5" cy="15.5" r="5.5"></circle><path d="M21 2l-9.6 9.6"></path><path d="M15.5 7.5L18 10"></path><path d="M18.5 4.5L21 7"></path></svg><span class="mdbk-menu-label"><?php _e('License', 'doctor-appointment'); ?></span></li>
             <?php endif; ?>
         </ul>

@@ -3407,6 +3407,167 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
+    // ---- SMS settings page ----
+    //
+    // The counter under each template box is the reason this page needs JS
+    // at all. An SMS is billed by segment, and the segment size depends on
+    // the alphabet: plain English is GSM-7 and fits 160 characters, but a
+    // single Bangla character switches the whole message to Unicode, where
+    // one SMS is 70 characters. A clinic writing its templates in Bangla —
+    // which is the normal case here — would otherwise have no way to know
+    // that the message they just wrote is three messages until the bill
+    // arrived. Same arithmetic as MDBK_SMS::count_message() on the server,
+    // deliberately duplicated rather than fetched, so the numbers move as
+    // you type instead of after a round trip.
+    const MDBK_GSM_BASIC = '@£$¥èéùìòÇ\nØø\rÅåΔ_ΦΓΛΩΠΨΣΘΞÆæßÉ !"#¤%&\'()*+,-./0123456789:;<=>?¡ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÑÜ§¿abcdefghijklmnopqrstuvwxyzäöñüà';
+    const MDBK_GSM_EXTENDED = '^{}\\[~]|€';
+
+    function mdbkCountSms(text) {
+        // Array.from, not .length: an emoji or any character outside the
+        // BMP is two UTF-16 code units, and counting those as two would
+        // overstate the length of exactly the messages already closest to
+        // the limit.
+        const chars = Array.from(String(text || ''));
+        let unicode = false;
+        let length = 0;
+        for (const c of chars) {
+            if (MDBK_GSM_BASIC.indexOf(c) !== -1) length += 1;
+            else if (MDBK_GSM_EXTENDED.indexOf(c) !== -1) length += 2;
+            else { unicode = true; break; }
+        }
+        if (unicode) length = chars.length;
+        const single = unicode ? 70 : 160;
+        const perPart = unicode ? 67 : 153;
+        let parts;
+        if (length === 0) parts = 0;
+        else if (length <= single) parts = 1;
+        else parts = Math.ceil(length / perPart);
+        return { unicode: unicode, length: length, parts: parts };
+    }
+
+    function mdbkRenderSmsCounter(textarea) {
+        const box = textarea.parentElement ? textarea.parentElement.querySelector('[data-counter]') : null;
+        if (!box) return;
+        const c = mdbkCountSms(textarea.value);
+        const encLabel = c.unicode
+            ? (mdbk_admin_obj.sms_unicode_label || 'Unicode')
+            : (mdbk_admin_obj.sms_english_label || 'English');
+        const charsLabel = (mdbk_admin_obj.sms_chars_label || '%d characters').replace('%d', c.length);
+        const smsLabel = (mdbk_admin_obj.sms_count_label || '%d SMS').replace('%d', c.parts);
+        box.innerHTML = '';
+        const enc = document.createElement('span');
+        enc.className = 'mdbk-sms-count-enc';
+        enc.textContent = encLabel;
+        const ch = document.createElement('span');
+        ch.className = 'mdbk-sms-count-chars';
+        ch.textContent = charsLabel;
+        const pt = document.createElement('span');
+        pt.className = 'mdbk-sms-count-parts' + (c.parts > 1 ? ' mdbk-sms-count-warn' : '');
+        pt.textContent = smsLabel;
+        box.appendChild(enc);
+        box.appendChild(ch);
+        box.appendChild(pt);
+    }
+
+    document.querySelectorAll('.mdbk-sms-template').forEach(function(ta) {
+        mdbkRenderSmsCounter(ta);
+        ta.addEventListener('input', function() { mdbkRenderSmsCounter(ta); });
+    });
+
+    // Placeholder chips insert at the caret of whichever template box was
+    // last focused, rather than always appending to the end — the token
+    // usually belongs mid-sentence, and appending would mean retyping the
+    // rest of the line every time.
+    (function() {
+        const tokens = document.querySelectorAll('.mdbk-sms-token');
+        if (!tokens.length) return;
+        let lastFocused = null;
+        document.querySelectorAll('.mdbk-sms-template').forEach(function(ta) {
+            ta.addEventListener('focus', function() { lastFocused = ta; });
+        });
+        tokens.forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                const ta = lastFocused || document.querySelector('.mdbk-sms-template');
+                if (!ta) return;
+                const token = btn.dataset.token || '';
+                const start = ta.selectionStart != null ? ta.selectionStart : ta.value.length;
+                const end = ta.selectionEnd != null ? ta.selectionEnd : ta.value.length;
+                ta.value = ta.value.slice(0, start) + token + ta.value.slice(end);
+                ta.focus();
+                ta.selectionStart = ta.selectionEnd = start + token.length;
+                mdbkRenderSmsCounter(ta);
+            });
+        });
+    })();
+
+    // Dim a switched-off message so the enabled ones are readable at a
+    // glance. The textarea stays editable on purpose — writing the message
+    // before switching it on is a reasonable order to work in.
+    document.querySelectorAll('.mdbk-sms-event-toggle').forEach(function(box) {
+        box.addEventListener('change', function() {
+            const row = box.closest('.mdbk-sms-event');
+            if (row) row.classList.toggle('mdbk-sms-event-off', !box.checked);
+        });
+    });
+
+    const smsBalanceBtn = document.getElementById('mdbk-sms-balance-refresh');
+    if (smsBalanceBtn) {
+        smsBalanceBtn.addEventListener('click', function() {
+            const out = document.getElementById('mdbk-sms-balance');
+            const msg = document.getElementById('mdbk-sms-balance-msg');
+            smsBalanceBtn.disabled = true;
+            msg.textContent = '';
+            msg.className = 'mdbk-sms-inline-msg';
+            const body = new URLSearchParams();
+            body.set('action', 'mdbk_sms_balance');
+            body.set('nonce', mdbk_admin_obj.nonce);
+            fetch(mdbk_admin_obj.ajax_url, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body.toString() })
+                .then(function(r) { return r.json(); })
+                .then(function(res) {
+                    if (res && res.success) {
+                        out.textContent = res.data.balance;
+                    } else {
+                        msg.textContent = (res && res.data && res.data.message) || '';
+                        msg.className = 'mdbk-sms-inline-msg mdbk-sms-inline-fail';
+                    }
+                })
+                .catch(function() {
+                    msg.textContent = mdbk_admin_obj.sms_network_error || '';
+                    msg.className = 'mdbk-sms-inline-msg mdbk-sms-inline-fail';
+                })
+                .finally(function() { smsBalanceBtn.disabled = false; });
+        });
+    }
+
+    const smsTestBtn = document.getElementById('mdbk-sms-test-send');
+    if (smsTestBtn) {
+        smsTestBtn.addEventListener('click', function() {
+            const to = document.getElementById('mdbk-sms-test-to');
+            const message = document.getElementById('mdbk-sms-test-message');
+            const msg = document.getElementById('mdbk-sms-test-msg');
+            msg.textContent = '';
+            msg.className = 'mdbk-sms-inline-msg';
+            smsTestBtn.disabled = true;
+            const body = new URLSearchParams();
+            body.set('action', 'mdbk_sms_test');
+            body.set('nonce', mdbk_admin_obj.nonce);
+            body.set('to', to ? to.value : '');
+            body.set('message', message ? message.value : '');
+            fetch(mdbk_admin_obj.ajax_url, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body.toString() })
+                .then(function(r) { return r.json(); })
+                .then(function(res) {
+                    const ok = !!(res && res.success);
+                    msg.textContent = (res && res.data && res.data.message) || '';
+                    msg.className = 'mdbk-sms-inline-msg ' + (ok ? 'mdbk-sms-inline-ok' : 'mdbk-sms-inline-fail');
+                })
+                .catch(function() {
+                    msg.textContent = mdbk_admin_obj.sms_network_error || '';
+                    msg.className = 'mdbk-sms-inline-msg mdbk-sms-inline-fail';
+                })
+                .finally(function() { smsTestBtn.disabled = false; });
+        });
+    }
+
     // License card (Global Settings) — Activate/Deactivate/Refresh, each a
     // direct admin-ajax call with its own button-disable-while-in-flight
     // guard. No page reload needed; the two panels (inactive/activated) are

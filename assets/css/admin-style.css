@@ -2839,3 +2839,62 @@ body.mdbk-doctor-chrome .mdbk-admin-wrapper {
     .mdbk-visit-stopwatch.is-minimised .mdbk-visit-stopwatch-time { font-size: 16px; }
 }
 
+
+/* ---- SMS settings page ---- */
+
+/* The master switch reads as a sentence rather than a bare toggle in a
+   form row: it governs everything below it, so it gets its own line and
+   its own explanation instead of sitting in the label column. */
+.mdbk-sms-enable-row { display: flex; align-items: flex-start; gap: 14px; padding: 14px 16px; border: 1px solid #e2e8f0; border-radius: 12px; background: #f8fafc; }
+.mdbk-sms-enable-row strong { font-size: 13px; color: #1e293b; }
+.mdbk-sms-enable-row .mdbk-form-hint { margin: 2px 0 0; }
+
+.mdbk-sms-balance-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 18px; padding-top: 18px; border-top: 1px solid #e2e8f0; }
+.mdbk-sms-balance-row strong { font-size: 15px; color: #1e293b; font-variant-numeric: tabular-nums; }
+
+.mdbk-sms-inline-msg { font-size: 12px; font-weight: 600; }
+.mdbk-sms-inline-ok { color: #16a34a; }
+.mdbk-sms-inline-fail { color: #ef4444; }
+
+/* Token chips. Deliberately small and monospaced — they're literal text
+   that gets pasted into the message, so they should look like code, not
+   like buttons that do something clever. */
+.mdbk-sms-placeholders { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; padding: 12px 14px; border: 1px dashed #cbd5e1; border-radius: 12px; background: #f8fafc; margin-bottom: 18px; }
+.mdbk-sms-token { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; padding: 4px 8px; border-radius: 7px; border: 1px solid #e2e8f0; background: #fff; color: #475569; cursor: pointer; transition: all 0.15s ease; }
+.mdbk-sms-token:hover { background: rgba(0, 97, 213, 0.08); border-color: rgba(0, 97, 213, 0.3); color: #0061d5; }
+
+.mdbk-sms-event { padding: 16px; border: 1px solid #e2e8f0; border-radius: 12px; margin-bottom: 14px; transition: opacity 0.2s ease; }
+.mdbk-sms-event:last-child { margin-bottom: 0; }
+/* A switched-off message stays fully readable and fully editable — only
+   its weight in the page drops, so the ones actually sending stand out
+   when scanning down the list. */
+.mdbk-sms-event-off { opacity: 0.62; background: #f8fafc; }
+.mdbk-sms-event-head { display: flex; align-items: flex-start; gap: 14px; margin-bottom: 12px; }
+.mdbk-sms-event-title strong { font-size: 13px; color: #1e293b; }
+.mdbk-sms-event-title .mdbk-form-hint { margin: 3px 0 0; }
+.mdbk-sms-event textarea.mdbk-input { width: 100%; resize: vertical; font-size: 13px; line-height: 1.5; }
+
+.mdbk-sms-audience { display: inline-block; margin-left: 8px; padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; vertical-align: middle; }
+.mdbk-sms-audience-patient { background: rgba(0, 97, 213, 0.1); color: #0061d5; }
+.mdbk-sms-audience-doctor { background: rgba(22, 163, 74, 0.1); color: #16a34a; }
+
+/* Counter. Tabular numerals so the digits don't jitter sideways on every
+   keystroke, which is exactly when this is being read. */
+.mdbk-sms-counter { display: flex; align-items: center; gap: 14px; margin-top: 8px; font-size: 11px; font-weight: 600; color: #64748b; font-variant-numeric: tabular-nums; }
+.mdbk-sms-count-enc { padding: 2px 8px; border-radius: 999px; background: #f1f5f9; color: #475569; }
+/* Anything over one segment is the thing worth noticing here — it means
+   this message is being billed more than once, every time it sends. */
+.mdbk-sms-count-warn { color: #d97706; }
+
+.mdbk-sms-log-table td { font-size: 12px; vertical-align: top; }
+/* The message column is the one that would otherwise force the table
+   wider than the card; everything else in the row is short. */
+.mdbk-sms-log-message { max-width: 380px; white-space: normal; word-break: break-word; color: #475569; }
+.mdbk-sms-ok { color: #16a34a; font-weight: 700; }
+.mdbk-sms-fail { color: #ef4444; font-weight: 700; cursor: help; }
+
+@media (max-width: 782px) {
+    .mdbk-sms-event-head { gap: 10px; }
+    .mdbk-sms-counter { flex-wrap: wrap; gap: 8px; }
+    .mdbk-sms-log-message { max-width: none; }
+}

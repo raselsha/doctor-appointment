@@ -97,6 +97,7 @@ if ( ! class_exists( 'MDBK_Doctor_Appointment' ) ) {
             require_once MDBK_PATH . 'includes/appointment-manager.php';
             require_once MDBK_PATH . 'includes/admin-dashboard.php';
             require_once MDBK_PATH . 'includes/notifications.php';
+            require_once MDBK_PATH . 'includes/sms.php';
             require_once MDBK_PATH . 'includes/seeder.php';
             require_once MDBK_PATH . 'includes/licensing.php';
         }
@@ -189,6 +190,15 @@ if ( ! class_exists( 'MDBK_Doctor_Appointment' ) ) {
                 // whatever timezone the admin's own browser happens to be
                 // in — current_time() is WP's timezone-aware clock.
                 'today'    => current_time( 'Y-m-d' ),
+                // SMS template character counter (admin-script.js). The
+                // counter is rebuilt on every keystroke, so its wording has
+                // to be available client-side rather than rendered once by
+                // PHP; %d is filled in by the JS.
+                'sms_english_label' => __( 'English', 'doctor-appointment' ),
+                'sms_unicode_label' => __( 'Unicode', 'doctor-appointment' ),
+                'sms_chars_label'   => __( '%d characters', 'doctor-appointment' ),
+                'sms_count_label'   => __( '%d SMS', 'doctor-appointment' ),
+                'sms_network_error' => __( 'Could not reach the server. Please try again.', 'doctor-appointment' ),
                 // Cancel is destructive enough to confirm, and the confirm()
                 // text was the one string in that handler still hardcoded
                 // in English.
@@ -357,6 +367,12 @@ if ( ! class_exists( 'MDBK_Doctor_Appointment' ) ) {
         public static function deactivate() {
 
             \MDBK\MDBK_Licensing::clear_scheduled_check();
+            // The SMS reminder runs every 15 minutes; leaving it on the
+            // schedule after deactivation means WordPress keeps waking up
+            // for a hook nothing is listening to. Both are re-created on
+            // the next init (MDBK_SMS::schedule_crons()).
+            wp_clear_scheduled_hook( 'mdbk_sms_reminder_cron' );
+            wp_clear_scheduled_hook( 'mdbk_sms_prune_log_cron' );
             flush_rewrite_rules();
         }
 

@@ -914,6 +914,14 @@ class MDBK_Appointment_Manager {
         // read one right after calling this).
         self::flush_checkin_rank_cache();
 
+        // Check-in has no post status of its own to hang a notification
+        // off — every other event in the booking's life is a status
+        // transition, this one is a meta flag — so it's announced here
+        // instead. All three check-in routes (front desk, kiosk QR,
+        // chamber phone lookup) come through this method, so one hook
+        // covers them all. See MDBK_SMS::on_checked_in().
+        do_action('mdbk_appointment_checked_in', $appointment_id);
+
         return true;
     }
 
