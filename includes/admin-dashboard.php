@@ -709,8 +709,20 @@ class MDBK_Admin_Dashboard {
             wp_send_json_error(['message' => $result]);
         }
 
+        // From a Today's Queue list (view_doctor_id present): the whole
+        // list, not the one row. A cancelled booking is excluded from that
+        // view entirely, so there is no replacement row to swap in — and
+        // dropping out of the queue can renumber everyone behind it under
+        // check-in-order serials, which only a full re-render gets right.
+        // Same branch, same fragment, as ajax_admin_checkin() above.
+        if (isset($_POST['view_doctor_id'])) {
+            $appointment_doctor_id = intval(get_post_meta($appointment_id, '_mdbk_doctor_id', true));
+            list($fragment_doctor_id, $group_by_doctor) = $this->resolve_queue_view_scope($appointment_doctor_id);
+            wp_send_json_success(['mode' => 'list', 'fragment' => $this->render_today_queue_rows($fragment_doctor_id, $group_by_doctor)]);
+        }
+
         $show_doctor = isset($_POST['show_doctor']) && $_POST['show_doctor'] === '1';
-        wp_send_json_success(['fragment' => $this->render_patient_appointment_row(get_post($appointment_id), $show_doctor)]);
+        wp_send_json_success(['mode' => 'row', 'fragment' => $this->render_patient_appointment_row(get_post($appointment_id), $show_doctor)]);
     }
 
     public function handle_delete_actions() {
@@ -4232,6 +4244,22 @@ class MDBK_Admin_Dashboard {
                 // site-wide, so nothing beyond this markup was needed. ?>
                 <?php if (current_user_can(MDBK_CAP_ADMIN)) : ?>
                 <a href="#" class="mdbk-action-btn mdbk-edit-appointment" data-id="<?php echo esc_attr($a->ID); ?>" title="<?php esc_attr_e('Edit', 'doctor-appointment'); ?>"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"></path><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"></path></svg></a>
+                <?php endif; ?>
+                <?php // Cancel — the same soft-cancel the other date views
+                // already offered (render_patient_appointment_row()'s
+                // $can_cancel), which this row was simply never given, so a
+                // booking could be cancelled from every view EXCEPT the one
+                // the Booking page actually opens on. Identical guard
+                // (still waiting, not yet checked in) and identical
+                // MDBK_CAP_QUEUE gate, so front-desk staff taking a
+                // phoned-in cancellation don't need an admin.
+                //
+                // Unlike the other view, cancelling here removes the row
+                // rather than restyling it — a cancelled booking is
+                // excluded from Today's Queue outright — which is why the
+                // handler swaps the whole list; see ajax_cancel_booking(). ?>
+                <?php if ($status === 'waiting' && !$checked_in && current_user_can(MDBK_CAP_QUEUE)) : ?>
+                <a href="#" class="mdbk-action-btn mdbk-action-btn-red mdbk-cancel-booking-btn" data-id="<?php echo esc_attr($a->ID); ?>" title="<?php esc_attr_e('Cancel booking', 'doctor-appointment'); ?>"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg></a>
                 <?php endif; ?>
             </div>
         </div>

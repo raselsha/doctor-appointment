@@ -189,6 +189,10 @@ if ( ! class_exists( 'MDBK_Doctor_Appointment' ) ) {
                 // whatever timezone the admin's own browser happens to be
                 // in — current_time() is WP's timezone-aware clock.
                 'today'    => current_time( 'Y-m-d' ),
+                // Cancel is destructive enough to confirm, and the confirm()
+                // text was the one string in that handler still hardcoded
+                // in English.
+                'cancel_confirm'    => __( 'Cancel this booking?', 'doctor-appointment' ),
                 // Doctor Edit form's Weekly Availability day order — one
                 // source of truth (Settings > General > "Week Starts On")
                 // instead of a second hardcoded Monday-first list drifting

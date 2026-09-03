@@ -3620,14 +3620,19 @@ document.addEventListener('DOMContentLoaded', function() {
             });
     });
 
-    // "Cancel" — Bookings page only (the row's mdbk-cancel-booking-btn is
-    // never rendered on the Today's Queue list), so this is always a
-    // single-row swap, same as "Check In" above minus its list-mode branch.
+    // "Cancel" — the same two contexts "Check In" above has, and for the
+    // same reason. On a Today's Queue list the cancelled booking leaves
+    // the view entirely (and can renumber the serials behind it), so the
+    // server sends the whole list back; on the other date views the row
+    // stays, restyled as Cancelled, so that stays a single-row swap.
+    // res.data.mode says which came back rather than this guessing.
     document.addEventListener('click', (e) => {
         const btn = e.target.closest('.mdbk-cancel-booking-btn');
         if (!btn || typeof mdbk_admin_obj === 'undefined') return;
-        if (!confirm('Cancel this booking?')) return;
+        if (!confirm(mdbk_admin_obj.cancel_confirm || 'Cancel this booking?')) return;
         const row = btn.closest('.mdbk-patient-row');
+        const list = document.getElementById('mdbk-today-queue-list');
+        const inTodayList = !!(list && row && list.contains(row));
         const appointmentId = btn.dataset.id;
         btn.disabled = true;
         const body = new URLSearchParams();
@@ -3635,16 +3640,23 @@ document.addEventListener('DOMContentLoaded', function() {
         body.set('nonce', mdbk_admin_obj.nonce);
         body.set('appointment_id', appointmentId);
         body.set('show_doctor', row && row.classList.contains('mdbk-patient-row-has-doctor') ? '1' : '0');
+        if (inTodayList && list.dataset.viewDoctorId !== undefined) {
+            body.set('view_doctor_id', list.dataset.viewDoctorId);
+        }
         fetch(mdbk_admin_obj.ajax_url, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body.toString() })
             .then((r) => r.json())
             .then((res) => {
-                if (res && res.success && row) {
+                if (!res || !res.success) {
+                    btn.disabled = false;
+                    alert((res && res.data && res.data.message) || 'Something went wrong, please try again.');
+                    return;
+                }
+                if (res.data.mode === 'list' && list) {
+                    list.innerHTML = res.data.fragment;
+                } else if (row) {
                     const tmp = document.createElement('div');
                     tmp.innerHTML = res.data.fragment;
                     row.replaceWith(tmp.firstElementChild);
-                } else {
-                    btn.disabled = false;
-                    alert((res && res.data && res.data.message) || 'Something went wrong, please try again.');
                 }
             })
             .catch(() => {
