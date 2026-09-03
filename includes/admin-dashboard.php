@@ -1379,6 +1379,9 @@ class MDBK_Admin_Dashboard {
         $secondary_color = sanitize_hex_color($_POST['color_secondary'] ?? '');
         update_option('mdbk_color_secondary', $secondary_color ?: self::DEFAULT_COLOR_SECONDARY);
         update_option('mdbk_enable_live_queue', isset($_POST['enable_live_queue']) ? 'yes' : 'no');
+        update_option('mdbk_email_from_name', sanitize_text_field($_POST['email_from_name'] ?? ''));
+        $email_from_address = sanitize_email($_POST['email_from_address'] ?? '');
+        update_option('mdbk_email_from_address', $email_from_address);
         // Queue & Ticketing moved OUT of global settings — each doctor picks
         // their own serial mode in the doctor-edit modal now (see
         // handle_doctor_save()). The legacy mdbk_queue_serial_mode option is
@@ -1503,6 +1506,8 @@ class MDBK_Admin_Dashboard {
         $color_primary = get_option('mdbk_color_primary', self::DEFAULT_COLOR_PRIMARY);
         $color_secondary = get_option('mdbk_color_secondary', self::DEFAULT_COLOR_SECONDARY);
         $enable_live_queue = get_option('mdbk_enable_live_queue', 'yes') !== 'no';
+        $email_from_name = get_option('mdbk_email_from_name', '');
+        $email_from_address = get_option('mdbk_email_from_address', '');
         $field_settings = \MDBK\MDBK_Appointment_Manager::field_settings();
         $field_labels = [
             'email'   => __('Email', 'doctor-appointment'),
@@ -1568,6 +1573,21 @@ class MDBK_Admin_Dashboard {
                             <label class="mdbk-form-label" for="mdbk-enable-live-queue" style="margin:0;"><?php _e('Enable Live Queue (the public [mdbk_queue_list] display)', 'doctor-appointment'); ?></label>
                         </div>
                         <p class="mdbk-form-hint"><?php _e('When off, the Live Queue page(s) show a simple "not available" message instead of the queue — useful if you don\'t want walk-in patients\' names visible on a public screen.', 'doctor-appointment'); ?></p>
+                    </div>
+
+                    <div class="mdbk-card" style="padding:24px;">
+                        <h3 style="margin:0 0 16px; font-size:15px;"><?php _e('Email Notifications', 'doctor-appointment'); ?></h3>
+                        <p class="mdbk-form-hint" style="margin-top:0;"><?php _e('Controls the "From" name and address on appointment emails sent to patients and doctors. Leave blank to use the site defaults.', 'doctor-appointment'); ?></p>
+                        <div class="mdbk-form-row mdbk-form-row-duo">
+                            <div>
+                                <label class="mdbk-form-label" for="mdbk-email-from-name"><?php _e('From Name', 'doctor-appointment'); ?></label>
+                                <input type="text" name="email_from_name" id="mdbk-email-from-name" class="mdbk-input" value="<?php echo esc_attr($email_from_name); ?>" placeholder="<?php echo esc_attr($clinic_name ?: get_bloginfo('name')); ?>">
+                            </div>
+                            <div>
+                                <label class="mdbk-form-label" for="mdbk-email-from-address"><?php _e('From Email', 'doctor-appointment'); ?></label>
+                                <input type="email" name="email_from_address" id="mdbk-email-from-address" class="mdbk-input" value="<?php echo esc_attr($email_from_address); ?>" placeholder="<?php echo esc_attr(get_option('admin_email')); ?>">
+                            </div>
+                        </div>
                     </div>
 
                     <div class="mdbk-card" style="padding:24px;">

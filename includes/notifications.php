@@ -105,7 +105,25 @@ class MDBK_Notifications {
         // Extensibility hook for future channels (e.g. SMS) without touching this file.
         do_action('mdbk_appointment_notify', $event, $appointment_id, 'email');
 
+        // Override WP's "wordpress@yourdomain.com" default From address for
+        // this plugin's own emails only — filters are added right before
+        // wp_mail() and removed right after so other plugins'/core's mail
+        // isn't affected.
+        add_filter('wp_mail_from', [$this, 'filter_from_address']);
+        add_filter('wp_mail_from_name', [$this, 'filter_from_name']);
         wp_mail($to, $subject, $body);
+        remove_filter('wp_mail_from', [$this, 'filter_from_address']);
+        remove_filter('wp_mail_from_name', [$this, 'filter_from_name']);
+    }
+
+    public function filter_from_address($original_email_address) {
+        $from = get_option('mdbk_email_from_address', '');
+        return is_email($from) ? $from : $original_email_address;
+    }
+
+    public function filter_from_name($original_email_from) {
+        $name = get_option('mdbk_email_from_name', '');
+        return $name !== '' ? $name : $original_email_from;
     }
 }
 
