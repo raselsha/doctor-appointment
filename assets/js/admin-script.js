@@ -3610,6 +3610,39 @@ document.addEventListener('DOMContentLoaded', function() {
             });
     });
 
+    // "Cancel" — Bookings page only (the row's mdbk-cancel-booking-btn is
+    // never rendered on the Today's Queue list), so this is always a
+    // single-row swap, same as "Check In" above minus its list-mode branch.
+    document.addEventListener('click', (e) => {
+        const btn = e.target.closest('.mdbk-cancel-booking-btn');
+        if (!btn || typeof mdbk_admin_obj === 'undefined') return;
+        if (!confirm('Cancel this booking?')) return;
+        const row = btn.closest('.mdbk-patient-row');
+        const appointmentId = btn.dataset.id;
+        btn.disabled = true;
+        const body = new URLSearchParams();
+        body.set('action', 'mdbk_cancel_booking');
+        body.set('nonce', mdbk_admin_obj.nonce);
+        body.set('appointment_id', appointmentId);
+        body.set('show_doctor', row && row.classList.contains('mdbk-patient-row-has-doctor') ? '1' : '0');
+        fetch(mdbk_admin_obj.ajax_url, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body.toString() })
+            .then((r) => r.json())
+            .then((res) => {
+                if (res && res.success && row) {
+                    const tmp = document.createElement('div');
+                    tmp.innerHTML = res.data.fragment;
+                    row.replaceWith(tmp.firstElementChild);
+                } else {
+                    btn.disabled = false;
+                    alert((res && res.data && res.data.message) || 'Something went wrong, please try again.');
+                }
+            })
+            .catch(() => {
+                btn.disabled = false;
+                alert('Something went wrong, please try again.');
+            });
+    });
+
     // "Skip"/"Recall" toggle on the Booking page's "Today" view —
     // same delegated-on-document pattern as "Mark as Visited" above, same
     // whole-list swap (see that handler's comment for why).

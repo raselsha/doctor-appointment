@@ -2484,12 +2484,14 @@ a.mdbk-patient-row-name:hover { color: #0d9488; text-decoration: underline; }
 .mdbk-badge-status-serving::before { content: '\25B6\2002'; }
 .mdbk-badge-status-completed::before { content: '\2713\2002'; }
 .mdbk-badge-status-no-show::before { content: '\2715\2002'; }
+.mdbk-badge-status-cancelled::before { content: '\2298\2002'; }
 .mdbk-badge-upcoming::before { content: '\25F7\2002'; }
 .mdbk-badge-not-checked-in::before { content: '\2013\2002'; }
 .mdbk-badge-status-waiting { background: #ffedd5; color: #c2410c; }
 .mdbk-badge-status-serving { background: #d1fae5; color: #065f46; }
 .mdbk-badge-status-completed { background: #f1f5f9; color: #475569; }
 .mdbk-badge-status-no-show { background: #fee2e2; color: #b91c1c; }
+.mdbk-badge-status-cancelled { background: #f1f5f9; color: #64748b; }
 .mdbk-badge-upcoming { background: #fef3c7; color: #92400e; }
 .mdbk-badge-not-checked-in { background: #f1f5f9; color: #94a3b8; }
 
