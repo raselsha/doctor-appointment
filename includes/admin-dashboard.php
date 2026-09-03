@@ -3939,8 +3939,18 @@ class MDBK_Admin_Dashboard {
     private function get_today_queue_apps($doctor_id) {
         $today = current_time('Y-m-d');
         $all_apps = $this->get_filtered_appointments(null, $doctor_id, '');
+        // Cancelled bookings are excluded here — Today's Queue (both the
+        // Bookings page's own card and the doctor's panel, which share
+        // this same query) is a working list of patients still to be
+        // seen today; a cancelled slot has nothing left for staff/the
+        // doctor to act on and would just be dead weight in the list. It
+        // stays visible everywhere else (the "All Dates"/date-filtered
+        // Bookings list, its status filter, CSV export) via
+        // get_filtered_appointments() itself, which this still calls
+        // unfiltered by status.
         $today_apps = array_values(array_filter($all_apps, function($a) use ($today) {
-            return get_post_meta($a->ID, '_mdbk_appointment_date', true) === $today;
+            return get_post_meta($a->ID, '_mdbk_appointment_date', true) === $today
+                && get_post_status($a) !== 'mdbk_cancelled';
         }));
 
         // Booking-order mode (default): unchanged from before check-in-order
