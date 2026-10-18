@@ -772,6 +772,32 @@ class MDBK_SMS {
         update_post_meta($id, '_mdbk_sms_encoding', $counts['encoding']);
     }
 
+    /**
+     * This calendar month's usage, from the log: messages sent, messages
+     * failed, and SMS parts billed (a long or Bangla message is several
+     * parts, and parts are what the balance pays for). Bounded by the log
+     * retention setting, like the log itself.
+     */
+    public static function month_stats() {
+        $ids = get_posts([
+            'post_type'      => self::LOG_CPT,
+            'post_status'    => 'publish',
+            'posts_per_page' => -1,
+            'fields'         => 'ids',
+            'date_query'     => [['after' => wp_date('Y-m-01 00:00:00'), 'inclusive' => true]],
+        ]);
+        $stats = ['sent' => 0, 'failed' => 0, 'parts' => 0];
+        foreach ($ids as $id) {
+            if (get_post_meta($id, '_mdbk_sms_status', true) === 'sent') {
+                $stats['sent']++;
+                $stats['parts'] += max(1, (int) get_post_meta($id, '_mdbk_sms_parts', true));
+            } else {
+                $stats['failed']++;
+            }
+        }
+        return $stats;
+    }
+
     /** Most recent log rows, newest first, for the settings screen. */
     public static function recent_log($limit = 25) {
         return get_posts([

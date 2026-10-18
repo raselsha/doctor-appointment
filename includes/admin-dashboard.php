@@ -1633,7 +1633,7 @@ class MDBK_Admin_Dashboard {
                             </div>
                             <div>
                                 <label class="mdbk-form-label" for="mdbk-email-from-address"><?php _e('From Email', 'doctor-appointment'); ?></label>
-                                <input type="email" name="email_from_address" id="mdbk-email-from-address" class="mdbk-input" value="<?php echo esc_attr($email_from_address); ?>" placeholder="<?php echo esc_attr(get_option('admin_email')); ?>">
+                                <input type="email" name="email_from_address" id="mdbk-email-from-address" class="mdbk-input" value="<?php echo esc_attr($email_from_address); ?>" placeholder="<?php echo esc_attr('noreply@' . preg_replace('/^www\./i', '', (string) wp_parse_url(home_url(), PHP_URL_HOST))); ?>">
                             </div>
                         </div>
                     </div>
@@ -1719,7 +1719,8 @@ class MDBK_Admin_Dashboard {
         update_option(\MDBK\MDBK_SMS::OPTION, $settings);
         delete_transient('mdbk_sms_balance');
 
-        wp_redirect(admin_url('admin.php?page=mdbk-sms-settings&success=1'));
+        $tab = isset($_POST['sms_tab']) ? sanitize_key($_POST['sms_tab']) : '';
+        wp_redirect(add_query_arg(array_filter(['page' => 'mdbk-sms-settings', 'success' => 1, 'tab' => $tab]), admin_url('admin.php')));
         exit;
     }
 
@@ -1743,6 +1744,21 @@ class MDBK_Admin_Dashboard {
         // gateway, and the Refresh button next to it fetches a live figure
         // on demand.
         $balance = $settings['api_key'] !== '' ? get_transient('mdbk_sms_balance') : false;
+        // Four tabs, switched client-side so unsaved edits survive a tab
+        // change. Gateway + Messages share the one settings form (and its
+        // Save button); Test and Log are actions/history, outside it.
+        $sms_tabs = [
+            'gateway'  => __('Gateway', 'doctor-appointment'),
+            'messages' => __('Messages', 'doctor-appointment'),
+            'test'     => __('Test', 'doctor-appointment'),
+            'log'      => __('Log', 'doctor-appointment'),
+        ];
+        $month_stats = \MDBK\MDBK_SMS::month_stats();
+        $active_tab = isset($_GET['tab']) && isset($sms_tabs[$_GET['tab']]) ? sanitize_key($_GET['tab']) : 'gateway';
+        $panel_attr = function ($panels) use ($active_tab) {
+            $hidden = in_array($active_tab, explode(' ', $panels), true) ? '' : ' hidden';
+            return 'data-sms-panel="' . esc_attr($panels) . '"' . $hidden;
+        };
         ?>
         <div id="mdbk-admin-dashboard"><div class="mdbk-admin-wrapper"><?php $this->render_sidebar('sms-settings'); ?>
             <div class="mdbk-main-content mdbk-main-content-fixed-header">
@@ -1752,9 +1768,53 @@ class MDBK_Admin_Dashboard {
                     <p style="color:#16A34A; font-weight:600; margin-top:0;"><?php _e('SMS settings saved.', 'doctor-appointment'); ?></p>
                 <?php endif; ?>
 
+                <?php // Usage at a glance, above the tabs so it shows whichever tab is open. ?>
+                <div class="mdbk-stats-grid mdbk-stats-grid-compact mdbk-sms-stats">
+                    <div class="mdbk-stat-card mdbk-stat-card-blue">
+                        <div class="mdbk-stat-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="13" rx="2"></rect><path d="M2 10h20"></path><path d="M6 15h4"></path></svg></div>
+                        <div class="mdbk-stat-text">
+                            <h4><?php _e('Balance', 'doctor-appointment'); ?></h4>
+                            <div class="value"><span>৳</span><span id="mdbk-sms-balance" data-has-key="<?php echo $settings['api_key'] !== '' ? '1' : '0'; ?>"><?php echo is_array($balance) && $balance['balance'] !== '' ? esc_html($balance['balance']) : '—'; ?></span></div>
+                            <span class="mdbk-sms-inline-msg" id="mdbk-sms-balance-msg"></span>
+                        </div>
+                    </div>
+                    <div class="mdbk-stat-card mdbk-stat-card-green">
+                        <div class="mdbk-stat-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg></div>
+                        <div class="mdbk-stat-text">
+                            <h4><?php _e('Sent this month', 'doctor-appointment'); ?></h4>
+                            <div class="value"><?php echo esc_html(number_format_i18n($month_stats['sent'])); ?></div>
+                        </div>
+                    </div>
+                    <div class="mdbk-stat-card mdbk-stat-card-red">
+                        <div class="mdbk-stat-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg></div>
+                        <div class="mdbk-stat-text">
+                            <h4><?php _e('Failed this month', 'doctor-appointment'); ?></h4>
+                            <div class="value"><?php echo esc_html(number_format_i18n($month_stats['failed'])); ?></div>
+                        </div>
+                    </div>
+                    <div class="mdbk-stat-card mdbk-stat-card-violet">
+                        <div class="mdbk-stat-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg></div>
+                        <div class="mdbk-stat-text">
+                            <h4><?php _e('SMS billed this month', 'doctor-appointment'); ?></h4>
+                            <div class="value"><?php echo esc_html(number_format_i18n($month_stats['parts'])); ?></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mdbk-sms-tabs" role="tablist">
+                    <?php foreach ($sms_tabs as $slug => $label) : ?>
+                        <button type="button" role="tab" class="mdbk-sms-tab<?php echo $slug === $active_tab ? ' is-active' : ''; ?>" data-sms-tab="<?php echo esc_attr($slug); ?>" aria-selected="<?php echo $slug === $active_tab ? 'true' : 'false'; ?>">
+                            <?php echo esc_html($label); ?>
+                            <?php if ($slug === 'log' && !empty($log)) : ?><span class="mdbk-sms-tab-count"><?php echo esc_html(count($log)); ?></span><?php endif; ?>
+                        </button>
+                    <?php endforeach; ?>
+                </div>
+
                 <form method="POST" id="mdbk-sms-settings-form">
                     <?php wp_nonce_field('mdbk_save_sms_settings'); ?>
+                    <input type="hidden" name="sms_tab" id="mdbk-sms-tab-input" value="<?php echo esc_attr($active_tab); ?>">
 
+                    <div <?php echo $panel_attr('gateway'); ?>>
                     <div class="mdbk-card" style="padding:24px;">
                         <h3 style="margin:0 0 4px; font-size:15px;"><?php _e('Gateway', 'doctor-appointment'); ?></h3>
                         <p class="mdbk-form-hint" style="margin:0 0 18px;">
@@ -1793,12 +1853,6 @@ class MDBK_Admin_Dashboard {
                             </div>
                         </div>
 
-                        <div class="mdbk-sms-balance-row">
-                            <span class="mdbk-form-label" style="margin:0;"><?php _e('Account balance', 'doctor-appointment'); ?></span>
-                            <strong id="mdbk-sms-balance"><?php echo is_array($balance) && !empty($balance['balance']) ? esc_html($balance['balance']) : '—'; ?></strong>
-                            <button type="button" class="mdbk-btn-outline mdbk-btn-sm" id="mdbk-sms-balance-refresh"><?php _e('Check', 'doctor-appointment'); ?></button>
-                            <span class="mdbk-sms-inline-msg" id="mdbk-sms-balance-msg"></span>
-                        </div>
                     </div>
 
                     <div class="mdbk-card" style="padding:24px; margin-top:20px;">
@@ -1817,8 +1871,10 @@ class MDBK_Admin_Dashboard {
                             </div>
                         </div>
                     </div>
+                    </div>
 
-                    <div class="mdbk-card" style="padding:24px; margin-top:20px;">
+                    <div <?php echo $panel_attr('messages'); ?>>
+                    <div class="mdbk-card" style="padding:24px;">
                         <h3 style="margin:0 0 4px; font-size:15px;"><?php _e('Messages', 'doctor-appointment'); ?></h3>
                         <p class="mdbk-form-hint" style="margin:0 0 6px;"><?php _e('Switch on only the moments worth paying for. Each message is billed separately, per recipient.', 'doctor-appointment'); ?></p>
                         <p class="mdbk-form-hint" style="margin:0 0 18px;">
@@ -1860,8 +1916,9 @@ class MDBK_Admin_Dashboard {
                             </div>
                         <?php endforeach; ?>
                     </div>
+                    </div>
 
-                    <div class="mdbk-global-settings-save-row">
+                    <div class="mdbk-global-settings-save-row" <?php echo $panel_attr('gateway messages'); ?>>
                         <button type="submit" name="mdbk_save_sms_settings" class="mdbk-btn-save"><?php _e('Save SMS Settings', 'doctor-appointment'); ?></button>
                     </div>
                 </form>
@@ -1869,7 +1926,8 @@ class MDBK_Admin_Dashboard {
                 <?php // Outside the settings form on purpose — a test send is an
                       // action, not a setting, and nesting a second form would
                       // make Enter in the number field save the whole page. ?>
-                <div class="mdbk-card" style="padding:24px; margin-top:20px;">
+                <div <?php echo $panel_attr('test'); ?>>
+                <div class="mdbk-card" style="padding:24px;">
                     <h3 style="margin:0 0 4px; font-size:15px;"><?php _e('Send a test message', 'doctor-appointment'); ?></h3>
                     <p class="mdbk-form-hint" style="margin:0 0 18px;"><?php _e('Sends immediately using the saved key — save your changes first. This costs one message.', 'doctor-appointment'); ?></p>
                     <div class="mdbk-form-row mdbk-form-row-duo">
@@ -1888,8 +1946,10 @@ class MDBK_Admin_Dashboard {
                         <span class="mdbk-sms-inline-msg" id="mdbk-sms-test-msg"></span>
                     </div>
                 </div>
+                </div>
 
-                <div class="mdbk-card" style="padding:24px; margin-top:20px;">
+                <div <?php echo $panel_attr('log'); ?>>
+                <div class="mdbk-card" style="padding:24px;">
                     <h3 style="margin:0 0 18px; font-size:15px;"><?php _e('Recent messages', 'doctor-appointment'); ?></h3>
                     <?php if (empty($log)) : ?>
                         <p class="mdbk-form-hint" style="margin:0;"><?php _e('Nothing sent yet.', 'doctor-appointment'); ?></p>
@@ -1930,6 +1990,7 @@ class MDBK_Admin_Dashboard {
                         </table>
                     </div>
                     <?php endif; ?>
+                </div>
                 </div>
 
                 </div>

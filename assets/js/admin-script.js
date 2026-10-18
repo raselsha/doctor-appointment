@@ -3510,33 +3510,58 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
-    const smsBalanceBtn = document.getElementById('mdbk-sms-balance-refresh');
-    if (smsBalanceBtn) {
-        smsBalanceBtn.addEventListener('click', function() {
-            const out = document.getElementById('mdbk-sms-balance');
-            const msg = document.getElementById('mdbk-sms-balance-msg');
-            smsBalanceBtn.disabled = true;
-            msg.textContent = '';
-            msg.className = 'mdbk-sms-inline-msg';
-            const body = new URLSearchParams();
-            body.set('action', 'mdbk_sms_balance');
-            body.set('nonce', mdbk_admin_obj.nonce);
-            fetch(mdbk_admin_obj.ajax_url, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body.toString() })
-                .then(function(r) { return r.json(); })
-                .then(function(res) {
-                    if (res && res.success) {
-                        out.textContent = res.data.balance;
-                    } else {
-                        msg.textContent = (res && res.data && res.data.message) || '';
-                        msg.className = 'mdbk-sms-inline-msg mdbk-sms-inline-fail';
-                    }
-                })
-                .catch(function() {
-                    msg.textContent = mdbk_admin_obj.sms_network_error || '';
-                    msg.className = 'mdbk-sms-inline-msg mdbk-sms-inline-fail';
-                })
-                .finally(function() { smsBalanceBtn.disabled = false; });
+    // SMS page tabs. Client-side so unsaved edits survive switching; the
+    // active tab rides along in the URL and in the form, so a reload or a
+    // save lands back on the same tab.
+    const smsTabs = document.querySelectorAll('.mdbk-sms-tab');
+    if (smsTabs.length) {
+        const smsPanels = document.querySelectorAll('[data-sms-panel]');
+        const smsTabInput = document.getElementById('mdbk-sms-tab-input');
+        smsTabs.forEach(function(tab) {
+            tab.addEventListener('click', function() {
+                const slug = tab.getAttribute('data-sms-tab');
+                smsTabs.forEach(function(t) {
+                    const on = t === tab;
+                    t.classList.toggle('is-active', on);
+                    t.setAttribute('aria-selected', on ? 'true' : 'false');
+                });
+                smsPanels.forEach(function(panel) {
+                    panel.hidden = panel.getAttribute('data-sms-panel').split(' ').indexOf(slug) === -1;
+                });
+                if (smsTabInput) smsTabInput.value = slug;
+                const url = new URL(window.location.href);
+                url.searchParams.set('tab', slug);
+                url.searchParams.delete('success');
+                window.history.replaceState(null, '', url);
+            });
         });
+    }
+
+    // SMS balance — fetched live as soon as the page opens, after it has
+    // rendered (the server only prints the cached figure, so the page never
+    // waits on the gateway). No key saved yet → nothing to ask for.
+    const smsBalanceOut = document.getElementById('mdbk-sms-balance');
+    if (smsBalanceOut && smsBalanceOut.getAttribute('data-has-key') === '1') {
+        const msg = document.getElementById('mdbk-sms-balance-msg');
+        smsBalanceOut.classList.add('is-loading');
+        const body = new URLSearchParams();
+        body.set('action', 'mdbk_sms_balance');
+        body.set('nonce', mdbk_admin_obj.nonce);
+        fetch(mdbk_admin_obj.ajax_url, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body.toString() })
+            .then(function(r) { return r.json(); })
+            .then(function(res) {
+                if (res && res.success) {
+                    smsBalanceOut.textContent = res.data.balance;
+                } else {
+                    msg.textContent = (res && res.data && res.data.message) || '';
+                    msg.className = 'mdbk-sms-inline-msg mdbk-sms-inline-fail';
+                }
+            })
+            .catch(function() {
+                msg.textContent = mdbk_admin_obj.sms_network_error || '';
+                msg.className = 'mdbk-sms-inline-msg mdbk-sms-inline-fail';
+            })
+            .finally(function() { smsBalanceOut.classList.remove('is-loading'); });
     }
 
     const smsTestBtn = document.getElementById('mdbk-sms-test-send');
