@@ -25,6 +25,8 @@ class MDBK_Appointment_Manager {
      * through it and shouldn't be constrained to BD numbers.
      */
     const BD_MOBILE_REGEX = '/^(?:\+?880|0)1[3-9]\d{8}$/';
+    // Public bookings allowed per IP per hour — see ajax_handle_submission().
+    const BOOKING_RATE_LIMIT = 10;
 
     public function __construct() {
         add_action('add_meta_boxes', [$this, 'register_meta_boxes']);
@@ -1568,6 +1570,27 @@ class MDBK_Appointment_Manager {
     public function ajax_handle_submission() {
         check_ajax_referer('mdbk_form_nonce', 'nonce');
 
+        // Anti-spam. Every booking also creates a patient WP user, so a bot
+        // replaying this public endpoint would flood both. The honeypot is a
+        // visually hidden field only bots fill in — fake a success so they
+        // don't adapt. The per-IP cap skips staff (logged-in front desk can
+        // legitimately book many patients from one clinic connection).
+        if (!empty($_POST['mdbk_website'])) {
+            wp_send_json_success(['message' => __('Appointment booked.', 'doctor-appointment')]);
+            return;
+        }
+        // Only successful bookings count (incremented below), so a patient
+        // fixing validation errors a few times never trips the limit.
+        $rate_key = null;
+        if (!current_user_can(MDBK_CAP_QUEUE)) {
+            $ip = isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : '';
+            $rate_key = 'mdbk_rate_' . md5($ip);
+            if ((int) get_transient($rate_key) >= self::BOOKING_RATE_LIMIT) {
+                wp_send_json_error(__('Too many bookings from your network. Please try again later or call the clinic.', 'doctor-appointment'));
+                return;
+            }
+        }
+
         $required = ['full_name', 'mobile', 'doctor', 'date'];
         // Slot time is only required from the patient when this doctor's
         // picker is actually shown to them — a hidden-picker doctor has no
@@ -1638,6 +1661,10 @@ class MDBK_Appointment_Manager {
             $slot_time = get_post_meta($appointment_id, '_mdbk_slot_time', true);
             $ticket    = self::display_ticket_number($appointment_id);
             $token     = get_post_meta($appointment_id, '_mdbk_checkin_token', true);
+
+            if ($rate_key) {
+                set_transient($rate_key, (int) get_transient($rate_key) + 1, HOUR_IN_SECONDS);
+            }
 
             wp_send_json_success([
                 'message'      => __('Appointment booked successfully! We will contact you soon.', 'doctor-appointment'),

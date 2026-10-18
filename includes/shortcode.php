@@ -730,6 +730,11 @@ class MDBK_Shortcode {
             <button type="button" class="mdbk-confirmation-close-btn" id="mdbk-confirmation-close"><?php _e('Close', 'doctor-appointment'); ?></button>
         </div>
         <form id="mdbk-modal-form">
+            <?php // Honeypot — hidden from people and screen readers; bots that fill every field get silently dropped (see ajax_handle_submission()). ?>
+            <div style="position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden;" aria-hidden="true">
+                <label for="mdbk-website">Website</label>
+                <input type="text" name="mdbk_website" id="mdbk-website" value="" tabindex="-1" autocomplete="off" />
+            </div>
             <div class="mdbk-section" id="mdbk-specialty-doctor-section">
                 <h4 class="mdbk-section-title"><?php _e('Choose Specialty & Doctor', 'doctor-appointment'); ?></h4>
                 <div class="mdbk-doctor-columns">
@@ -923,6 +928,17 @@ class MDBK_Shortcode {
      * defaults to the first doctor and renders a switcher dropdown.
      */
     public function render_queue($atts = []) {
+        // Staff only: this localizes the mdbk_manage_queue nonce, which
+        // unlocks the mutating queue actions — a public page carrying this
+        // shortcode must not hand that to every visitor.
+        if (!current_user_can(MDBK_CAP_QUEUE)) {
+            return '<p class="mdbk-queue-login-required">' . sprintf(
+                /* translators: %s: login URL */
+                wp_kses(__('Please <a href="%s">log in</a> as clinic staff to manage the queue.', 'doctor-appointment'), ['a' => ['href' => []]]),
+                esc_url(wp_login_url(get_permalink()))
+            ) . '</p>';
+        }
+
         $atts = shortcode_atts(['doctor' => ''], $atts, 'mdbk_queue_management');
         $locked_doctor_id = intval($atts['doctor']);
         $doctor_id = $locked_doctor_id;
@@ -1482,6 +1498,16 @@ class MDBK_Shortcode {
      * AJAX: return the queue fragment for polling (no login required — same
      * public-kiosk trust model the previous plain-POST version already had).
      */
+    /**
+     * The nonce alone isn't authorization — whoever loaded the page holding
+     * it could replay it. Mutating queue actions also need the staff cap.
+     */
+    private static function require_queue_staff() {
+        if (!current_user_can(MDBK_CAP_QUEUE)) {
+            wp_send_json_error(__('You do not have permission to manage the queue.', 'doctor-appointment'), 403);
+        }
+    }
+
     public function ajax_get_queue_state() {
         // The public read-only queue view (mdbk_queue_list) polls this same
         // action with its own mdbk_view_queue nonce — which must never also
@@ -1489,7 +1515,7 @@ class MDBK_Shortcode {
         // nonce action, not a shared secret. Which nonce actually verifies
         // is also what decides which fragment to return: the staff kiosk's
         // full card+action-button view, or the public two-column list.
-        $is_staff = (bool) check_ajax_referer('mdbk_manage_queue', 'nonce', false);
+        $is_staff = current_user_can(MDBK_CAP_QUEUE) && (bool) check_ajax_referer('mdbk_manage_queue', 'nonce', false);
         if (!$is_staff) {
             check_ajax_referer('mdbk_view_queue', 'nonce');
         }
@@ -1511,6 +1537,7 @@ class MDBK_Shortcode {
      */
     public function ajax_queue_call_next() {
         check_ajax_referer('mdbk_manage_queue', 'nonce');
+        self::require_queue_staff();
         $doctor_id = intval($_POST['doctor_id']);
         $date = current_time('Y-m-d');
 
@@ -1541,6 +1568,7 @@ class MDBK_Shortcode {
      */
     public function ajax_queue_set_status() {
         check_ajax_referer('mdbk_manage_queue', 'nonce');
+        self::require_queue_staff();
         $appointment_id = intval($_POST['appointment_id']);
         $status         = sanitize_text_field($_POST['status']);
         $doctor_id      = intval($_POST['doctor_id']);
@@ -1574,6 +1602,7 @@ class MDBK_Shortcode {
      */
     public function ajax_queue_toggle_skip() {
         check_ajax_referer('mdbk_manage_queue', 'nonce');
+        self::require_queue_staff();
 
         $appointment_id = isset($_POST['appointment_id']) ? intval($_POST['appointment_id']) : 0;
         $doctor_id      = isset($_POST['doctor_id']) ? intval($_POST['doctor_id']) : 0;
@@ -1602,6 +1631,7 @@ class MDBK_Shortcode {
      */
     public function ajax_verify_checkin() {
         check_ajax_referer('mdbk_manage_queue', 'nonce');
+        self::require_queue_staff();
 
         $token = isset($_POST['token']) ? sanitize_text_field($_POST['token']) : '';
         $appointment = \MDBK\MDBK_Appointment_Manager::find_appointment_by_token($token);
