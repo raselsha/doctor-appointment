@@ -1351,6 +1351,20 @@ class MDBK_Shortcode {
     /**
      * Truncate a patient name to "First L." for public/kiosk display.
      */
+    /**
+     * The chamber check-in page is public to anyone holding the chamber QR,
+     * and answers "which bookings does this phone number have today" — so
+     * full names there would let a stranger map phone numbers to patients.
+     * Keep just enough to recognise yourself: "Rahim Uddin" → "Ra*** Ud***".
+     */
+    private static function mask_patient_name($name) {
+        $words = preg_split('/\s+/u', trim((string) $name), -1, PREG_SPLIT_NO_EMPTY);
+        foreach ($words as &$word) {
+            $word = mb_substr($word, 0, 2) . (mb_strlen($word) > 2 ? '***' : '');
+        }
+        return implode(' ', $words);
+    }
+
     private static function truncate_patient_name($name) {
         $name = trim((string) $name);
         if (!$name) return '';
@@ -1714,7 +1728,7 @@ class MDBK_Shortcode {
                 foreach ($matches as $id) {
                     $list[] = [
                         'id'     => $id,
-                        'name'   => get_post_meta($id, '_mdbk_patient_name', true),
+                        'name'   => self::mask_patient_name(get_post_meta($id, '_mdbk_patient_name', true)),
                         'ticket' => \MDBK\MDBK_Appointment_Manager::format_ticket_number(\MDBK\MDBK_Appointment_Manager::display_ticket_number($id)),
                     ];
                 }
@@ -1733,7 +1747,7 @@ class MDBK_Shortcode {
         // number at all (their arrival position, see
         // checkin_ticket_number()), so it has to be read here rather than
         // captured before.
-        $checked_in_name   = get_post_meta($candidate_id, '_mdbk_patient_name', true);
+        $checked_in_name   = self::mask_patient_name(get_post_meta($candidate_id, '_mdbk_patient_name', true));
         $checked_in_ticket = \MDBK\MDBK_Appointment_Manager::format_ticket_number(\MDBK\MDBK_Appointment_Manager::display_ticket_number($candidate_id));
         wp_send_json_success([
             'message' => $checked_in_ticket

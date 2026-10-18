@@ -1691,7 +1691,7 @@ class MDBK_Appointment_Manager {
     public function ajax_get_doctor_slots() {
         check_ajax_referer('mdbk_form_nonce', 'nonce');
 
-        $doctor_id = intval($_POST['doctor_id']);
+        $doctor_id = isset($_POST['doctor_id']) ? intval($_POST['doctor_id']) : 0;
         $date      = isset($_POST['date']) ? sanitize_text_field($_POST['date']) : '';
         // Only ever sent by the admin Add/Edit Booking modal (see
         // get_booked_slot_times()'s comment) — a public booker has no
