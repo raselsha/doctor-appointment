@@ -3622,6 +3622,25 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    // SMS log filters: picking a result/event submits straight away; the
+    // pager just swaps the page number in the current URL.
+    (function() {
+        const form = document.getElementById('mdbk-sms-log-filters');
+        if (!form) return;
+        ['mdbk-sms-log-status-select', 'mdbk-sms-log-event-select'].forEach(function(id) {
+            initCustomSelect(id, function() { form.submit(); });
+        });
+        document.addEventListener('click', function(e) {
+            const btn = e.target.closest('.mdbk-sms-log-page');
+            if (!btn || btn.disabled) return;
+            const url = new URL(window.location.href);
+            url.searchParams.set('tab', 'log');
+            url.searchParams.set('sms_paged', btn.getAttribute('data-page'));
+            url.searchParams.delete('success');
+            window.location.href = url.toString();
+        });
+    })();
+
     // Shared POST helper for the SMS page's admin-ajax calls.
     function mdbkSmsPost(action, params) {
         const body = new URLSearchParams();
@@ -3643,23 +3662,32 @@ document.addEventListener('DOMContentLoaded', function() {
         const cell = btn.closest('.mdbk-sms-result');
         btn.disabled = true;
         btn.textContent = mdbk_admin_obj.sms_retrying || 'Sending…';
+        function triesLabel(n) {
+            const el = cell.querySelector('.mdbk-sms-attempts');
+            if (!el || !n) return;
+            el.textContent = (mdbk_admin_obj.sms_tries || '%d tries').replace('%d', n);
+            el.hidden = n < 2;
+        }
         return mdbkSmsPost('mdbk_sms_retry', { log_id: btn.getAttribute('data-log') })
             .then(function(res) {
                 const ok = !!(res && res.success);
-                const note = document.createElement('span');
-                if (ok) {
-                    // Went through: the row now reads Sent, nothing to explain.
+                const data = (res && res.data) || {};
+                if (ok || data.delivered) {
+                    // Sent now (or it already had been): the row reads Sent, no button.
+                    const tries = cell.querySelector('.mdbk-sms-attempts');
                     cell.innerHTML = '';
-                    note.className = 'mdbk-sms-ok';
-                    note.textContent = mdbk_admin_obj.sms_sent || 'Sent';
-                    cell.appendChild(note);
+                    const label = document.createElement('span');
+                    label.className = 'mdbk-sms-ok';
+                    label.textContent = ok ? (mdbk_admin_obj.sms_sent || 'Sent') : (mdbk_admin_obj.sms_sent_later || 'Sent later');
+                    cell.appendChild(label);
+                    if (tries && ok) { cell.appendChild(tries); triesLabel(data.attempts); }
                 } else {
-                    // Failed again: keep the row, point its ⓘ at the new reason.
+                    // Still failing: same row, new reason, try count, button back.
                     const reason = cell.querySelector('.mdbk-sms-reason');
-                    if (reason) reason.setAttribute('data-reason', (res && res.data && res.data.message) || '');
-                    note.className = 'mdbk-sms-retried';
-                    note.textContent = mdbk_admin_obj.sms_retried || 'Retried';
-                    btn.replaceWith(note);
+                    if (reason) reason.setAttribute('data-reason', data.message || '');
+                    triesLabel(data.attempts);
+                    btn.disabled = false;
+                    btn.textContent = mdbk_admin_obj.sms_retry || 'Retry';
                 }
                 return ok;
             })
@@ -3669,60 +3697,49 @@ document.addEventListener('DOMContentLoaded', function() {
                 return false;
             });
     }
-    // ⓘ next to a failed SMS: click shows why, in a small tooltip under it;
-    // click again, click elsewhere or Escape closes it.
-    (function() {
-        let tip = null, owner = null, pinned = false;
-        function close() { if (tip) tip.remove(); tip = null; owner = null; pinned = false; }
-        // Hover previews it; a click pins it open until the next click.
-        document.addEventListener('mouseover', function(e) {
-            const icon = e.target.closest && e.target.closest('.mdbk-sms-reason');
-            if (icon && !pinned && owner !== icon) open(icon);
-        });
-        document.addEventListener('mouseout', function(e) {
-            const icon = e.target.closest && e.target.closest('.mdbk-sms-reason');
-            if (icon && !pinned && owner === icon && !icon.contains(e.relatedTarget)) close();
-        });
-        document.addEventListener('click', function(e) {
-            const icon = e.target.closest('.mdbk-sms-reason');
-            if (!icon) { if (tip && !e.target.closest('.mdbk-sms-tip')) close(); return; }
-            e.preventDefault();
-            if (owner === icon && pinned) { close(); return; }
-            open(icon);
-            pinned = true;
-        });
-        function open(icon) {
-            close();
-            tip = document.createElement('div');
-            tip.className = 'mdbk-sms-tip';
-            tip.setAttribute('role', 'tooltip');
-            tip.textContent = icon.getAttribute('data-reason') || '';
-            document.body.appendChild(tip);
-            const r = icon.getBoundingClientRect();
-            const w = tip.offsetWidth;
-            const left = Math.max(8, Math.min(window.innerWidth - w - 8, r.left + r.width / 2 - w / 2));
-            tip.style.left = (left + window.scrollX) + 'px';
-            tip.style.top = (r.bottom + window.scrollY + 8) + 'px';
-            owner = icon;
-        }
-        document.addEventListener('keydown', function(e) { if (e.key === 'Escape') close(); });
-        window.addEventListener('scroll', close, true);
-    })();
-
     document.querySelectorAll('.mdbk-sms-retry').forEach(function(btn) {
         btn.addEventListener('click', function() { mdbkSmsRetry(btn); });
     });
-    const smsRetryAll = document.getElementById('mdbk-sms-retry-all');
-    if (smsRetryAll) {
-        smsRetryAll.addEventListener('click', function() {
-            const buttons = Array.prototype.slice.call(document.querySelectorAll('.mdbk-sms-retry'));
-            smsRetryAll.disabled = true;
-            // One at a time — the gateway is billed per request and a burst
-            // of parallel calls is the easiest way to get throttled.
-            buttons.reduce(function(chain, btn) {
-                return chain.then(function() { return mdbkSmsRetry(btn); });
-            }, Promise.resolve()).then(function() { smsRetryAll.remove(); });
+    // Retry only the ticked failed rows, one after another. Nothing is
+    // ticked by default, so nothing is resent (and billed) by accident.
+    const smsRetrySel = document.getElementById('mdbk-sms-retry-selected');
+    if (smsRetrySel) {
+        const pickAll = document.getElementById('mdbk-sms-pick-all');
+        const picks = function() { return Array.prototype.slice.call(document.querySelectorAll('.mdbk-sms-pick')); };
+        const sync = function() {
+            const all = picks(), n = all.filter(function(c) { return c.checked; }).length;
+            smsRetrySel.disabled = n === 0;
+            smsRetrySel.textContent = (mdbk_admin_obj.sms_retry_selected || 'Retry selected (%d)').replace('%d', n);
+            if (pickAll) {
+                pickAll.checked = all.length > 0 && n === all.length;
+                pickAll.indeterminate = n > 0 && n < all.length;
+            }
+        };
+        document.addEventListener('change', function(e) {
+            if (e.target.classList.contains('mdbk-sms-pick')) sync();
         });
+        if (pickAll) pickAll.addEventListener('change', function() {
+            picks().forEach(function(c) { c.checked = pickAll.checked; });
+            sync();
+        });
+        smsRetrySel.addEventListener('click', function() {
+            const chosen = picks().filter(function(c) { return c.checked; });
+            if (!chosen.length) return;
+            if (!window.confirm((mdbk_admin_obj.sms_retry_confirm || 'Resend %d messages? Each one is billed.').replace('%d', chosen.length))) return;
+            smsRetrySel.disabled = true;
+            chosen.reduce(function(chain, cb) {
+                return chain.then(function() {
+                    const btn = cb.closest('tr').querySelector('.mdbk-sms-retry');
+                    if (!btn) return;
+                    return mdbkSmsRetry(btn).then(function() {
+                        cb.checked = false;
+                        // Sent rows can't be picked again.
+                        if (!cb.closest('tr').querySelector('.mdbk-sms-retry')) cb.remove();
+                    });
+                });
+            }, Promise.resolve()).then(sync);
+        });
+        sync();
     }
 
     // Bulk SMS: doctor + date → recipient list → send in small batches.

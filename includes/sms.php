@@ -550,7 +550,8 @@ class MDBK_SMS {
         }
 
         $result = self::api_request(self::API_SEND, $body);
-        $result['log_id'] = self::log($number, $message, $result, $context);
+        // A retry updates its own log row (see ajax_retry()), so it asks for no new one.
+        $result['log_id'] = empty($context['no_log']) ? self::log($number, $message, $result, $context) : 0;
 
         // A send changes the balance, so the cached figure on the settings
         // screen is stale the moment this returns.
@@ -880,6 +881,42 @@ class MDBK_SMS {
         ];
     }
 
+    /**
+     * One page of the SMS log, newest first, narrowed by status (sent /
+     * failed), event key and a search across number and message text.
+     * Returns ['rows' => WP_Post[], 'total' => int, 'pages' => int].
+     */
+    public static function query_log($args = []) {
+        $args = wp_parse_args($args, ['status' => '', 'event' => '', 'search' => '', 'page' => 1, 'per_page' => 25]);
+        $meta = ['relation' => 'AND'];
+        if (in_array($args['status'], ['sent', 'failed'], true)) {
+            $meta[] = ['key' => '_mdbk_sms_status', 'value' => $args['status']];
+        }
+        if ($args['event'] !== '') {
+            $meta[] = ['key' => '_mdbk_sms_event', 'value' => $args['event']];
+        }
+        $search = trim((string) $args['search']);
+        if ($search !== '') {
+            // A typed 017… number is stored as 88017…, so match on the
+            // digits after any leading 0 / 88.
+            $digits = preg_replace('/\D+/', '', $search);
+            $digits = preg_replace('/^(?:88)?0?/', '', $digits);
+            $or = ['relation' => 'OR', ['key' => '_mdbk_sms_message', 'value' => $search, 'compare' => 'LIKE']];
+            if (strlen($digits) >= 3) $or[] = ['key' => '_mdbk_sms_to', 'value' => $digits, 'compare' => 'LIKE'];
+            $meta[] = $or;
+        }
+        $q = new \WP_Query([
+            'post_type'      => self::LOG_CPT,
+            'post_status'    => 'publish',
+            'posts_per_page' => max(1, intval($args['per_page'])),
+            'paged'          => max(1, intval($args['page'])),
+            'orderby'        => 'date',
+            'order'          => 'DESC',
+            'meta_query'     => count($meta) > 1 ? $meta : [],
+        ]);
+        return ['rows' => $q->posts, 'total' => (int) $q->found_posts, 'pages' => (int) $q->max_num_pages];
+    }
+
     /** Most recent log rows, newest first, for the settings screen. */
     public static function recent_log($limit = 25) {
         return get_posts([
@@ -997,26 +1034,56 @@ class MDBK_SMS {
         if (get_post_meta($log_id, '_mdbk_sms_status', true) === 'sent') {
             wp_send_json_error(['message' => __('This message was already sent.', 'doctor-appointment')]);
         }
-        if (get_post_meta($log_id, '_mdbk_sms_retried_by', true)) {
-            wp_send_json_error(['message' => __('This message was already retried.', 'doctor-appointment')]);
+        // Already reached the patient another way (Bulk, Manual, a newer
+        // row) — sending again would only bill it twice.
+        if (self::delivered_later($log_id)) {
+            wp_send_json_error(['message' => __('This message has already been delivered by a later send.', 'doctor-appointment'), 'delivered' => true]);
         }
 
+        // Same row, updated in place: one line per message in the log,
+        // with its attempt count, rather than a new row per try.
         $result = self::send(
             get_post_meta($log_id, '_mdbk_sms_to', true),
             get_post_meta($log_id, '_mdbk_sms_message', true),
-            [
-                'event'          => get_post_meta($log_id, '_mdbk_sms_event', true) ?: 'manual',
-                'appointment_id' => intval(get_post_meta($log_id, '_mdbk_sms_appointment_id', true)),
-                'retry_of'       => $log_id,
-            ]
+            ['no_log' => true]
         );
-        if (!empty($result['log_id'])) {
-            update_post_meta($log_id, '_mdbk_sms_retried_by', intval($result['log_id']));
+        $attempts = max(1, (int) get_post_meta($log_id, '_mdbk_sms_attempts', true)) + 1;
+        update_post_meta($log_id, '_mdbk_sms_attempts', $attempts);
+        update_post_meta($log_id, '_mdbk_sms_last_attempt', current_time('mysql'));
+        update_post_meta($log_id, '_mdbk_sms_status', !empty($result['ok']) ? 'sent' : 'failed');
+        update_post_meta($log_id, '_mdbk_sms_error', !empty($result['ok']) ? '' : (isset($result['message']) ? $result['message'] : ''));
+        if (!empty($result['data']['request_id'])) {
+            update_post_meta($log_id, '_mdbk_sms_request_id', $result['data']['request_id']);
         }
+
         if (empty($result['ok'])) {
-            wp_send_json_error(['message' => isset($result['message']) ? $result['message'] : '']);
+            wp_send_json_error(['message' => isset($result['message']) ? $result['message'] : '', 'attempts' => $attempts]);
         }
-        wp_send_json_success(['message' => __('Sent.', 'doctor-appointment')]);
+        wp_send_json_success(['message' => __('Sent.', 'doctor-appointment'), 'attempts' => $attempts]);
+    }
+
+    /**
+     * The later successful send of the very same text to the same number,
+     * if there is one — what turns a failed row into "Sent later" and
+     * stops it being retried and billed again.
+     */
+    public static function delivered_later($log_id) {
+        $rows = get_posts([
+            'post_type'      => self::LOG_CPT,
+            'post_status'    => 'publish',
+            'posts_per_page' => 1,
+            'orderby'        => 'ID',
+            'order'          => 'ASC',
+            'post__not_in'   => [intval($log_id)],
+            'date_query'     => [['after' => get_post_field('post_date', $log_id), 'inclusive' => true]],
+            'meta_query'     => [
+                'relation' => 'AND',
+                ['key' => '_mdbk_sms_status', 'value' => 'sent'],
+                ['key' => '_mdbk_sms_to', 'value' => get_post_meta($log_id, '_mdbk_sms_to', true)],
+                ['key' => '_mdbk_sms_message', 'value' => get_post_meta($log_id, '_mdbk_sms_message', true)],
+            ],
+        ]);
+        return $rows ? $rows[0] : null;
     }
 
     /**

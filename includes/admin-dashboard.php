@@ -1750,7 +1750,18 @@ class MDBK_Admin_Dashboard {
         $settings     = \MDBK\MDBK_SMS::settings();
         $events       = \MDBK\MDBK_SMS::events();
         $placeholders = \MDBK\MDBK_SMS::placeholders();
-        $log          = \MDBK\MDBK_SMS::recent_log(25);
+        // Log tab: filter + page from the URL, so a filtered page can be
+        // reloaded or shared as a link.
+        $log_filter = [
+            'status' => isset($_GET['sms_status']) ? sanitize_key($_GET['sms_status']) : '',
+            'event'  => isset($_GET['sms_event']) ? sanitize_key($_GET['sms_event']) : '',
+            'search' => isset($_GET['sms_q']) ? sanitize_text_field(wp_unslash($_GET['sms_q'])) : '',
+            'page'   => isset($_GET['sms_paged']) ? max(1, intval($_GET['sms_paged'])) : 1,
+        ];
+        $log_query    = \MDBK\MDBK_SMS::query_log($log_filter);
+        $log          = $log_query['rows'];
+        $log_filtered = $log_filter['status'] !== '' || $log_filter['event'] !== '' || $log_filter['search'] !== '';
+        $log_all_total = (int) wp_count_posts(\MDBK\MDBK_SMS::LOG_CPT)->publish;
         // Read from cache only — opening this page shouldn't block on the
         // gateway, and the Refresh button next to it fetches a live figure
         // on demand.
@@ -1781,9 +1792,15 @@ class MDBK_Admin_Dashboard {
             if ($i === 1) $label = sprintf(__('Tomorrow — %s', 'doctor-appointment'), $label);
             $bulk_dates[$d] = $label;
         }
+        // Per failed row: did the same text reach the same number later?
+        // Those read "Sent later" and can't be retried; the rest can, until sent.
+        $delivered_later = [];
         $retryable = 0;
         foreach ($log as $row) {
-            if (get_post_meta($row->ID, '_mdbk_sms_status', true) !== 'sent' && !get_post_meta($row->ID, '_mdbk_sms_retried_by', true)) $retryable++;
+            if (get_post_meta($row->ID, '_mdbk_sms_status', true) === 'sent') continue;
+            $later = \MDBK\MDBK_SMS::delivered_later($row->ID);
+            if ($later) $delivered_later[$row->ID] = $later;
+            else $retryable++;
         }
         $event_labels = [
             'manual' => __('Manual', 'doctor-appointment'),
@@ -1840,7 +1857,7 @@ class MDBK_Admin_Dashboard {
                     <?php foreach ($sms_tabs as $slug => $label) : ?>
                         <button type="button" role="tab" class="mdbk-sms-tab<?php echo $slug === $active_tab ? ' is-active' : ''; ?>" data-sms-tab="<?php echo esc_attr($slug); ?>" aria-selected="<?php echo $slug === $active_tab ? 'true' : 'false'; ?>">
                             <?php echo esc_html($label); ?>
-                            <?php if ($slug === 'log' && !empty($log)) : ?><span class="mdbk-sms-tab-count"><?php echo esc_html(count($log)); ?></span><?php endif; ?>
+                            <?php if ($slug === 'log' && $log_all_total) : ?><span class="mdbk-sms-tab-count"><?php echo esc_html(number_format_i18n($log_all_total)); ?></span><?php endif; ?>
                         </button>
                     <?php endforeach; ?>
                 </div>
@@ -2145,18 +2162,63 @@ class MDBK_Admin_Dashboard {
 
                 <div <?php echo $panel_attr('log'); ?>>
                 <div class="mdbk-card" style="padding:24px;">
+                    <?php
+                    $log_event_choices = [];
+                    foreach ($events as $k => $e) $log_event_choices[$k] = $e['label'];
+                    $log_event_choices += $event_labels;
+                    $log_status_choices = ['sent' => __('Sent', 'doctor-appointment'), 'failed' => __('Failed', 'doctor-appointment')];
+                    $log_base_url = admin_url('admin.php?page=mdbk-sms-settings&tab=log');
+                    ?>
                     <div class="mdbk-sms-log-head">
-                        <h3 style="margin:0; font-size:15px;"><?php _e('Recent messages', 'doctor-appointment'); ?></h3>
+                        <h3 style="margin:0; font-size:15px;"><?php _e('Message log', 'doctor-appointment'); ?></h3>
+                        <?php // Only what the clinic ticks gets resent — never everything
+                              // at once, so a stray test or old message isn't billed again. ?>
                         <?php if ($retryable) : ?>
-                            <button type="button" class="mdbk-btn-outline mdbk-btn-sm" id="mdbk-sms-retry-all"><?php printf(esc_html__('Retry all failed (%d)', 'doctor-appointment'), $retryable); ?></button>
+                            <button type="button" class="mdbk-btn-outline mdbk-btn-sm" id="mdbk-sms-retry-selected" disabled><?php printf(esc_html__('Retry selected (%d)', 'doctor-appointment'), 0); ?></button>
                         <?php endif; ?>
                     </div>
+                    <form method="get" class="mdbk-filters-form mdbk-sms-log-filters" id="mdbk-sms-log-filters">
+                        <input type="hidden" name="page" value="mdbk-sms-settings">
+                        <input type="hidden" name="tab" value="log">
+                        <input type="text" name="sms_q" value="<?php echo esc_attr($log_filter['search']); ?>" placeholder="<?php esc_attr_e('Search number or message…', 'doctor-appointment'); ?>" class="mdbk-filters-search" autocomplete="off">
+                        <?php foreach ([['sms_status', 'mdbk-sms-log-status-select', __('All results', 'doctor-appointment'), $log_status_choices, $log_filter['status']], ['sms_event', 'mdbk-sms-log-event-select', __('All events', 'doctor-appointment'), $log_event_choices, $log_filter['event']]] as $f) :
+                            list($fname, $fid, $fall, $fchoices, $fval) = $f; ?>
+                            <div class="mdbk-custom-select mdbk-filters-select" id="<?php echo esc_attr($fid); ?>">
+                                <button type="button" class="mdbk-custom-select-trigger">
+                                    <span class="mdbk-custom-select-value"><?php echo esc_html($fval !== '' && isset($fchoices[$fval]) ? $fchoices[$fval] : $fall); ?></span>
+                                    <span class="mdbk-custom-select-chevron"></span>
+                                </button>
+                                <div class="mdbk-custom-select-panel" style="display:none;">
+                                    <div class="mdbk-custom-select-option<?php echo $fval === '' ? ' selected' : ''; ?>" data-value=""><?php echo esc_html($fall); ?></div>
+                                    <?php foreach ($fchoices as $v => $l) : ?>
+                                        <div class="mdbk-custom-select-option<?php echo $fval === (string) $v ? ' selected' : ''; ?>" data-value="<?php echo esc_attr($v); ?>"><?php echo esc_html($l); ?></div>
+                                    <?php endforeach; ?>
+                                </div>
+                                <select name="<?php echo esc_attr($fname); ?>" style="display:none;">
+                                    <option value=""><?php echo esc_html($fall); ?></option>
+                                    <?php foreach ($fchoices as $v => $l) : ?>
+                                        <option value="<?php echo esc_attr($v); ?>" <?php selected($fval, (string) $v); ?>><?php echo esc_html($l); ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                        <?php endforeach; ?>
+                        <button type="submit" class="mdbk-btn-add mdbk-btn-sm"><?php _e('Filter', 'doctor-appointment'); ?></button>
+                        <?php if ($log_filtered) : ?>
+                            <a href="<?php echo esc_url($log_base_url); ?>" class="mdbk-date-nav-all"><?php _e('Clear', 'doctor-appointment'); ?></a>
+                        <?php endif; ?>
+                    </form>
+                    <?php if ($log_query['total']) :
+                        $from = ($log_filter['page'] - 1) * 25 + 1;
+                        $to   = min($log_query['total'], $log_filter['page'] * 25); ?>
+                        <p class="mdbk-form-hint mdbk-sms-log-count"><?php printf(esc_html__('Showing %1$s–%2$s of %3$s', 'doctor-appointment'), number_format_i18n($from), number_format_i18n($to), number_format_i18n($log_query['total'])); ?></p>
+                    <?php endif; ?>
                     <?php if (empty($log)) : ?>
-                        <p class="mdbk-form-hint" style="margin:0;"><?php _e('Nothing sent yet.', 'doctor-appointment'); ?></p>
+                        <p class="mdbk-form-hint" style="margin:0;"><?php echo $log_filtered ? esc_html__('No messages match these filters.', 'doctor-appointment') : esc_html__('Nothing sent yet.', 'doctor-appointment'); ?></p>
                     <?php else : ?>
                     <div style="overflow-x:auto;">
                         <table class="mdbk-table mdbk-sms-log-table">
                             <thead><tr>
+                                <th class="mdbk-sms-pick-col"><?php if ($retryable) : ?><input type="checkbox" id="mdbk-sms-pick-all" title="<?php esc_attr_e('Select every failed message on this page', 'doctor-appointment'); ?>"><?php endif; ?></th>
                                 <th><?php _e('When', 'doctor-appointment'); ?></th>
                                 <th><?php _e('To', 'doctor-appointment'); ?></th>
                                 <th><?php _e('Event', 'doctor-appointment'); ?></th>
@@ -2170,10 +2232,12 @@ class MDBK_Admin_Dashboard {
                                 $error  = get_post_meta($row->ID, '_mdbk_sms_error', true);
                                 $event_key = get_post_meta($row->ID, '_mdbk_sms_event', true);
                                 $event_label = isset($events[$event_key]) ? $events[$event_key]['label'] : (isset($event_labels[$event_key]) ? $event_labels[$event_key] : $event_key);
-                                $retried_by = (int) get_post_meta($row->ID, '_mdbk_sms_retried_by', true);
                                 $is_retry   = (int) get_post_meta($row->ID, '_mdbk_sms_retry_of', true);
+                                $attempts   = max(1, (int) get_post_meta($row->ID, '_mdbk_sms_attempts', true));
+                                $later      = isset($delivered_later[$row->ID]) ? $delivered_later[$row->ID] : null;
                                 ?>
                                 <tr>
+                                    <td class="mdbk-sms-pick-col"><?php if ($status !== 'sent' && !$later) : ?><input type="checkbox" class="mdbk-sms-pick" value="<?php echo esc_attr($row->ID); ?>" aria-label="<?php esc_attr_e('Select to retry', 'doctor-appointment'); ?>"><?php endif; ?></td>
                                     <td><?php echo esc_html(get_the_date(get_option('date_format') . ', ' . get_option('time_format'), $row)); ?></td>
                                     <td><?php echo esc_html(get_post_meta($row->ID, '_mdbk_sms_to', true)); ?></td>
                                     <td><?php echo esc_html($event_label); ?><?php if ($is_retry) : ?> <span class="mdbk-sms-retry-tag"><?php _e('retry', 'doctor-appointment'); ?></span><?php endif; ?></td>
@@ -2183,6 +2247,21 @@ class MDBK_Admin_Dashboard {
                                         <div class="mdbk-sms-result">
                                         <?php if ($status === 'sent') : ?>
                                             <span class="mdbk-sms-ok"><?php _e('Sent', 'doctor-appointment'); ?></span>
+                                            <?php if ($attempts > 1) : ?><span class="mdbk-sms-attempts"><?php printf(esc_html__('%d tries', 'doctor-appointment'), $attempts); ?></span><?php endif; ?>
+                                        <?php elseif ($later) :
+                                            $later_event = get_post_meta($later->ID, '_mdbk_sms_event', true);
+                                            $later_label = isset($events[$later_event]) ? $events[$later_event]['label'] : (isset($event_labels[$later_event]) ? $event_labels[$later_event] : $later_event);
+                                            $later_note  = sprintf(
+                                                /* translators: 1: why the first send failed, 2: event label, 3: date and time */
+                                                __('Failed first (%1$s). Delivered later by %2$s on %3$s.', 'doctor-appointment'),
+                                                $error ?: __('unknown error', 'doctor-appointment'),
+                                                $later_label,
+                                                get_the_date(get_option('date_format') . ', ' . get_option('time_format'), $later)
+                                            ); ?>
+                                            <span class="mdbk-sms-ok"><?php _e('Sent later', 'doctor-appointment'); ?></span>
+                                            <button type="button" class="mdbk-sms-reason mdbk-sms-reason-ok" data-reason="<?php echo esc_attr($later_note); ?>" aria-label="<?php esc_attr_e('Details', 'doctor-appointment'); ?>">
+                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+                                            </button>
                                         <?php else : ?>
                                             <span class="mdbk-sms-fail"><?php _e('Failed', 'doctor-appointment'); ?></span>
                                             <?php if ($error) : ?>
@@ -2190,11 +2269,8 @@ class MDBK_Admin_Dashboard {
                                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
                                                 </button>
                                             <?php endif; ?>
-                                            <?php if ($retried_by) : ?>
-                                                <span class="mdbk-sms-retried"><?php _e('Retried', 'doctor-appointment'); ?></span>
-                                            <?php else : ?>
-                                                <button type="button" class="mdbk-btn-outline mdbk-btn-sm mdbk-sms-retry" data-log="<?php echo esc_attr($row->ID); ?>"><?php _e('Retry', 'doctor-appointment'); ?></button>
-                                            <?php endif; ?>
+                                            <span class="mdbk-sms-attempts"<?php echo $attempts > 1 ? '' : ' hidden'; ?>><?php printf(esc_html__('%d tries', 'doctor-appointment'), $attempts); ?></span>
+                                            <button type="button" class="mdbk-btn-outline mdbk-btn-sm mdbk-sms-retry" data-log="<?php echo esc_attr($row->ID); ?>"><?php _e('Retry', 'doctor-appointment'); ?></button>
                                         <?php endif; ?>
                                         </div>
                                     </td>
@@ -2203,6 +2279,7 @@ class MDBK_Admin_Dashboard {
                             </tbody>
                         </table>
                     </div>
+                    <?php echo $this->render_pagination_html('mdbk-sms-log-page', $log_filter['page'], $log_query['pages']); ?>
                     <?php endif; ?>
                 </div>
                 </div>

@@ -2858,13 +2858,26 @@ body.mdbk-doctor-chrome .mdbk-admin-wrapper {
 [data-sms-panel][hidden] { display: none !important; }
 .mdbk-sms-stats { margin-bottom: 20px; }
 #mdbk-sms-balance.is-loading { opacity: .4; transition: opacity .2s; }
-.mdbk-sms-log-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin: 0 0 18px; }
+.mdbk-sms-log-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin: 0 0 14px; }
+.mdbk-sms-log-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 0 0 12px; }
+.mdbk-sms-log-filters .mdbk-filters-search { flex: 1 1 220px; max-width: 320px; }
+.mdbk-sms-log-filters .mdbk-filters-select { width: 180px; }
+.mdbk-sms-log-count { margin: 0 0 8px; }
+.mdbk-sms-log-table .mdbk-sms-pick-col { width: 28px; padding-right: 0; }
+.mdbk-sms-log-table .mdbk-sms-pick-col input { margin: 0; cursor: pointer; }
+#mdbk-sms-retry-selected:disabled { opacity: .5; cursor: not-allowed; }
 /* Log Result cell: status + ⓘ on the left, Retry pushed right, one line. */
 .mdbk-sms-result { display: flex; align-items: center; gap: 6px; min-width: 150px; }
 .mdbk-sms-log-table .mdbk-sms-ok, .mdbk-sms-log-table .mdbk-sms-fail { font-size: 12px; font-weight: 500; }
-.mdbk-sms-reason { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; padding: 0; border: 0; border-radius: 50%; background: none; color: #94a3b8; cursor: pointer; }
-.mdbk-sms-reason:hover, .mdbk-sms-reason:focus-visible { color: #b91c1c; background: #fee2e2; outline: none; }
+.mdbk-sms-reason { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 20px; height: 20px; padding: 0; border: 1px solid #fca5a5; border-radius: 50%; background: #fee2e2; color: #b91c1c; font: 700 12px/1 Georgia, 'Times New Roman', serif; font-style: italic; cursor: pointer; transition: background .15s ease, color .15s ease; }
+.mdbk-sms-reason:hover, .mdbk-sms-reason:focus-visible { background: #dc2626; border-color: #dc2626; color: #fff; outline: none; }
+.mdbk-sms-reason svg { display: none; }
+.mdbk-sms-reason::before { content: 'i'; }
 .mdbk-sms-result .mdbk-sms-retry, .mdbk-sms-result .mdbk-sms-retried { margin-left: auto; }
+.mdbk-sms-attempts { font-size: 11px; color: #94a3b8; white-space: nowrap; }
+.mdbk-sms-attempts[hidden] { display: none; }
+.mdbk-sms-reason-ok { border-color: #86efac; background: #dcfce7; color: #15803d; }
+.mdbk-sms-reason-ok:hover, .mdbk-sms-reason-ok:focus-visible { background: #16a34a; border-color: #16a34a; color: #fff; }
 .mdbk-sms-retried { font-size: 12px; color: #64748b; }
 .mdbk-sms-tip { position: absolute; z-index: 100000; max-width: 260px; padding: 8px 10px; border-radius: 8px; background: #1e293b; color: #f8fafc; font-size: 12px; font-weight: 400; line-height: 1.45; box-shadow: 0 8px 24px rgba(15, 23, 42, .18); }
 .mdbk-sms-retry-tag { display: inline-block; margin-left: 4px; padding: 0 6px; border-radius: 999px; background: #eef2f7; color: #475569; font-size: 11px; font-weight: 600; }
@@ -2904,7 +2917,7 @@ body.mdbk-doctor-chrome .mdbk-admin-wrapper {
 .mdbk-sms-bulk-name { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; font-weight: 600; color: #1e293b; }
 .mdbk-sms-bulk-detail { font-size: 11px; font-weight: 500; color: #94a3b8; }
 .mdbk-sms-bulk-detail:empty { display: none; }
-.mdbk-sms-bulk-row .mdbk-sms-reason { margin-left: -6px; }
+.mdbk-sms-bulk-row .mdbk-sms-reason { margin-left: -4px; }
 .mdbk-sms-bulk-phone { color: #64748b; font-variant-numeric: tabular-nums; }
 #mdbk-sms-bulk-send:disabled { opacity: .5; cursor: not-allowed; }
 @media (max-width: 1100px) { .mdbk-sms-stats { grid-template-columns: repeat(2, 1fr); } }
