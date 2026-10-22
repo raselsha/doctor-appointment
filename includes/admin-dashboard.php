@@ -2240,7 +2240,7 @@ class MDBK_Admin_Dashboard {
                                     <td class="mdbk-sms-pick-col"><?php if ($status !== 'sent' && !$later) : ?><input type="checkbox" class="mdbk-sms-pick" value="<?php echo esc_attr($row->ID); ?>" aria-label="<?php esc_attr_e('Select to retry', 'doctor-appointment'); ?>"><?php endif; ?></td>
                                     <td><?php echo esc_html(get_the_date(get_option('date_format') . ', ' . get_option('time_format'), $row)); ?></td>
                                     <td><?php echo esc_html(get_post_meta($row->ID, '_mdbk_sms_to', true)); ?></td>
-                                    <td><?php echo esc_html($event_label); ?><?php if ($is_retry) : ?> <span class="mdbk-sms-retry-tag"><?php _e('retry', 'doctor-appointment'); ?></span><?php endif; ?></td>
+                                    <td><?php echo esc_html($event_label); ?></td>
                                     <td class="mdbk-sms-log-message"><?php echo esc_html(get_post_meta($row->ID, '_mdbk_sms_message', true)); ?></td>
                                     <td><?php echo esc_html(get_post_meta($row->ID, '_mdbk_sms_parts', true)); ?></td>
                                     <td>
@@ -2250,10 +2250,10 @@ class MDBK_Admin_Dashboard {
                                         // sent row that was itself a retry (older separate-row retries),
                                         // or a row retried in place. Its ⓘ always gives the old reason.
                                         $retried_note = '';
-                                        if ($status === 'sent' && $is_retry) {
-                                            $first_error = (string) get_post_meta($is_retry, '_mdbk_sms_error', true);
-                                            $retried_note = sprintf(__('First try failed: %s', 'doctor-appointment'), rtrim($first_error, '. ') ?: __('reason not recorded', 'doctor-appointment'));
-                                        } elseif ($status === 'sent' && $attempts > 1) {
+                                        // A separate row that WAS the successful retry (older log
+                                        // entries) is simply Sent — the "(retried)" belongs on the
+                                        // row that failed, which says so below.
+                                        if ($status === 'sent' && $attempts > 1) {
                                             $prev_error = (string) get_post_meta($row->ID, '_mdbk_sms_prev_error', true);
                                             $retried_note = sprintf(__('Earlier try failed: %1$s. Sent on try %2$d.', 'doctor-appointment'), rtrim($prev_error, '. ') ?: __('reason not recorded', 'doctor-appointment'), $attempts);
                                         } elseif ($later) {

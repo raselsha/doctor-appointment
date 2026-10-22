@@ -3707,6 +3707,46 @@ document.addEventListener('DOMContentLoaded', function() {
                 return false;
             });
     }
+    // ⓘ next to an SMS result: click shows why, in a small tooltip under it;
+    // click again, click elsewhere or Escape closes it.
+    (function() {
+        let tip = null, owner = null, pinned = false;
+        function close() { if (tip) tip.remove(); tip = null; owner = null; pinned = false; }
+        // Hover previews it; a click pins it open until the next click.
+        document.addEventListener('mouseover', function(e) {
+            const icon = e.target.closest && e.target.closest('.mdbk-sms-reason');
+            if (icon && !pinned && owner !== icon) open(icon);
+        });
+        document.addEventListener('mouseout', function(e) {
+            const icon = e.target.closest && e.target.closest('.mdbk-sms-reason');
+            if (icon && !pinned && owner === icon && !icon.contains(e.relatedTarget)) close();
+        });
+        document.addEventListener('click', function(e) {
+            const icon = e.target.closest('.mdbk-sms-reason');
+            if (!icon) { if (tip && !e.target.closest('.mdbk-sms-tip')) close(); return; }
+            e.preventDefault();
+            if (owner === icon && pinned) { close(); return; }
+            open(icon);
+            pinned = true;
+        });
+        function open(icon) {
+            close();
+            tip = document.createElement('div');
+            tip.className = 'mdbk-sms-tip';
+            tip.setAttribute('role', 'tooltip');
+            tip.textContent = icon.getAttribute('data-reason') || '';
+            document.body.appendChild(tip);
+            const r = icon.getBoundingClientRect();
+            const w = tip.offsetWidth;
+            const left = Math.max(8, Math.min(window.innerWidth - w - 8, r.left + r.width / 2 - w / 2));
+            tip.style.left = (left + window.scrollX) + 'px';
+            tip.style.top = (r.bottom + window.scrollY + 8) + 'px';
+            owner = icon;
+        }
+        document.addEventListener('keydown', function(e) { if (e.key === 'Escape') close(); });
+        window.addEventListener('scroll', close, true);
+    })();
+
     document.querySelectorAll('.mdbk-sms-retry').forEach(function(btn) {
         btn.addEventListener('click', function() { mdbkSmsRetry(btn); });
     });
