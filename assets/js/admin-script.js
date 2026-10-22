@@ -3640,16 +3640,27 @@ document.addEventListener('DOMContentLoaded', function() {
     // Each row is resent word for word; the row then shows the new result
     // in place (a fresh row also lands at the top of the log on reload).
     function mdbkSmsRetry(btn) {
-        const cell = btn.parentElement;
+        const cell = btn.closest('.mdbk-sms-result');
         btn.disabled = true;
         btn.textContent = mdbk_admin_obj.sms_retrying || 'Sending…';
         return mdbkSmsPost('mdbk_sms_retry', { log_id: btn.getAttribute('data-log') })
             .then(function(res) {
                 const ok = !!(res && res.success);
-                const note = document.createElement('div');
-                note.className = ok ? 'mdbk-sms-ok' : 'mdbk-sms-fail-reason';
-                note.textContent = ok ? (mdbk_admin_obj.sms_sent || 'Sent') : ((res && res.data && res.data.message) || '');
-                btn.replaceWith(note);
+                const note = document.createElement('span');
+                if (ok) {
+                    // Went through: the row now reads Sent, nothing to explain.
+                    cell.innerHTML = '';
+                    note.className = 'mdbk-sms-ok';
+                    note.textContent = mdbk_admin_obj.sms_sent || 'Sent';
+                    cell.appendChild(note);
+                } else {
+                    // Failed again: keep the row, point its ⓘ at the new reason.
+                    const reason = cell.querySelector('.mdbk-sms-reason');
+                    if (reason) reason.setAttribute('data-reason', (res && res.data && res.data.message) || '');
+                    note.className = 'mdbk-sms-retried';
+                    note.textContent = mdbk_admin_obj.sms_retried || 'Retried';
+                    btn.replaceWith(note);
+                }
                 return ok;
             })
             .catch(function() {
@@ -3658,6 +3669,46 @@ document.addEventListener('DOMContentLoaded', function() {
                 return false;
             });
     }
+    // ⓘ next to a failed SMS: click shows why, in a small tooltip under it;
+    // click again, click elsewhere or Escape closes it.
+    (function() {
+        let tip = null, owner = null, pinned = false;
+        function close() { if (tip) tip.remove(); tip = null; owner = null; pinned = false; }
+        // Hover previews it; a click pins it open until the next click.
+        document.addEventListener('mouseover', function(e) {
+            const icon = e.target.closest && e.target.closest('.mdbk-sms-reason');
+            if (icon && !pinned && owner !== icon) open(icon);
+        });
+        document.addEventListener('mouseout', function(e) {
+            const icon = e.target.closest && e.target.closest('.mdbk-sms-reason');
+            if (icon && !pinned && owner === icon && !icon.contains(e.relatedTarget)) close();
+        });
+        document.addEventListener('click', function(e) {
+            const icon = e.target.closest('.mdbk-sms-reason');
+            if (!icon) { if (tip && !e.target.closest('.mdbk-sms-tip')) close(); return; }
+            e.preventDefault();
+            if (owner === icon && pinned) { close(); return; }
+            open(icon);
+            pinned = true;
+        });
+        function open(icon) {
+            close();
+            tip = document.createElement('div');
+            tip.className = 'mdbk-sms-tip';
+            tip.setAttribute('role', 'tooltip');
+            tip.textContent = icon.getAttribute('data-reason') || '';
+            document.body.appendChild(tip);
+            const r = icon.getBoundingClientRect();
+            const w = tip.offsetWidth;
+            const left = Math.max(8, Math.min(window.innerWidth - w - 8, r.left + r.width / 2 - w / 2));
+            tip.style.left = (left + window.scrollX) + 'px';
+            tip.style.top = (r.bottom + window.scrollY + 8) + 'px';
+            owner = icon;
+        }
+        document.addEventListener('keydown', function(e) { if (e.key === 'Escape') close(); });
+        window.addEventListener('scroll', close, true);
+    })();
+
     document.querySelectorAll('.mdbk-sms-retry').forEach(function(btn) {
         btn.addEventListener('click', function() { mdbkSmsRetry(btn); });
     });
@@ -3713,13 +3764,24 @@ document.addEventListener('DOMContentLoaded', function() {
             const state = sms ? sms.status : 'none';
             el.className = 'mdbk-sms-bulk-status mdbk-sms-bulk-status-' + state;
             el.textContent = state === 'sent' ? (L.sent || 'Sent') : state === 'failed' ? (L.failed || 'Failed') : (L.none || 'No SMS yet');
-            el.title = sms ? (sms.event + ' · ' + sms.when + (sms.status === 'failed' && sms.error ? '\n' + sms.error : '')) : '';
-            // Spelled out under the name too, so the reason needs no hover.
-            const detail = listEl.querySelector('[data-sms-detail="' + el.getAttribute('data-sms-status') + '"]');
-            if (detail) {
-                detail.textContent = sms ? [sms.event, sms.when].filter(Boolean).join(' · ') + (state === 'failed' && sms.error ? ' — ' + sms.error : '') : '';
-                detail.classList.toggle('is-failed', state === 'failed');
+            el.removeAttribute('title');
+            // Why it failed lives behind an ⓘ beside the badge (same as the Log tab).
+            let icon = el.nextElementSibling && el.nextElementSibling.classList.contains('mdbk-sms-reason') ? el.nextElementSibling : null;
+            if (state === 'failed' && sms && sms.error) {
+                if (!icon) {
+                    icon = document.createElement('button');
+                    icon.type = 'button';
+                    icon.className = 'mdbk-sms-reason';
+                    icon.setAttribute('aria-label', mdbk_admin_obj.sms_why_failed || 'Why it failed');
+                    icon.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>';
+                    el.after(icon);
+                }
+                icon.setAttribute('data-reason', sms.error);
+            } else if (icon) {
+                icon.remove();
             }
+            const detail = listEl.querySelector('[data-sms-detail="' + el.getAttribute('data-sms-status') + '"]');
+            if (detail) detail.textContent = sms ? [sms.event, sms.when].filter(Boolean).join(' · ') : '';
         }
 
         function setMsg(text, kind) {

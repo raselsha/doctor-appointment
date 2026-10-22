@@ -2859,9 +2859,14 @@ body.mdbk-doctor-chrome .mdbk-admin-wrapper {
 .mdbk-sms-stats { margin-bottom: 20px; }
 #mdbk-sms-balance.is-loading { opacity: .4; transition: opacity .2s; }
 .mdbk-sms-log-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin: 0 0 18px; }
-.mdbk-sms-fail-reason { margin-top: 4px; max-width: 220px; font-size: 12px; line-height: 1.4; color: #b91c1c; }
-.mdbk-sms-retry { margin-top: 6px; }
-.mdbk-sms-retried { margin-top: 4px; font-size: 12px; color: #64748b; }
+/* Log Result cell: status + ⓘ on the left, Retry pushed right, one line. */
+.mdbk-sms-result { display: flex; align-items: center; gap: 6px; min-width: 150px; }
+.mdbk-sms-log-table .mdbk-sms-ok, .mdbk-sms-log-table .mdbk-sms-fail { font-size: 12px; font-weight: 500; }
+.mdbk-sms-reason { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; padding: 0; border: 0; border-radius: 50%; background: none; color: #94a3b8; cursor: pointer; }
+.mdbk-sms-reason:hover, .mdbk-sms-reason:focus-visible { color: #b91c1c; background: #fee2e2; outline: none; }
+.mdbk-sms-result .mdbk-sms-retry, .mdbk-sms-result .mdbk-sms-retried { margin-left: auto; }
+.mdbk-sms-retried { font-size: 12px; color: #64748b; }
+.mdbk-sms-tip { position: absolute; z-index: 100000; max-width: 260px; padding: 8px 10px; border-radius: 8px; background: #1e293b; color: #f8fafc; font-size: 12px; font-weight: 400; line-height: 1.45; box-shadow: 0 8px 24px rgba(15, 23, 42, .18); }
 .mdbk-sms-retry-tag { display: inline-block; margin-left: 4px; padding: 0 6px; border-radius: 999px; background: #eef2f7; color: #475569; font-size: 11px; font-weight: 600; }
 .mdbk-sms-bulk-recipients { margin-top: 18px; }
 /* Send SMS tab: single and bulk cards side by side, stacking on narrow screens. */
@@ -2899,7 +2904,7 @@ body.mdbk-doctor-chrome .mdbk-admin-wrapper {
 .mdbk-sms-bulk-name { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; font-weight: 600; color: #1e293b; }
 .mdbk-sms-bulk-detail { font-size: 11px; font-weight: 500; color: #94a3b8; }
 .mdbk-sms-bulk-detail:empty { display: none; }
-.mdbk-sms-bulk-detail.is-failed { color: #b91c1c; }
+.mdbk-sms-bulk-row .mdbk-sms-reason { margin-left: -6px; }
 .mdbk-sms-bulk-phone { color: #64748b; font-variant-numeric: tabular-nums; }
 #mdbk-sms-bulk-send:disabled { opacity: .5; cursor: not-allowed; }
 @media (max-width: 1100px) { .mdbk-sms-stats { grid-template-columns: repeat(2, 1fr); } }

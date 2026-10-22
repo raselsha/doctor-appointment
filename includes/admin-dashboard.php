@@ -2180,17 +2180,23 @@ class MDBK_Admin_Dashboard {
                                     <td class="mdbk-sms-log-message"><?php echo esc_html(get_post_meta($row->ID, '_mdbk_sms_message', true)); ?></td>
                                     <td><?php echo esc_html(get_post_meta($row->ID, '_mdbk_sms_parts', true)); ?></td>
                                     <td>
+                                        <div class="mdbk-sms-result">
                                         <?php if ($status === 'sent') : ?>
                                             <span class="mdbk-sms-ok"><?php _e('Sent', 'doctor-appointment'); ?></span>
                                         <?php else : ?>
                                             <span class="mdbk-sms-fail"><?php _e('Failed', 'doctor-appointment'); ?></span>
-                                            <?php if ($error) : ?><div class="mdbk-sms-fail-reason"><?php echo esc_html($error); ?></div><?php endif; ?>
+                                            <?php if ($error) : ?>
+                                                <button type="button" class="mdbk-sms-reason" data-reason="<?php echo esc_attr($error); ?>" aria-label="<?php esc_attr_e('Why it failed', 'doctor-appointment'); ?>">
+                                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+                                                </button>
+                                            <?php endif; ?>
                                             <?php if ($retried_by) : ?>
-                                                <div class="mdbk-sms-retried"><?php _e('Retried', 'doctor-appointment'); ?></div>
+                                                <span class="mdbk-sms-retried"><?php _e('Retried', 'doctor-appointment'); ?></span>
                                             <?php else : ?>
                                                 <button type="button" class="mdbk-btn-outline mdbk-btn-sm mdbk-sms-retry" data-log="<?php echo esc_attr($row->ID); ?>"><?php _e('Retry', 'doctor-appointment'); ?></button>
                                             <?php endif; ?>
                                         <?php endif; ?>
+                                        </div>
                                     </td>
                                 </tr>
                             <?php endforeach; ?>

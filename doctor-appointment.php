@@ -202,6 +202,8 @@ if ( ! class_exists( 'MDBK_Doctor_Appointment' ) ) {
                 'sms_retrying'      => __( 'Sending…', 'doctor-appointment' ),
                 'sms_sent'          => __( 'Sent', 'doctor-appointment' ),
                 'sms_retry'         => __( 'Retry', 'doctor-appointment' ),
+                'sms_retried'       => __( 'Retried', 'doctor-appointment' ),
+                'sms_why_failed'    => __( 'Why it failed', 'doctor-appointment' ),
                 'sms_bulk_loading'  => __( 'Loading bookings…', 'doctor-appointment' ),
                 'sms_bulk_none'     => __( 'No bookings with a mobile number for this doctor on this date.', 'doctor-appointment' ),
                 'sms_bulk_count'    => __( '%d recipients', 'doctor-appointment' ),
