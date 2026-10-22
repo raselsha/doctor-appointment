@@ -3469,10 +3469,29 @@ document.addEventListener('DOMContentLoaded', function() {
         box.appendChild(pt);
     }
 
-    document.querySelectorAll('.mdbk-sms-template').forEach(function(ta) {
-        mdbkRenderSmsCounter(ta);
-        ta.addEventListener('input', function() { mdbkRenderSmsCounter(ta); });
+    document.querySelectorAll('.mdbk-sms-template').forEach(function(ta) { mdbkRenderSmsCounter(ta); });
+    document.addEventListener('input', function(e) {
+        if (e.target.classList && e.target.classList.contains('mdbk-sms-template')) mdbkRenderSmsCounter(e.target);
     });
+
+    // Bulk SMS templates (Messages tab): add a blank row from the <template>,
+    // remove a row. Saved with the rest of the settings form.
+    (function() {
+        const list = document.getElementById('mdbk-sms-bulk-tpls');
+        const blank = document.getElementById('mdbk-sms-bulk-tpl-blank');
+        const addBtn = document.getElementById('mdbk-sms-bulk-tpl-add');
+        if (!list || !blank || !addBtn) return;
+        addBtn.addEventListener('click', function() {
+            const row = blank.content.firstElementChild.cloneNode(true);
+            list.appendChild(row);
+            mdbkRenderSmsCounter(row.querySelector('textarea'));
+            row.querySelector('input').focus();
+        });
+        list.addEventListener('click', function(e) {
+            const btn = e.target.closest('.mdbk-sms-bulk-tpl-remove');
+            if (btn) btn.closest('.mdbk-sms-bulk-tpl').remove();
+        });
+    })();
 
     // Placeholder chips insert at the caret of whichever template box was
     // last focused, rather than always appending to the end — the token
@@ -3482,12 +3501,15 @@ document.addEventListener('DOMContentLoaded', function() {
         const tokens = document.querySelectorAll('.mdbk-sms-token');
         if (!tokens.length) return;
         let lastFocused = null;
-        document.querySelectorAll('.mdbk-sms-template').forEach(function(ta) {
-            ta.addEventListener('focus', function() { lastFocused = ta; });
+        document.addEventListener('focusin', function(e) {
+            if (e.target.classList && e.target.classList.contains('mdbk-sms-template')) lastFocused = e.target;
         });
         tokens.forEach(function(btn) {
             btn.addEventListener('click', function() {
-                const ta = lastFocused || document.querySelector('.mdbk-sms-template');
+                // A token row tied to one box (the bulk sender's) always
+                // inserts there; the shared row follows the last focus.
+                const scope = btn.closest('[data-target]');
+                const ta = scope ? document.getElementById(scope.getAttribute('data-target')) : (lastFocused || document.querySelector('.mdbk-sms-template'));
                 if (!ta) return;
                 const token = btn.dataset.token || '';
                 const start = ta.selectionStart != null ? ta.selectionStart : ta.value.length;
@@ -3572,6 +3594,13 @@ document.addEventListener('DOMContentLoaded', function() {
             const msg = document.getElementById('mdbk-sms-test-msg');
             msg.textContent = '';
             msg.className = 'mdbk-sms-inline-msg';
+            // Caught here too, so an empty field never costs a round trip.
+            if (to && to.value.trim() === '') {
+                msg.textContent = mdbk_admin_obj.sms_number_empty || 'Enter a mobile number.';
+                msg.className = 'mdbk-sms-inline-msg mdbk-sms-inline-fail';
+                to.focus();
+                return;
+            }
             smsTestBtn.disabled = true;
             const body = new URLSearchParams();
             body.set('action', 'mdbk_sms_test');
@@ -3592,6 +3621,266 @@ document.addEventListener('DOMContentLoaded', function() {
                 .finally(function() { smsTestBtn.disabled = false; });
         });
     }
+
+    // Shared POST helper for the SMS page's admin-ajax calls.
+    function mdbkSmsPost(action, params) {
+        const body = new URLSearchParams();
+        body.set('action', action);
+        body.set('nonce', mdbk_admin_obj.nonce);
+        Object.keys(params || {}).forEach(function(k) {
+            const v = params[k];
+            if (Array.isArray(v)) v.forEach(function(x) { body.append(k + '[]', x); });
+            else body.set(k, v);
+        });
+        return fetch(mdbk_admin_obj.ajax_url, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body.toString() })
+            .then(function(r) { return r.json(); });
+    }
+
+    // SMS log: Retry one failed message, or every failed one in the list.
+    // Each row is resent word for word; the row then shows the new result
+    // in place (a fresh row also lands at the top of the log on reload).
+    function mdbkSmsRetry(btn) {
+        const cell = btn.parentElement;
+        btn.disabled = true;
+        btn.textContent = mdbk_admin_obj.sms_retrying || 'Sending…';
+        return mdbkSmsPost('mdbk_sms_retry', { log_id: btn.getAttribute('data-log') })
+            .then(function(res) {
+                const ok = !!(res && res.success);
+                const note = document.createElement('div');
+                note.className = ok ? 'mdbk-sms-ok' : 'mdbk-sms-fail-reason';
+                note.textContent = ok ? (mdbk_admin_obj.sms_sent || 'Sent') : ((res && res.data && res.data.message) || '');
+                btn.replaceWith(note);
+                return ok;
+            })
+            .catch(function() {
+                btn.disabled = false;
+                btn.textContent = mdbk_admin_obj.sms_retry || 'Retry';
+                return false;
+            });
+    }
+    document.querySelectorAll('.mdbk-sms-retry').forEach(function(btn) {
+        btn.addEventListener('click', function() { mdbkSmsRetry(btn); });
+    });
+    const smsRetryAll = document.getElementById('mdbk-sms-retry-all');
+    if (smsRetryAll) {
+        smsRetryAll.addEventListener('click', function() {
+            const buttons = Array.prototype.slice.call(document.querySelectorAll('.mdbk-sms-retry'));
+            smsRetryAll.disabled = true;
+            // One at a time — the gateway is billed per request and a burst
+            // of parallel calls is the easiest way to get throttled.
+            buttons.reduce(function(chain, btn) {
+                return chain.then(function() { return mdbkSmsRetry(btn); });
+            }, Promise.resolve()).then(function() { smsRetryAll.remove(); });
+        });
+    }
+
+    // Bulk SMS: doctor + date → recipient list → send in small batches.
+    (function() {
+        const box = document.getElementById('mdbk-sms-bulk');
+        if (!box) return;
+        const listEl = document.getElementById('mdbk-sms-bulk-recipients');
+        const sendBtn = document.getElementById('mdbk-sms-bulk-send');
+        const msgEl = document.getElementById('mdbk-sms-bulk-msg');
+        const textEl = document.getElementById('mdbk-sms-bulk-message');
+        const doctorSel = document.getElementById('mdbk-sms-bulk-doctor');
+        const dateSel = document.getElementById('mdbk-sms-bulk-date');
+        let recipients = [];
+        let loadToken = 0;
+
+        function fmt(str, a, b) { return String(str).replace('%1$d', a).replace('%2$d', b).replace('%d', a); }
+        function selectedIds() {
+            // Patient rows only — the "Select all" box lives in the same container.
+            return Array.prototype.slice.call(listEl.querySelectorAll('.mdbk-sms-bulk-list input[type=checkbox]:checked')).map(function(cb) { return cb.value; });
+        }
+        function syncButton() {
+            const n = selectedIds().length;
+            sendBtn.disabled = n === 0;
+            sendBtn.textContent = fmt(mdbk_admin_obj.sms_bulk_send || 'Send to %d', n);
+            const all = listEl.querySelector('.mdbk-sms-bulk-all');
+            const counter = listEl.querySelector('.mdbk-sms-bulk-count');
+            if (all) {
+                // On only when everyone is ticked; the label says what a click will do.
+                all.checked = n === recipients.length;
+                const label = listEl.querySelector('.mdbk-sms-bulk-all-label');
+                if (label) label.textContent = all.checked ? (mdbk_admin_obj.sms_bulk_none_sel || 'Unselect all') : (mdbk_admin_obj.sms_bulk_all || 'Select all');
+            }
+            if (counter) counter.textContent = fmt(mdbk_admin_obj.sms_bulk_selected || '%1$d of %2$d selected', n, recipients.length);
+        }
+        // Badge for the latest SMS sent for one booking: Sent / Failed /
+        // No SMS yet, with which message and when (and why, if failed) on hover.
+        function paintSmsStatus(el, sms) {
+            const L = mdbk_admin_obj.sms_state_labels || {};
+            const state = sms ? sms.status : 'none';
+            el.className = 'mdbk-sms-bulk-status mdbk-sms-bulk-status-' + state;
+            el.textContent = state === 'sent' ? (L.sent || 'Sent') : state === 'failed' ? (L.failed || 'Failed') : (L.none || 'No SMS yet');
+            el.title = sms ? (sms.event + ' · ' + sms.when + (sms.status === 'failed' && sms.error ? '\n' + sms.error : '')) : '';
+            // Spelled out under the name too, so the reason needs no hover.
+            const detail = listEl.querySelector('[data-sms-detail="' + el.getAttribute('data-sms-status') + '"]');
+            if (detail) {
+                detail.textContent = sms ? [sms.event, sms.when].filter(Boolean).join(' · ') + (state === 'failed' && sms.error ? ' — ' + sms.error : '') : '';
+                detail.classList.toggle('is-failed', state === 'failed');
+            }
+        }
+
+        function setMsg(text, kind) {
+            msgEl.textContent = text || '';
+            msgEl.className = 'mdbk-sms-inline-msg' + (kind ? ' mdbk-sms-inline-' + kind : '');
+        }
+        function load() {
+            recipients = [];
+            setMsg('');
+            if (!doctorSel.value) return;
+            const token = ++loadToken;
+            listEl.innerHTML = '<p class="mdbk-form-hint" style="margin:0;"></p>';
+            listEl.firstChild.textContent = mdbk_admin_obj.sms_bulk_loading || 'Loading…';
+            sendBtn.disabled = true;
+            mdbkSmsPost('mdbk_sms_bulk_recipients', { doctor_id: doctorSel.value, date: dateSel.value })
+                .then(function(res) {
+                    if (token !== loadToken) return;
+                    listEl.innerHTML = '';
+                    if (!res || !res.success) {
+                        setMsg((res && res.data && res.data.message) || '', 'fail');
+                        return;
+                    }
+                    recipients = res.data.recipients || [];
+                    if (!recipients.length) {
+                        const p = document.createElement('p');
+                        p.className = 'mdbk-form-hint';
+                        p.style.margin = '0';
+                        p.textContent = mdbk_admin_obj.sms_bulk_none || '';
+                        listEl.appendChild(p);
+                        syncButton();
+                        return;
+                    }
+                    // One switch for everyone: on = all ticked, off = none.
+                    const head = document.createElement('div');
+                    head.className = 'mdbk-sms-bulk-head';
+                    const toggle = document.createElement('label');
+                    toggle.className = 'mdbk-toggle';
+                    const all = document.createElement('input');
+                    all.type = 'checkbox';
+                    all.className = 'mdbk-sms-bulk-all';
+                    const slider = document.createElement('span');
+                    slider.className = 'mdbk-toggle-slider';
+                    toggle.appendChild(all);
+                    toggle.appendChild(slider);
+                    const allText = document.createElement('span');
+                    allText.className = 'mdbk-sms-bulk-all-label';
+                    all.addEventListener('change', function() {
+                        listEl.querySelectorAll('.mdbk-sms-bulk-list input[type=checkbox]').forEach(function(cb) { cb.checked = all.checked; });
+                        syncButton();
+                    });
+                    allText.addEventListener('click', function() { all.click(); });
+                    const count = document.createElement('span');
+                    count.className = 'mdbk-sms-bulk-count';
+                    head.appendChild(toggle);
+                    head.appendChild(allText);
+                    head.appendChild(count);
+                    listEl.appendChild(head);
+                    const ul = document.createElement('div');
+                    ul.className = 'mdbk-sms-bulk-list';
+                    recipients.forEach(function(r) {
+                        const row = document.createElement('label');
+                        row.className = 'mdbk-sms-bulk-row';
+                        const cb = document.createElement('input');
+                        cb.type = 'checkbox';
+                        cb.checked = true;
+                        cb.value = r.id;
+                        cb.addEventListener('change', syncButton);
+                        const name = document.createElement('span');
+                        name.className = 'mdbk-sms-bulk-name';
+                        const nameText = document.createElement('span');
+                        nameText.textContent = (r.ticket ? r.ticket + ' · ' : '') + r.name;
+                        const detail = document.createElement('span');
+                        detail.className = 'mdbk-sms-bulk-detail';
+                        detail.setAttribute('data-sms-detail', r.id);
+                        name.appendChild(nameText);
+                        name.appendChild(detail);
+                        const phone = document.createElement('span');
+                        phone.className = 'mdbk-sms-bulk-phone';
+                        phone.textContent = r.phone;
+                        const status = document.createElement('span');
+                        status.setAttribute('data-sms-status', r.id);
+                        row.appendChild(cb);
+                        row.appendChild(name);
+                        row.appendChild(status);
+                        row.appendChild(phone);
+                        ul.appendChild(row);
+                    });
+                    listEl.appendChild(ul);
+                    recipients.forEach(function(r) {
+                        paintSmsStatus(listEl.querySelector('[data-sms-status="' + r.id + '"]'), r.sms);
+                    });
+                    syncButton();
+                })
+                .catch(function() {
+                    if (token !== loadToken) return;
+                    listEl.innerHTML = '';
+                    setMsg(mdbk_admin_obj.sms_network_error || '', 'fail');
+                });
+        }
+
+        const doctorCtl = initCustomSelect('mdbk-sms-bulk-doctor-select', function() {
+            // "Choose a doctor" is a prompt, not a value — drop its grey once one is picked.
+            const v = doctorCtl && doctorCtl.wrapper.querySelector('.mdbk-custom-select-value');
+            if (v) v.classList.remove('mdbk-select-placeholder');
+            load();
+        });
+        initCustomSelect('mdbk-sms-bulk-date-select', load);
+
+        // Template picker: fills the message box (still editable after).
+        let tplTexts = {};
+        try { tplTexts = JSON.parse((document.getElementById('mdbk-sms-bulk-tpl-data') || {}).textContent || '{}'); } catch (e) {}
+        initCustomSelect('mdbk-sms-bulk-tpl-select', function(opt, value) {
+            if (!value || !tplTexts[value]) return;
+            textEl.value = tplTexts[value];
+            mdbkRenderSmsCounter(textEl);
+        });
+        // Same choices for the single-number card.
+        const singleText = document.getElementById('mdbk-sms-test-message');
+        initCustomSelect('mdbk-sms-single-tpl-select', function(opt, value) {
+            if (!singleText || !value || !tplTexts[value]) return;
+            singleText.value = tplTexts[value];
+            mdbkRenderSmsCounter(singleText);
+            singleText.focus();
+        });
+
+        sendBtn.addEventListener('click', function() {
+            const ids = selectedIds();
+            const text = textEl.value.trim();
+            if (!text) { setMsg(mdbk_admin_obj.sms_bulk_empty || '', 'fail'); textEl.focus(); return; }
+            if (!ids.length) return;
+            if (!window.confirm(fmt(mdbk_admin_obj.sms_bulk_confirm || 'Send to %d numbers?', ids.length))) return;
+
+            sendBtn.disabled = true;
+            let sent = 0, failed = 0, done = 0;
+            const batches = [];
+            for (let i = 0; i < ids.length; i += 5) batches.push(ids.slice(i, i + 5));
+            setMsg(fmt(mdbk_admin_obj.sms_bulk_progress || 'Sending… %1$d of %2$d', 0, ids.length));
+            batches.reduce(function(chain, batch) {
+                return chain.then(function() {
+                    return mdbkSmsPost('mdbk_sms_bulk_send', { message: text, ids: batch })
+                        .then(function(res) {
+                            const results = (res && res.success && res.data.results) || [];
+                            results.forEach(function(r) {
+                                if (r.ok) sent++; else failed++;
+                                const badge = listEl.querySelector('[data-sms-status="' + r.id + '"]');
+                                if (badge) paintSmsStatus(badge, r.sms || { status: r.ok ? 'sent' : 'failed', event: '', when: '', error: r.message });
+                            });
+                            failed += batch.length - results.length;
+                        })
+                        .catch(function() { failed += batch.length; })
+                        .then(function() {
+                            done += batch.length;
+                            setMsg(fmt(mdbk_admin_obj.sms_bulk_progress || 'Sending… %1$d of %2$d', done, ids.length));
+                        });
+                });
+            }, Promise.resolve()).then(function() {
+                setMsg(fmt(mdbk_admin_obj.sms_bulk_done || 'Done: %1$d sent, %2$d failed.', sent, failed), failed ? 'fail' : 'ok');
+                syncButton();
+            });
+        });
+    })();
 
     // License card (Global Settings) — Activate/Deactivate/Refresh, each a
     // direct admin-ajax call with its own button-disable-while-in-flight

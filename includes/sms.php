@@ -65,6 +65,9 @@ class MDBK_SMS {
 
         add_action('wp_ajax_mdbk_sms_balance', [$this, 'ajax_balance']);
         add_action('wp_ajax_mdbk_sms_test', [$this, 'ajax_test_send']);
+        add_action('wp_ajax_mdbk_sms_retry', [$this, 'ajax_retry']);
+        add_action('wp_ajax_mdbk_sms_bulk_recipients', [$this, 'ajax_bulk_recipients']);
+        add_action('wp_ajax_mdbk_sms_bulk_send', [$this, 'ajax_bulk_send']);
     }
 
     /* ---------------------------------------------------------------
@@ -160,6 +163,12 @@ class MDBK_SMS {
             'events'          => [],
         ];
 
+        // Bulk templates: once the clinic has saved the list (even emptied
+        // it), theirs wins; before that, the starter set.
+        $settings['bulk_templates'] = isset($stored['bulk_templates']) && is_array($stored['bulk_templates'])
+            ? self::clean_bulk_templates($stored['bulk_templates'])
+            : self::default_bulk_templates();
+
         foreach (self::events() as $key => $event) {
             $stored_event = isset($stored['events'][$key]) && is_array($stored['events'][$key]) ? $stored['events'][$key] : [];
             $template = isset($stored_event['template']) ? (string) $stored_event['template'] : $event['template'];
@@ -170,6 +179,41 @@ class MDBK_SMS {
         }
 
         return $settings;
+    }
+
+    /** Ready-made bulk messages a new install starts with; the clinic can edit or delete them. */
+    public static function default_bulk_templates() {
+        return [
+            [
+                'name' => __('Doctor running late', 'doctor-appointment'),
+                'text' => __('Dear {patient_name}, {doctor_name} is running late today. Your appointment at {time} may be delayed. Sorry for the wait. - {clinic_name}', 'doctor-appointment'),
+            ],
+            [
+                'name' => __('Doctor not available', 'doctor-appointment'),
+                'text' => __('Dear {patient_name}, {doctor_name} will not be available on {date}. Please call {clinic_contact} to rebook. Sorry for the trouble. - {clinic_name}', 'doctor-appointment'),
+            ],
+            [
+                'name' => __('Appointment reminder', 'doctor-appointment'),
+                'text' => __('Reminder: {patient_name}, your appointment with {doctor_name} is on {date} at {time}. Serial: {ticket}. - {clinic_name}', 'doctor-appointment'),
+            ],
+        ];
+    }
+
+    /** Drops blank rows, trims, caps the list at 20 — what the settings save and settings() both rely on. */
+    public static function clean_bulk_templates($rows) {
+        $out = [];
+        foreach ((array) $rows as $row) {
+            if (!is_array($row)) continue;
+            $text = isset($row['text']) ? trim((string) $row['text']) : '';
+            if ($text === '') continue;
+            $name = isset($row['name']) ? trim((string) $row['name']) : '';
+            $out[] = [
+                'name' => $name !== '' ? $name : sprintf(__('Template %d', 'doctor-appointment'), count($out) + 1),
+                'text' => $text,
+            ];
+            if (count($out) >= 20) break;
+        }
+        return $out;
     }
 
     public static function is_enabled() {
@@ -385,7 +429,7 @@ class MDBK_SMS {
      * settings screen tells a clinic manager nothing, and "Insufficient
      * balance" tells them exactly what to do next.
      */
-    public static function error_message($code) {
+    public static function error_message($code, $gateway_msg = '') {
         $map = [
             0   => __('Success', 'doctor-appointment'),
             400 => __('Request rejected — a parameter is missing or invalid.', 'doctor-appointment'),
@@ -404,7 +448,13 @@ class MDBK_SMS {
             420 => __('Content blocked by the gateway.', 'doctor-appointment'),
         ];
         $code = intval($code);
-        return isset($map[$code]) ? $map[$code] : sprintf(__('Gateway error %d.', 'doctor-appointment'), $code);
+        if (isset($map[$code])) return $map[$code];
+        // An undocumented code (421 turned up in production) — the gateway's
+        // own wording is the only explanation there is, so show it.
+        $gateway_msg = trim(wp_strip_all_tags((string) $gateway_msg));
+        return $gateway_msg !== ''
+            ? sprintf(__('Gateway error %1$d: %2$s', 'doctor-appointment'), $code, $gateway_msg)
+            : sprintf(__('Gateway error %d.', 'doctor-appointment'), $code);
     }
 
     /**
@@ -452,7 +502,7 @@ class MDBK_SMS {
             'error'   => $error,
             'message' => $error === 0
                 ? (isset($json['msg']) ? (string) $json['msg'] : '')
-                : self::error_message($error),
+                : self::error_message($error, isset($json['msg']) ? $json['msg'] : ''),
             'data'    => isset($json['data']) && is_array($json['data']) ? $json['data'] : [],
         ];
     }
@@ -500,7 +550,7 @@ class MDBK_SMS {
         }
 
         $result = self::api_request(self::API_SEND, $body);
-        self::log($number, $message, $result, $context);
+        $result['log_id'] = self::log($number, $message, $result, $context);
 
         // A send changes the balance, so the cached figure on the settings
         // screen is stale the moment this returns.
@@ -759,7 +809,7 @@ class MDBK_SMS {
             'post_title'  => $to . ' — ' . (isset($context['event']) ? $context['event'] : 'manual'),
             'post_content' => '',
         ]);
-        if (!$id || is_wp_error($id)) return;
+        if (!$id || is_wp_error($id)) return 0;
 
         update_post_meta($id, '_mdbk_sms_to', $to);
         update_post_meta($id, '_mdbk_sms_message', $message);
@@ -770,6 +820,10 @@ class MDBK_SMS {
         update_post_meta($id, '_mdbk_sms_request_id', isset($result['data']['request_id']) ? $result['data']['request_id'] : '');
         update_post_meta($id, '_mdbk_sms_parts', $counts['parts']);
         update_post_meta($id, '_mdbk_sms_encoding', $counts['encoding']);
+        if (!empty($context['retry_of'])) {
+            update_post_meta($id, '_mdbk_sms_retry_of', intval($context['retry_of']));
+        }
+        return $id;
     }
 
     /**
@@ -796,6 +850,34 @@ class MDBK_SMS {
             }
         }
         return $stats;
+    }
+
+    /**
+     * The latest SMS logged against one booking, for the bulk list's status
+     * badge: whether it went, which message it was, when, and why not.
+     * Null when nothing was ever sent for it.
+     */
+    public static function last_sms_for($appointment_id) {
+        $rows = get_posts([
+            'post_type'      => self::LOG_CPT,
+            'post_status'    => 'publish',
+            'posts_per_page' => 1,
+            'orderby'        => 'ID',
+            'order'          => 'DESC',
+            'meta_key'       => '_mdbk_sms_appointment_id',
+            'meta_value'     => intval($appointment_id),
+        ]);
+        if (!$rows) return null;
+        $row    = $rows[0];
+        $event  = get_post_meta($row->ID, '_mdbk_sms_event', true);
+        $events = self::events();
+        $labels = ['bulk' => __('Bulk', 'doctor-appointment'), 'manual' => __('Manual', 'doctor-appointment')];
+        return [
+            'status' => get_post_meta($row->ID, '_mdbk_sms_status', true) === 'sent' ? 'sent' : 'failed',
+            'event'  => isset($events[$event]) ? $events[$event]['label'] : (isset($labels[$event]) ? $labels[$event] : $event),
+            'when'   => get_the_date(get_option('date_format') . ', ' . get_option('time_format'), $row),
+            'error'  => (string) get_post_meta($row->ID, '_mdbk_sms_error', true),
+        ];
     }
 
     /** Most recent log rows, newest first, for the settings screen. */
@@ -855,23 +937,153 @@ class MDBK_SMS {
         $to      = isset($_POST['to']) ? sanitize_text_field(wp_unslash($_POST['to'])) : '';
         $message = isset($_POST['message']) ? sanitize_textarea_field(wp_unslash($_POST['message'])) : '';
 
+        if (trim($to) === '') {
+            wp_send_json_error(['message' => __('Enter a mobile number.', 'doctor-appointment')]);
+        }
         if (self::normalize_number($to) === '') {
-            wp_send_json_error(['message' => __('That does not look like a Bangladeshi mobile number.', 'doctor-appointment')]);
+            wp_send_json_error(['message' => __('That mobile number is not valid. Use a format like 01700000000.', 'doctor-appointment')]);
         }
         if (trim($message) === '') {
             wp_send_json_error(['message' => __('Write a message to send.', 'doctor-appointment')]);
         }
 
-        $result = self::send($to, $message, ['event' => 'test']);
+        // No booking behind a manual message, so only clinic-wide tokens can be filled.
+        $message = self::render_template($message, [
+            '{clinic_name}'    => (string) get_option('mdbk_clinic_name', ''),
+            '{clinic_contact}' => (string) get_option('mdbk_clinic_contact', ''),
+        ]);
+        if (preg_match_all('/\{[a-z_]+\}/', $message, $left)) {
+            wp_send_json_error(['message' => sprintf(
+                __('Replace %s with the real words first — there is no booking to fill it from.', 'doctor-appointment'),
+                implode(', ', array_unique($left[0]))
+            )]);
+        }
+
+        $result = self::send($to, $message, ['event' => 'manual']);
         if (empty($result['ok'])) {
             wp_send_json_error(['message' => $result['message']]);
         }
         wp_send_json_success([
             'message' => sprintf(
-                __('Test message sent to %s.', 'doctor-appointment'),
+                __('Message sent to %s.', 'doctor-appointment'),
                 self::normalize_number($to)
             ),
         ]);
+    }
+
+    /* ---------------------------------------------------------------
+     * Retry + bulk (admin AJAX)
+     * ------------------------------------------------------------- */
+
+    private static function require_admin_ajax() {
+        check_ajax_referer('mdbk_admin_nonce', 'nonce');
+        if (!current_user_can(MDBK_CAP_ADMIN)) {
+            wp_send_json_error(['message' => __('Unauthorized.', 'doctor-appointment')]);
+        }
+    }
+
+    /**
+     * Resends one failed log row, word for word — the message was already
+     * rendered when it first went out, so re-rendering now could quote a
+     * changed serial or time. The old row is linked to the new one so it
+     * can't be retried (and billed) twice.
+     */
+    public function ajax_retry() {
+        self::require_admin_ajax();
+        $log_id = isset($_POST['log_id']) ? intval($_POST['log_id']) : 0;
+        if (!$log_id || get_post_type($log_id) !== self::LOG_CPT) {
+            wp_send_json_error(['message' => __('Log entry not found.', 'doctor-appointment')]);
+        }
+        if (get_post_meta($log_id, '_mdbk_sms_status', true) === 'sent') {
+            wp_send_json_error(['message' => __('This message was already sent.', 'doctor-appointment')]);
+        }
+        if (get_post_meta($log_id, '_mdbk_sms_retried_by', true)) {
+            wp_send_json_error(['message' => __('This message was already retried.', 'doctor-appointment')]);
+        }
+
+        $result = self::send(
+            get_post_meta($log_id, '_mdbk_sms_to', true),
+            get_post_meta($log_id, '_mdbk_sms_message', true),
+            [
+                'event'          => get_post_meta($log_id, '_mdbk_sms_event', true) ?: 'manual',
+                'appointment_id' => intval(get_post_meta($log_id, '_mdbk_sms_appointment_id', true)),
+                'retry_of'       => $log_id,
+            ]
+        );
+        if (!empty($result['log_id'])) {
+            update_post_meta($log_id, '_mdbk_sms_retried_by', intval($result['log_id']));
+        }
+        if (empty($result['ok'])) {
+            wp_send_json_error(['message' => isset($result['message']) ? $result['message'] : '']);
+        }
+        wp_send_json_success(['message' => __('Sent.', 'doctor-appointment')]);
+    }
+
+    /**
+     * Bookings for one doctor on one date, for the bulk sender — one row
+     * per phone number (a family booked on one phone gets one message,
+     * not one per booking), cancelled bookings left out.
+     */
+    public function ajax_bulk_recipients() {
+        self::require_admin_ajax();
+        $doctor_id = isset($_POST['doctor_id']) ? intval($_POST['doctor_id']) : 0;
+        $date      = isset($_POST['date']) ? sanitize_text_field(wp_unslash($_POST['date'])) : '';
+        if (!$doctor_id || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
+            wp_send_json_error(['message' => __('Choose a doctor and a date.', 'doctor-appointment')]);
+        }
+
+        $ids = get_posts([
+            'post_type'   => 'mdbk_appointment',
+            'post_status' => array_diff(\MDBK\MDBK_CPT::APPOINTMENT_STATUSES, ['mdbk_cancelled']),
+            'numberposts' => -1,
+            'fields'      => 'ids',
+            'meta_query'  => [
+                'relation' => 'AND',
+                ['key' => '_mdbk_doctor_id', 'value' => $doctor_id],
+                ['key' => '_mdbk_appointment_date', 'value' => $date],
+            ],
+            'orderby'     => 'ID',
+            'order'       => 'ASC',
+        ]);
+
+        $rows = [];
+        $seen = [];
+        foreach ($ids as $id) {
+            $phone = self::normalize_number(get_post_meta($id, '_mdbk_patient_phone', true));
+            if ($phone === '' || isset($seen[$phone])) continue;
+            $seen[$phone] = true;
+            $rows[] = [
+                'id'     => $id,
+                'name'   => (string) get_post_meta($id, '_mdbk_patient_name', true),
+                'phone'  => $phone,
+                'ticket' => (string) MDBK_Appointment_Manager::format_ticket_number(get_post_meta($id, '_mdbk_ticket_number', true)),
+                'sms'    => self::last_sms_for($id),
+            ];
+        }
+        wp_send_json_success(['recipients' => $rows, 'bookings' => count($ids)]);
+    }
+
+    /**
+     * Sends the bulk message to a small batch of bookings. The page calls
+     * this repeatedly, a few at a time, so a long list never runs into a
+     * PHP or proxy timeout and the progress shown is real.
+     */
+    public function ajax_bulk_send() {
+        self::require_admin_ajax();
+        $message = isset($_POST['message']) ? sanitize_textarea_field(wp_unslash($_POST['message'])) : '';
+        $ids     = isset($_POST['ids']) ? array_slice(array_map('intval', (array) $_POST['ids']), 0, 10) : [];
+        if (trim($message) === '') {
+            wp_send_json_error(['message' => __('Write a message to send.', 'doctor-appointment')]);
+        }
+
+        $results = [];
+        foreach ($ids as $id) {
+            if (get_post_type($id) !== 'mdbk_appointment') continue;
+            $text   = self::render_template($message, self::build_tokens($id));
+            $result = self::send(get_post_meta($id, '_mdbk_patient_phone', true), $text, ['event' => 'bulk', 'appointment_id' => $id]);
+            $results[] = ['id' => $id, 'ok' => !empty($result['ok']), 'message' => isset($result['message']) ? $result['message'] : '', 'sms' => self::last_sms_for($id)];
+        }
+        wp_send_json_success(['results' => $results]);
     }
 }
 

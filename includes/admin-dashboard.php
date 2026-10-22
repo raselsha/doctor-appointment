@@ -1703,6 +1703,17 @@ class MDBK_Admin_Dashboard {
             'events'         => [],
         ];
 
+        $tpl_names = isset($_POST['sms_bulk_tpl_name']) ? (array) wp_unslash($_POST['sms_bulk_tpl_name']) : [];
+        $tpl_texts = isset($_POST['sms_bulk_tpl_text']) ? (array) wp_unslash($_POST['sms_bulk_tpl_text']) : [];
+        $tpl_rows  = [];
+        foreach ($tpl_texts as $i => $text) {
+            $tpl_rows[] = [
+                'name' => isset($tpl_names[$i]) ? sanitize_text_field($tpl_names[$i]) : '',
+                'text' => sanitize_textarea_field($text),
+            ];
+        }
+        $settings['bulk_templates'] = \MDBK\MDBK_SMS::clean_bulk_templates($tpl_rows);
+
         foreach (\MDBK\MDBK_SMS::events() as $key => $event) {
             // wp_unslash + sanitize_textarea_field, never sanitize_text_field:
             // a template is allowed to contain line breaks, and stripping
@@ -1750,11 +1761,35 @@ class MDBK_Admin_Dashboard {
         $sms_tabs = [
             'gateway'  => __('Gateway', 'doctor-appointment'),
             'messages' => __('Messages', 'doctor-appointment'),
-            'test'     => __('Test', 'doctor-appointment'),
+            'send'     => __('Send SMS', 'doctor-appointment'),
             'log'      => __('Log', 'doctor-appointment'),
         ];
         $month_stats = \MDBK\MDBK_SMS::month_stats();
-        $active_tab = isset($_GET['tab']) && isset($sms_tabs[$_GET['tab']]) ? sanitize_key($_GET['tab']) : 'gateway';
+        $requested_tab = isset($_GET['tab']) ? sanitize_key($_GET['tab']) : '';
+        if ($requested_tab === 'test') $requested_tab = 'send'; // old tab name
+        $active_tab = isset($sms_tabs[$requested_tab]) ? $requested_tab : 'gateway';
+        // Bulk sender's pickers: every doctor, and a window of dates around
+        // today (a week back for "sorry we missed you", two weeks ahead for
+        // "the doctor is away").
+        $bulk_doctors = get_posts(['post_type' => 'mdbk_doctor', 'numberposts' => -1, 'orderby' => 'menu_order', 'order' => 'ASC']);
+        $bulk_today = current_time('Y-m-d');
+        $bulk_dates = [];
+        for ($i = -7; $i <= 14; $i++) {
+            $d = wp_date('Y-m-d', strtotime($bulk_today . ' ' . ($i >= 0 ? '+' : '') . $i . ' days'));
+            $label = date_i18n('D, j M Y', strtotime($d));
+            if ($i === 0) $label = sprintf(__('Today — %s', 'doctor-appointment'), $label);
+            if ($i === 1) $label = sprintf(__('Tomorrow — %s', 'doctor-appointment'), $label);
+            $bulk_dates[$d] = $label;
+        }
+        $retryable = 0;
+        foreach ($log as $row) {
+            if (get_post_meta($row->ID, '_mdbk_sms_status', true) !== 'sent' && !get_post_meta($row->ID, '_mdbk_sms_retried_by', true)) $retryable++;
+        }
+        $event_labels = [
+            'manual' => __('Manual', 'doctor-appointment'),
+            'bulk'   => __('Bulk', 'doctor-appointment'),
+            'test'   => __('Test', 'doctor-appointment'),
+        ];
         $panel_attr = function ($panels) use ($active_tab) {
             $hidden = in_array($active_tab, explode(' ', $panels), true) ? '' : ' hidden';
             return 'data-sms-panel="' . esc_attr($panels) . '"' . $hidden;
@@ -1916,6 +1951,34 @@ class MDBK_Admin_Dashboard {
                             </div>
                         <?php endforeach; ?>
                     </div>
+
+                    <div class="mdbk-card" style="padding:24px; margin-top:20px;">
+                        <h3 style="margin:0 0 4px; font-size:15px;"><?php _e('Bulk SMS templates', 'doctor-appointment'); ?></h3>
+                        <p class="mdbk-form-hint" style="margin:0 0 18px;"><?php _e('Ready-made messages to pick from in Send SMS → Bulk. The same placeholders work here, filled in for each patient. Save to keep changes.', 'doctor-appointment'); ?></p>
+                        <div id="mdbk-sms-bulk-tpls">
+                            <?php foreach ($settings['bulk_templates'] as $tpl) : ?>
+                            <div class="mdbk-sms-bulk-tpl">
+                                <div class="mdbk-sms-bulk-tpl-head">
+                                    <input type="text" class="mdbk-input mdbk-sms-bulk-tpl-name" name="sms_bulk_tpl_name[]" value="<?php echo esc_attr($tpl['name']); ?>" placeholder="<?php esc_attr_e('Template name', 'doctor-appointment'); ?>">
+                                    <button type="button" class="mdbk-btn-outline mdbk-btn-sm mdbk-sms-bulk-tpl-remove"><?php _e('Remove', 'doctor-appointment'); ?></button>
+                                </div>
+                                <textarea class="mdbk-input mdbk-sms-template" name="sms_bulk_tpl_text[]" rows="3"><?php echo esc_textarea($tpl['text']); ?></textarea>
+                                <div class="mdbk-sms-counter" data-counter></div>
+                            </div>
+                            <?php endforeach; ?>
+                        </div>
+                        <template id="mdbk-sms-bulk-tpl-blank">
+                            <div class="mdbk-sms-bulk-tpl">
+                                <div class="mdbk-sms-bulk-tpl-head">
+                                    <input type="text" class="mdbk-input mdbk-sms-bulk-tpl-name" name="sms_bulk_tpl_name[]" value="" placeholder="<?php esc_attr_e('Template name', 'doctor-appointment'); ?>">
+                                    <button type="button" class="mdbk-btn-outline mdbk-btn-sm mdbk-sms-bulk-tpl-remove"><?php _e('Remove', 'doctor-appointment'); ?></button>
+                                </div>
+                                <textarea class="mdbk-input mdbk-sms-template" name="sms_bulk_tpl_text[]" rows="3"></textarea>
+                                <div class="mdbk-sms-counter" data-counter></div>
+                            </div>
+                        </template>
+                        <button type="button" class="mdbk-btn-outline mdbk-btn-sm" id="mdbk-sms-bulk-tpl-add"><?php _e('+ Add template', 'doctor-appointment'); ?></button>
+                    </div>
                     </div>
 
                     <div class="mdbk-global-settings-save-row" <?php echo $panel_attr('gateway messages'); ?>>
@@ -1926,31 +1989,168 @@ class MDBK_Admin_Dashboard {
                 <?php // Outside the settings form on purpose — a test send is an
                       // action, not a setting, and nesting a second form would
                       // make Enter in the number field save the whole page. ?>
-                <div <?php echo $panel_attr('test'); ?>>
+                <div <?php echo $panel_attr('send'); ?>>
+                <div class="mdbk-sms-send-grid">
                 <div class="mdbk-card" style="padding:24px;">
-                    <h3 style="margin:0 0 4px; font-size:15px;"><?php _e('Send a test message', 'doctor-appointment'); ?></h3>
-                    <p class="mdbk-form-hint" style="margin:0 0 18px;"><?php _e('Sends immediately using the saved key — save your changes first. This costs one message.', 'doctor-appointment'); ?></p>
-                    <div class="mdbk-form-row mdbk-form-row-duo">
+                    <h3 style="margin:0 0 4px; font-size:15px;"><?php _e('Send to one number', 'doctor-appointment'); ?></h3>
+                    <p class="mdbk-form-hint" style="margin:0 0 18px;"><?php _e('Sends immediately using the saved key — save your changes first. Each message is billed. {clinic_name} and {clinic_contact} are filled in for you; replace any other {placeholder} with the real words before sending.', 'doctor-appointment'); ?></p>
+                    <div>
                         <div>
-                            <label class="mdbk-form-label" for="mdbk-sms-test-to"><?php _e('Send to', 'doctor-appointment'); ?></label>
+                            <label class="mdbk-form-label" for="mdbk-sms-test-to"><?php _e('Mobile number', 'doctor-appointment'); ?></label>
                             <input type="text" id="mdbk-sms-test-to" class="mdbk-input" placeholder="<?php esc_attr_e('e.g. 01700000000', 'doctor-appointment'); ?>">
                         </div>
-                        <div>
+                    <?php
+                    // Picker choices: the clinic's bulk templates first, then the
+                    // automatic patient messages from the Messages tab.
+                    $bulk_choices = [];
+                    foreach ($settings['bulk_templates'] as $i => $tpl) $bulk_choices['b' . $i] = ['group' => 'bulk', 'label' => $tpl['name'], 'text' => $tpl['text']];
+                    foreach ($events as $key => $event) {
+                        if ($event['audience'] !== 'patient') continue;
+                        $bulk_choices['e_' . $key] = ['group' => 'event', 'label' => $event['label'], 'text' => $settings['events'][$key]['template']];
+                    }
+                    ?>
+                    <div style="margin-top:16px;">
+                        <label class="mdbk-form-label"><?php _e('Template', 'doctor-appointment'); ?></label>
+                        <div class="mdbk-sms-bulk-picker-tpl">
+                        <div class="mdbk-custom-select mdbk-filters-select" id="mdbk-sms-single-tpl-select">
+                            <button type="button" class="mdbk-custom-select-trigger">
+                                <span class="mdbk-custom-select-value"><?php _e('No template — type your own', 'doctor-appointment'); ?></span>
+                                <span class="mdbk-custom-select-chevron"></span>
+                            </button>
+                            <div class="mdbk-custom-select-panel" style="display:none;">
+                                <div class="mdbk-custom-select-option selected" data-value=""><?php _e('No template — type your own', 'doctor-appointment'); ?></div>
+                                <?php $last_group = ''; foreach ($bulk_choices as $val => $c) :
+                                    if ($c['group'] !== $last_group) : $last_group = $c['group']; ?>
+                                        <div class="mdbk-sms-tpl-group"><?php echo $c['group'] === 'bulk' ? esc_html__('Bulk templates', 'doctor-appointment') : esc_html__('Automatic messages', 'doctor-appointment'); ?></div>
+                                    <?php endif; ?>
+                                    <div class="mdbk-custom-select-option" data-value="<?php echo esc_attr($val); ?>"><?php echo esc_html($c['label']); ?></div>
+                                <?php endforeach; ?>
+                            </div>
+                            <select style="display:none;">
+                                <option value=""></option>
+                                <?php foreach ($bulk_choices as $val => $c) : ?>
+                                    <option value="<?php echo esc_attr($val); ?>"><?php echo esc_html($c['label']); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        </div>
+                    </div>
+                        <div style="margin-top:16px;">
                             <label class="mdbk-form-label" for="mdbk-sms-test-message"><?php _e('Message', 'doctor-appointment'); ?></label>
-                            <textarea id="mdbk-sms-test-message" class="mdbk-input mdbk-sms-template" rows="2"><?php esc_html_e('Test message from MedBook.', 'doctor-appointment'); ?></textarea>
+                            <textarea id="mdbk-sms-test-message" class="mdbk-input mdbk-sms-template" rows="3"></textarea>
                             <div class="mdbk-sms-counter" data-counter></div>
                         </div>
                     </div>
                     <div style="margin-top:14px; display:flex; align-items:center; gap:12px;">
-                        <button type="button" class="mdbk-btn-outline mdbk-btn-sm" id="mdbk-sms-test-send"><?php _e('Send test', 'doctor-appointment'); ?></button>
+                        <button type="button" class="mdbk-btn-outline mdbk-btn-sm" id="mdbk-sms-test-send"><?php _e('Send', 'doctor-appointment'); ?></button>
                         <span class="mdbk-sms-inline-msg" id="mdbk-sms-test-msg"></span>
                     </div>
+                </div>
+
+                <div class="mdbk-card" style="padding:24px;" id="mdbk-sms-bulk">
+                    <h3 style="margin:0 0 4px; font-size:15px;"><?php _e('Bulk SMS to a doctor\'s patients', 'doctor-appointment'); ?></h3>
+                    <p class="mdbk-form-hint" style="margin:0 0 18px;"><?php _e('Pick a doctor and a date to message everyone booked with them that day — for example when the doctor will be late or away. Cancelled bookings are left out, and a phone number shared by several bookings gets one message.', 'doctor-appointment'); ?></p>
+                    <div class="mdbk-sms-bulk-pickers">
+                        <div class="mdbk-sms-bulk-picker-doctor">
+                            <label class="mdbk-form-label"><?php _e('Doctor', 'doctor-appointment'); ?></label>
+                            <div class="mdbk-custom-select mdbk-filters-select" id="mdbk-sms-bulk-doctor-select">
+                                <button type="button" class="mdbk-custom-select-trigger">
+                                    <span class="mdbk-custom-select-value mdbk-select-placeholder"><?php _e('Choose a doctor', 'doctor-appointment'); ?></span>
+                                    <span class="mdbk-custom-select-chevron"></span>
+                                </button>
+                                <div class="mdbk-custom-select-panel" style="display:none;">
+                                    <?php foreach ($bulk_doctors as $doc) : ?>
+                                        <div class="mdbk-custom-select-option" data-value="<?php echo esc_attr($doc->ID); ?>"><?php echo esc_html($doc->post_title); ?></div>
+                                    <?php endforeach; ?>
+                                </div>
+                                <select id="mdbk-sms-bulk-doctor" style="display:none;">
+                                    <option value=""></option>
+                                    <?php foreach ($bulk_doctors as $doc) : ?>
+                                        <option value="<?php echo esc_attr($doc->ID); ?>"><?php echo esc_html($doc->post_title); ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="mdbk-sms-bulk-picker-date">
+                            <label class="mdbk-form-label"><?php _e('Date', 'doctor-appointment'); ?></label>
+                            <div class="mdbk-custom-select mdbk-filters-select" id="mdbk-sms-bulk-date-select">
+                                <button type="button" class="mdbk-custom-select-trigger">
+                                    <span class="mdbk-custom-select-value"><?php echo esc_html($bulk_dates[$bulk_today]); ?></span>
+                                    <span class="mdbk-custom-select-chevron"></span>
+                                </button>
+                                <div class="mdbk-custom-select-panel" style="display:none;">
+                                    <?php foreach ($bulk_dates as $d => $label) : ?>
+                                        <div class="mdbk-custom-select-option<?php echo $d === $bulk_today ? ' selected' : ''; ?>" data-value="<?php echo esc_attr($d); ?>"><?php echo esc_html($label); ?></div>
+                                    <?php endforeach; ?>
+                                </div>
+                                <select id="mdbk-sms-bulk-date" style="display:none;">
+                                    <?php foreach ($bulk_dates as $d => $label) : ?>
+                                        <option value="<?php echo esc_attr($d); ?>" <?php selected($d, $bulk_today); ?>><?php echo esc_html($label); ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mdbk-sms-bulk-recipients" id="mdbk-sms-bulk-recipients">
+                        <p class="mdbk-form-hint" style="margin:0;"><?php _e('Choose a doctor to see who will receive the message. It goes to every ticked patient below, whichever template you pick.', 'doctor-appointment'); ?></p>
+                    </div>
+
+
+                    <div style="margin-top:18px;">
+                        <label class="mdbk-form-label"><?php _e('Template', 'doctor-appointment'); ?></label>
+                        <div class="mdbk-sms-bulk-picker-tpl">
+                        <div class="mdbk-custom-select mdbk-filters-select" id="mdbk-sms-bulk-tpl-select">
+                            <button type="button" class="mdbk-custom-select-trigger">
+                                <span class="mdbk-custom-select-value"><?php _e('No template — type your own', 'doctor-appointment'); ?></span>
+                                <span class="mdbk-custom-select-chevron"></span>
+                            </button>
+                            <div class="mdbk-custom-select-panel" style="display:none;">
+                                <div class="mdbk-custom-select-option selected" data-value=""><?php _e('No template — type your own', 'doctor-appointment'); ?></div>
+                                <?php $last_group = ''; foreach ($bulk_choices as $val => $c) :
+                                    if ($c['group'] !== $last_group) : $last_group = $c['group']; ?>
+                                        <div class="mdbk-sms-tpl-group"><?php echo $c['group'] === 'bulk' ? esc_html__('Bulk templates', 'doctor-appointment') : esc_html__('Automatic messages', 'doctor-appointment'); ?></div>
+                                    <?php endif; ?>
+                                    <div class="mdbk-custom-select-option" data-value="<?php echo esc_attr($val); ?>"><?php echo esc_html($c['label']); ?></div>
+                                <?php endforeach; ?>
+                            </div>
+                            <select id="mdbk-sms-bulk-tpl" style="display:none;">
+                                <option value=""></option>
+                                <?php foreach ($bulk_choices as $val => $c) : ?>
+                                    <option value="<?php echo esc_attr($val); ?>"><?php echo esc_html($c['label']); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        </div>
+                        <script type="application/json" id="mdbk-sms-bulk-tpl-data"><?php echo wp_json_encode(array_map(function ($c) { return $c['text']; }, $bulk_choices), JSON_HEX_TAG | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE); ?></script>
+                    </div>
+                    <div style="margin-top:14px;">
+                        <label class="mdbk-form-label" for="mdbk-sms-bulk-message"><?php _e('Message', 'doctor-appointment'); ?></label>
+                        <div class="mdbk-sms-placeholders" data-target="mdbk-sms-bulk-message">
+                            <span class="mdbk-form-label" style="margin:0 8px 0 0;"><?php _e('Click to insert:', 'doctor-appointment'); ?></span>
+                            <?php foreach (['{patient_name}', '{doctor_name}', '{date}', '{time}', '{ticket}', '{clinic_name}', '{clinic_contact}'] as $token) : ?>
+                                <button type="button" class="mdbk-sms-token" data-token="<?php echo esc_attr($token); ?>" title="<?php echo esc_attr(isset($placeholders[$token]) ? $placeholders[$token] : ''); ?>"><?php echo esc_html($token); ?></button>
+                            <?php endforeach; ?>
+                        </div>
+                        <textarea id="mdbk-sms-bulk-message" class="mdbk-input mdbk-sms-template" rows="3" placeholder="<?php esc_attr_e('Dear {patient_name}, {doctor_name} will be 1 hour late today. Sorry for the wait. - {clinic_name}', 'doctor-appointment'); ?>"></textarea>
+                        <div class="mdbk-sms-counter" data-counter></div>
+                    </div>
+                    <div style="margin-top:14px; display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+                        <button type="button" class="mdbk-btn-add" id="mdbk-sms-bulk-send" disabled><?php _e('Send to all', 'doctor-appointment'); ?></button>
+                        <span class="mdbk-sms-inline-msg" id="mdbk-sms-bulk-msg"></span>
+                    </div>
+                </div>
                 </div>
                 </div>
 
                 <div <?php echo $panel_attr('log'); ?>>
                 <div class="mdbk-card" style="padding:24px;">
-                    <h3 style="margin:0 0 18px; font-size:15px;"><?php _e('Recent messages', 'doctor-appointment'); ?></h3>
+                    <div class="mdbk-sms-log-head">
+                        <h3 style="margin:0; font-size:15px;"><?php _e('Recent messages', 'doctor-appointment'); ?></h3>
+                        <?php if ($retryable) : ?>
+                            <button type="button" class="mdbk-btn-outline mdbk-btn-sm" id="mdbk-sms-retry-all"><?php printf(esc_html__('Retry all failed (%d)', 'doctor-appointment'), $retryable); ?></button>
+                        <?php endif; ?>
+                    </div>
                     <?php if (empty($log)) : ?>
                         <p class="mdbk-form-hint" style="margin:0;"><?php _e('Nothing sent yet.', 'doctor-appointment'); ?></p>
                     <?php else : ?>
@@ -1969,19 +2169,27 @@ class MDBK_Admin_Dashboard {
                                 $status = get_post_meta($row->ID, '_mdbk_sms_status', true);
                                 $error  = get_post_meta($row->ID, '_mdbk_sms_error', true);
                                 $event_key = get_post_meta($row->ID, '_mdbk_sms_event', true);
-                                $event_label = isset($events[$event_key]) ? $events[$event_key]['label'] : $event_key;
+                                $event_label = isset($events[$event_key]) ? $events[$event_key]['label'] : (isset($event_labels[$event_key]) ? $event_labels[$event_key] : $event_key);
+                                $retried_by = (int) get_post_meta($row->ID, '_mdbk_sms_retried_by', true);
+                                $is_retry   = (int) get_post_meta($row->ID, '_mdbk_sms_retry_of', true);
                                 ?>
                                 <tr>
                                     <td><?php echo esc_html(get_the_date(get_option('date_format') . ', ' . get_option('time_format'), $row)); ?></td>
                                     <td><?php echo esc_html(get_post_meta($row->ID, '_mdbk_sms_to', true)); ?></td>
-                                    <td><?php echo esc_html($event_label); ?></td>
+                                    <td><?php echo esc_html($event_label); ?><?php if ($is_retry) : ?> <span class="mdbk-sms-retry-tag"><?php _e('retry', 'doctor-appointment'); ?></span><?php endif; ?></td>
                                     <td class="mdbk-sms-log-message"><?php echo esc_html(get_post_meta($row->ID, '_mdbk_sms_message', true)); ?></td>
                                     <td><?php echo esc_html(get_post_meta($row->ID, '_mdbk_sms_parts', true)); ?></td>
                                     <td>
                                         <?php if ($status === 'sent') : ?>
                                             <span class="mdbk-sms-ok"><?php _e('Sent', 'doctor-appointment'); ?></span>
                                         <?php else : ?>
-                                            <span class="mdbk-sms-fail" title="<?php echo esc_attr($error); ?>"><?php _e('Failed', 'doctor-appointment'); ?></span>
+                                            <span class="mdbk-sms-fail"><?php _e('Failed', 'doctor-appointment'); ?></span>
+                                            <?php if ($error) : ?><div class="mdbk-sms-fail-reason"><?php echo esc_html($error); ?></div><?php endif; ?>
+                                            <?php if ($retried_by) : ?>
+                                                <div class="mdbk-sms-retried"><?php _e('Retried', 'doctor-appointment'); ?></div>
+                                            <?php else : ?>
+                                                <button type="button" class="mdbk-btn-outline mdbk-btn-sm mdbk-sms-retry" data-log="<?php echo esc_attr($row->ID); ?>"><?php _e('Retry', 'doctor-appointment'); ?></button>
+                                            <?php endif; ?>
                                         <?php endif; ?>
                                     </td>
                                 </tr>

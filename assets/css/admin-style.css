@@ -2858,6 +2858,50 @@ body.mdbk-doctor-chrome .mdbk-admin-wrapper {
 [data-sms-panel][hidden] { display: none !important; }
 .mdbk-sms-stats { margin-bottom: 20px; }
 #mdbk-sms-balance.is-loading { opacity: .4; transition: opacity .2s; }
+.mdbk-sms-log-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin: 0 0 18px; }
+.mdbk-sms-fail-reason { margin-top: 4px; max-width: 220px; font-size: 12px; line-height: 1.4; color: #b91c1c; }
+.mdbk-sms-retry { margin-top: 6px; }
+.mdbk-sms-retried { margin-top: 4px; font-size: 12px; color: #64748b; }
+.mdbk-sms-retry-tag { display: inline-block; margin-left: 4px; padding: 0 6px; border-radius: 999px; background: #eef2f7; color: #475569; font-size: 11px; font-weight: 600; }
+.mdbk-sms-bulk-recipients { margin-top: 18px; }
+/* Send SMS tab: single and bulk cards side by side, stacking on narrow screens. */
+.mdbk-sms-send-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; align-items: start; }
+@media (max-width: 1100px) { .mdbk-sms-send-grid { grid-template-columns: 1fr; } }
+/* WP core's input[type=text] outranks a bare .mdbk-input, which left this
+   one field square-cornered and dark-bordered beside its textarea. */
+.mdbk-sms-send-grid input.mdbk-input { box-sizing: border-box; padding: 12px 16px; border: 1px solid #e2e8f0; border-radius: 10px; font-size: 14px; box-shadow: none; }
+.mdbk-sms-send-grid input.mdbk-input:focus { border-color: #0061d5; box-shadow: 0 0 0 3px rgba(0, 97, 213, .12); outline: none; }
+.mdbk-sms-send-grid textarea.mdbk-input { box-sizing: border-box; width: 100%; resize: vertical; font-size: 13px; line-height: 1.5; }
+/* Doctor wider than date, both sharing the card's width. */
+.mdbk-sms-bulk-pickers { display: flex; gap: 16px; flex-wrap: wrap; }
+.mdbk-sms-bulk-picker-doctor { flex: 3 1 200px; min-width: 0; }
+.mdbk-sms-bulk-picker-date { flex: 2 1 170px; min-width: 0; }
+#mdbk-sms-bulk .mdbk-filters-select { min-width: 0; }
+#mdbk-sms-bulk .mdbk-custom-select-value.mdbk-select-placeholder { color: #94a3b8; }
+.mdbk-sms-bulk-head { display: flex; align-items: center; gap: 10px; padding: 0 4px 10px; font-size: 13px; font-weight: 700; color: #1e293b; }
+.mdbk-sms-bulk-all-label { cursor: pointer; user-select: none; }
+.mdbk-sms-bulk-count { margin-left: auto; font-weight: 600; color: #64748b; }
+.mdbk-sms-bulk-status { padding: 1px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; white-space: nowrap; cursor: default; }
+.mdbk-sms-bulk-status-sent { background: #dcfce7; color: #15803d; }
+.mdbk-sms-bulk-status-failed { background: #fee2e2; color: #b91c1c; cursor: help; }
+.mdbk-sms-bulk-status-none { background: #eef2f7; color: #64748b; }
+.mdbk-sms-bulk-picker-tpl { max-width: 320px; }
+.mdbk-sms-tpl-group { padding: 8px 12px 4px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: #94a3b8; }
+/* Bulk template editor (Messages tab). */
+.mdbk-sms-bulk-tpl { padding: 16px; border: 1px solid #e2e8f0; border-radius: 12px; margin-bottom: 14px; }
+.mdbk-sms-bulk-tpl-head { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; }
+.mdbk-sms-bulk-tpl-head input.mdbk-input { flex: 1; box-sizing: border-box; padding: 9px 12px; border: 1px solid #e2e8f0; border-radius: 10px; font-size: 13px; font-weight: 600; box-shadow: none; }
+.mdbk-sms-bulk-tpl textarea.mdbk-input { box-sizing: border-box; width: 100%; resize: vertical; font-size: 13px; line-height: 1.5; }
+.mdbk-sms-bulk-list { max-height: 260px; overflow-y: auto; overscroll-behavior: contain; border: 1px solid #e2e8f0; border-radius: 12px; }
+.mdbk-sms-bulk-row { display: flex; align-items: center; gap: 10px; padding: 9px 14px; border-bottom: 1px solid #f1f5f9; font-size: 13px; cursor: pointer; }
+.mdbk-sms-bulk-row:last-child { border-bottom: 0; }
+.mdbk-sms-bulk-row:hover { background: #f8fafc; }
+.mdbk-sms-bulk-name { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; font-weight: 600; color: #1e293b; }
+.mdbk-sms-bulk-detail { font-size: 11px; font-weight: 500; color: #94a3b8; }
+.mdbk-sms-bulk-detail:empty { display: none; }
+.mdbk-sms-bulk-detail.is-failed { color: #b91c1c; }
+.mdbk-sms-bulk-phone { color: #64748b; font-variant-numeric: tabular-nums; }
+#mdbk-sms-bulk-send:disabled { opacity: .5; cursor: not-allowed; }
 @media (max-width: 1100px) { .mdbk-sms-stats { grid-template-columns: repeat(2, 1fr); } }
 
 .mdbk-sms-enable-row { display: flex; align-items: flex-start; gap: 14px; padding: 14px 16px; border: 1px solid #e2e8f0; border-radius: 12px; background: #f8fafc; }
@@ -2906,7 +2950,7 @@ body.mdbk-doctor-chrome .mdbk-admin-wrapper {
    wider than the card; everything else in the row is short. */
 .mdbk-sms-log-message { max-width: 380px; white-space: normal; word-break: break-word; color: #475569; }
 .mdbk-sms-ok { color: #16a34a; font-weight: 700; }
-.mdbk-sms-fail { color: #ef4444; font-weight: 700; cursor: help; }
+.mdbk-sms-fail { color: #ef4444; font-weight: 700; }
 
 @media (max-width: 782px) {
     .mdbk-sms-event-head { gap: 10px; }

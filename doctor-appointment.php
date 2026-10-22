@@ -199,6 +199,26 @@ if ( ! class_exists( 'MDBK_Doctor_Appointment' ) ) {
                 'sms_chars_label'   => __( '%d characters', 'doctor-appointment' ),
                 'sms_count_label'   => __( '%d SMS', 'doctor-appointment' ),
                 'sms_network_error' => __( 'Could not reach the server. Please try again.', 'doctor-appointment' ),
+                'sms_retrying'      => __( 'Sending…', 'doctor-appointment' ),
+                'sms_sent'          => __( 'Sent', 'doctor-appointment' ),
+                'sms_retry'         => __( 'Retry', 'doctor-appointment' ),
+                'sms_bulk_loading'  => __( 'Loading bookings…', 'doctor-appointment' ),
+                'sms_bulk_none'     => __( 'No bookings with a mobile number for this doctor on this date.', 'doctor-appointment' ),
+                'sms_bulk_count'    => __( '%d recipients', 'doctor-appointment' ),
+                'sms_bulk_send'     => __( 'Send to %d', 'doctor-appointment' ),
+                'sms_bulk_confirm'  => __( 'Send this message to %d numbers? Each message is billed.', 'doctor-appointment' ),
+                'sms_bulk_progress' => __( 'Sending… %1$d of %2$d', 'doctor-appointment' ),
+                'sms_bulk_done'     => __( 'Done: %1$d sent, %2$d failed. Failed ones are in the Log tab with the reason.', 'doctor-appointment' ),
+                'sms_bulk_empty'    => __( 'Write a message to send.', 'doctor-appointment' ),
+                'sms_bulk_all'      => __( 'Select all', 'doctor-appointment' ),
+                'sms_bulk_none_sel' => __( 'Unselect all', 'doctor-appointment' ),
+                'sms_number_empty'  => __( 'Enter a mobile number.', 'doctor-appointment' ),
+                'sms_bulk_selected' => __( '%1$d of %2$d selected', 'doctor-appointment' ),
+                'sms_state_labels'  => [
+                    'sent'   => __( 'Sent', 'doctor-appointment' ),
+                    'failed' => __( 'Failed', 'doctor-appointment' ),
+                    'none'   => __( 'No SMS yet', 'doctor-appointment' ),
+                ],
                 // Cancel is destructive enough to confirm, and the confirm()
                 // text was the one string in that handler still hardcoded
                 // in English.
