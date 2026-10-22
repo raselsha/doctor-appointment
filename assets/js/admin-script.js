@@ -3673,14 +3673,24 @@ document.addEventListener('DOMContentLoaded', function() {
                 const ok = !!(res && res.success);
                 const data = (res && res.data) || {};
                 if (ok || data.delivered) {
-                    // Sent now (or it already had been): the row reads Sent, no button.
-                    const tries = cell.querySelector('.mdbk-sms-attempts');
+                    // Sent now (or it already had been): "Sent (retried)", and
+                    // the ⓘ keeps the old reason, turned green.
+                    const reason = cell.querySelector('.mdbk-sms-reason');
+                    const old = reason ? reason.getAttribute('data-reason') : '';
                     cell.innerHTML = '';
                     const label = document.createElement('span');
                     label.className = 'mdbk-sms-ok';
-                    label.textContent = ok ? (mdbk_admin_obj.sms_sent || 'Sent') : (mdbk_admin_obj.sms_sent_later || 'Sent later');
+                    label.textContent = (mdbk_admin_obj.sms_sent || 'Sent') + ' ';
+                    const tag = document.createElement('span');
+                    tag.className = 'mdbk-sms-retried-tag';
+                    tag.textContent = mdbk_admin_obj.sms_retried_tag || '(retried)';
+                    label.appendChild(tag);
                     cell.appendChild(label);
-                    if (tries && ok) { cell.appendChild(tries); triesLabel(data.attempts); }
+                    if (reason) {
+                        reason.classList.add('mdbk-sms-reason-ok');
+                        reason.setAttribute('data-reason', (mdbk_admin_obj.sms_earlier_failed || 'Earlier try failed: %s').replace('%s', old || ''));
+                        cell.appendChild(reason);
+                    }
                 } else {
                     // Still failing: same row, new reason, try count, button back.
                     const reason = cell.querySelector('.mdbk-sms-reason');

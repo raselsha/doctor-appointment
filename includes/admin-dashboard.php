@@ -1793,7 +1793,7 @@ class MDBK_Admin_Dashboard {
             $bulk_dates[$d] = $label;
         }
         // Per failed row: did the same text reach the same number later?
-        // Those read "Sent later" and can't be retried; the rest can, until sent.
+        // Those read "Sent (retried)" and can't be retried; the rest can, until sent.
         $delivered_later = [];
         $retryable = 0;
         foreach ($log as $row) {
@@ -2245,23 +2245,36 @@ class MDBK_Admin_Dashboard {
                                     <td><?php echo esc_html(get_post_meta($row->ID, '_mdbk_sms_parts', true)); ?></td>
                                     <td>
                                         <div class="mdbk-sms-result">
-                                        <?php if ($status === 'sent') : ?>
-                                            <span class="mdbk-sms-ok"><?php _e('Sent', 'doctor-appointment'); ?></span>
-                                            <?php if ($attempts > 1) : ?><span class="mdbk-sms-attempts"><?php printf(esc_html__('%d tries', 'doctor-appointment'), $attempts); ?></span><?php endif; ?>
-                                        <?php elseif ($later) :
+                                        <?php
+                                        // "Sent (retried)": a failed row whose text got through later, a
+                                        // sent row that was itself a retry (older separate-row retries),
+                                        // or a row retried in place. Its ⓘ always gives the old reason.
+                                        $retried_note = '';
+                                        if ($status === 'sent' && $is_retry) {
+                                            $first_error = (string) get_post_meta($is_retry, '_mdbk_sms_error', true);
+                                            $retried_note = sprintf(__('First try failed: %s', 'doctor-appointment'), rtrim($first_error, '. ') ?: __('reason not recorded', 'doctor-appointment'));
+                                        } elseif ($status === 'sent' && $attempts > 1) {
+                                            $prev_error = (string) get_post_meta($row->ID, '_mdbk_sms_prev_error', true);
+                                            $retried_note = sprintf(__('Earlier try failed: %1$s. Sent on try %2$d.', 'doctor-appointment'), rtrim($prev_error, '. ') ?: __('reason not recorded', 'doctor-appointment'), $attempts);
+                                        } elseif ($later) {
                                             $later_event = get_post_meta($later->ID, '_mdbk_sms_event', true);
                                             $later_label = isset($events[$later_event]) ? $events[$later_event]['label'] : (isset($event_labels[$later_event]) ? $event_labels[$later_event] : $later_event);
-                                            $later_note  = sprintf(
-                                                /* translators: 1: why the first send failed, 2: event label, 3: date and time */
-                                                __('Failed first (%1$s). Delivered later by %2$s on %3$s.', 'doctor-appointment'),
-                                                $error ?: __('unknown error', 'doctor-appointment'),
+                                            $retried_note = sprintf(
+                                                /* translators: 1: why it failed, 2: event label, 3: date and time */
+                                                __('Failed: %1$s. Sent later by %2$s on %3$s.', 'doctor-appointment'),
+                                                rtrim((string) $error, '. ') ?: __('reason not recorded', 'doctor-appointment'),
                                                 $later_label,
                                                 get_the_date(get_option('date_format') . ', ' . get_option('time_format'), $later)
-                                            ); ?>
-                                            <span class="mdbk-sms-ok"><?php _e('Sent later', 'doctor-appointment'); ?></span>
-                                            <button type="button" class="mdbk-sms-reason mdbk-sms-reason-ok" data-reason="<?php echo esc_attr($later_note); ?>" aria-label="<?php esc_attr_e('Details', 'doctor-appointment'); ?>">
+                                            );
+                                        }
+                                        ?>
+                                        <?php if ($retried_note !== '') : ?>
+                                            <span class="mdbk-sms-ok"><?php _e('Sent', 'doctor-appointment'); ?> <span class="mdbk-sms-retried-tag"><?php _e('(retried)', 'doctor-appointment'); ?></span></span>
+                                            <button type="button" class="mdbk-sms-reason mdbk-sms-reason-ok" data-reason="<?php echo esc_attr($retried_note); ?>" aria-label="<?php esc_attr_e('Details', 'doctor-appointment'); ?>">
                                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
                                             </button>
+                                        <?php elseif ($status === 'sent') : ?>
+                                            <span class="mdbk-sms-ok"><?php _e('Sent', 'doctor-appointment'); ?></span>
                                         <?php else : ?>
                                             <span class="mdbk-sms-fail"><?php _e('Failed', 'doctor-appointment'); ?></span>
                                             <?php if ($error) : ?>

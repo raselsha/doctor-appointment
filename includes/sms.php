@@ -1047,6 +1047,10 @@ class MDBK_SMS {
             get_post_meta($log_id, '_mdbk_sms_message', true),
             ['no_log' => true]
         );
+        // Keep the reason the earlier try failed — once this one succeeds the
+        // row's error is cleared, and the log still has to say why it was retried.
+        $prev_error = (string) get_post_meta($log_id, '_mdbk_sms_error', true);
+        if ($prev_error !== '') update_post_meta($log_id, '_mdbk_sms_prev_error', $prev_error);
         $attempts = max(1, (int) get_post_meta($log_id, '_mdbk_sms_attempts', true)) + 1;
         update_post_meta($log_id, '_mdbk_sms_attempts', $attempts);
         update_post_meta($log_id, '_mdbk_sms_last_attempt', current_time('mysql'));

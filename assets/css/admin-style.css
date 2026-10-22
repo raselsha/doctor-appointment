@@ -2875,6 +2875,7 @@ body.mdbk-doctor-chrome .mdbk-admin-wrapper {
 .mdbk-sms-reason::before { content: 'i'; }
 .mdbk-sms-result .mdbk-sms-retry, .mdbk-sms-result .mdbk-sms-retried { margin-left: auto; }
 .mdbk-sms-attempts { font-size: 11px; color: #94a3b8; white-space: nowrap; }
+.mdbk-sms-retried-tag { font-weight: 400; color: #64748b; }
 .mdbk-sms-attempts[hidden] { display: none; }
 .mdbk-sms-reason-ok { border-color: #86efac; background: #dcfce7; color: #15803d; }
 .mdbk-sms-reason-ok:hover, .mdbk-sms-reason-ok:focus-visible { background: #16a34a; border-color: #16a34a; color: #fff; }
