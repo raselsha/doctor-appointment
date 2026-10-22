@@ -1758,6 +1758,7 @@ class MDBK_Admin_Dashboard {
             'search' => isset($_GET['sms_q']) ? sanitize_text_field(wp_unslash($_GET['sms_q'])) : '',
             'page'   => isset($_GET['sms_paged']) ? max(1, intval($_GET['sms_paged'])) : 1,
         ];
+        \MDBK\MDBK_SMS::maybe_backfill_flags();
         $log_query    = \MDBK\MDBK_SMS::query_log($log_filter);
         $log          = $log_query['rows'];
         $log_filtered = $log_filter['status'] !== '' || $log_filter['event'] !== '' || $log_filter['search'] !== '';
@@ -2166,7 +2167,7 @@ class MDBK_Admin_Dashboard {
                     $log_event_choices = [];
                     foreach ($events as $k => $e) $log_event_choices[$k] = $e['label'];
                     $log_event_choices += $event_labels;
-                    $log_status_choices = ['sent' => __('Sent', 'doctor-appointment'), 'failed' => __('Failed', 'doctor-appointment')];
+                    $log_status_choices = ['failed' => __('Failed (needs retry)', 'doctor-appointment'), 'retried' => __('Sent (retried)', 'doctor-appointment'), 'sent' => __('Sent', 'doctor-appointment')];
                     $log_base_url = admin_url('admin.php?page=mdbk-sms-settings&tab=log');
                     ?>
                     <div class="mdbk-sms-log-head">

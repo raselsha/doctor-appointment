@@ -824,6 +824,8 @@ class MDBK_SMS {
         if (!empty($context['retry_of'])) {
             update_post_meta($id, '_mdbk_sms_retry_of', intval($context['retry_of']));
         }
+        update_post_meta($id, '_mdbk_sms_needs_retry', !empty($result['ok']) ? 0 : 1);
+        if (!empty($result['ok'])) self::resolve_earlier($to, $message, $id);
         return $id;
     }
 
@@ -882,6 +884,50 @@ class MDBK_SMS {
     }
 
     /**
+     * A successful send of $message to $to settles every earlier failed
+     * row with the very same text: it no longer needs a retry, and it
+     * remembers which row delivered it.
+     */
+    private static function resolve_earlier($to, $message, $sent_id) {
+        $ids = get_posts([
+            'post_type'      => self::LOG_CPT,
+            'post_status'    => 'publish',
+            'posts_per_page' => -1,
+            'fields'         => 'ids',
+            'post__not_in'   => [intval($sent_id)],
+            'meta_query'     => [
+                'relation' => 'AND',
+                ['key' => '_mdbk_sms_needs_retry', 'value' => '1'],
+                ['key' => '_mdbk_sms_to', 'value' => $to],
+                ['key' => '_mdbk_sms_message', 'value' => $message],
+            ],
+        ]);
+        foreach ($ids as $id) {
+            update_post_meta($id, '_mdbk_sms_needs_retry', 0);
+            update_post_meta($id, '_mdbk_sms_resolved_by', intval($sent_id));
+        }
+    }
+
+    /**
+     * One-time pass over log rows written before the needs-retry flag
+     * existed, so filtering and the failed-first order work on old rows too.
+     */
+    public static function maybe_backfill_flags() {
+        if (get_option('mdbk_sms_log_flags_v1')) return;
+        $ids = get_posts(['post_type' => self::LOG_CPT, 'post_status' => 'publish', 'posts_per_page' => -1, 'fields' => 'ids', 'orderby' => 'ID', 'order' => 'ASC']);
+        foreach ($ids as $id) {
+            if (get_post_meta($id, '_mdbk_sms_status', true) === 'sent') {
+                update_post_meta($id, '_mdbk_sms_needs_retry', 0);
+                continue;
+            }
+            $later = self::delivered_later($id);
+            update_post_meta($id, '_mdbk_sms_needs_retry', $later ? 0 : 1);
+            if ($later) update_post_meta($id, '_mdbk_sms_resolved_by', $later->ID);
+        }
+        update_option('mdbk_sms_log_flags_v1', 1, false);
+    }
+
+    /**
      * One page of the SMS log, newest first, narrowed by status (sent /
      * failed), event key and a search across number and message text.
      * Returns ['rows' => WP_Post[], 'total' => int, 'pages' => int].
@@ -889,8 +935,19 @@ class MDBK_SMS {
     public static function query_log($args = []) {
         $args = wp_parse_args($args, ['status' => '', 'event' => '', 'search' => '', 'page' => 1, 'per_page' => 25]);
         $meta = ['relation' => 'AND'];
-        if (in_array($args['status'], ['sent', 'failed'], true)) {
-            $meta[] = ['key' => '_mdbk_sms_status', 'value' => $args['status']];
+        // failed  = still not delivered (needs a retry)
+        // retried = failed at first, delivered later
+        // sent    = delivered first time
+        if ($args['status'] === 'failed') {
+            $meta[] = ['key' => '_mdbk_sms_needs_retry', 'value' => '1'];
+        } elseif ($args['status'] === 'retried') {
+            $meta[] = ['relation' => 'OR',
+                ['key' => '_mdbk_sms_resolved_by', 'compare' => 'EXISTS'],
+                ['key' => '_mdbk_sms_prev_error', 'compare' => 'EXISTS'],
+            ];
+        } elseif ($args['status'] === 'sent') {
+            $meta[] = ['key' => '_mdbk_sms_status', 'value' => 'sent'];
+            $meta[] = ['key' => '_mdbk_sms_prev_error', 'compare' => 'NOT EXISTS'];
         }
         if ($args['event'] !== '') {
             $meta[] = ['key' => '_mdbk_sms_event', 'value' => $args['event']];
@@ -910,6 +967,8 @@ class MDBK_SMS {
             'post_status'    => 'publish',
             'posts_per_page' => max(1, intval($args['per_page'])),
             'paged'          => max(1, intval($args['page'])),
+            // Plain chronological log, newest first. Failed messages sit at
+            // the time they failed; the Failed filter is how to gather them.
             'orderby'        => 'date',
             'order'          => 'DESC',
             'meta_query'     => count($meta) > 1 ? $meta : [],
@@ -1055,6 +1114,7 @@ class MDBK_SMS {
         update_post_meta($log_id, '_mdbk_sms_attempts', $attempts);
         update_post_meta($log_id, '_mdbk_sms_last_attempt', current_time('mysql'));
         update_post_meta($log_id, '_mdbk_sms_status', !empty($result['ok']) ? 'sent' : 'failed');
+        update_post_meta($log_id, '_mdbk_sms_needs_retry', !empty($result['ok']) ? 0 : 1);
         update_post_meta($log_id, '_mdbk_sms_error', !empty($result['ok']) ? '' : (isset($result['message']) ? $result['message'] : ''));
         if (!empty($result['data']['request_id'])) {
             update_post_meta($log_id, '_mdbk_sms_request_id', $result['data']['request_id']);
