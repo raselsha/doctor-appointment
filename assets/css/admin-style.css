@@ -2858,6 +2858,18 @@ body.mdbk-doctor-chrome .mdbk-admin-wrapper {
 [data-sms-panel][hidden] { display: none !important; }
 .mdbk-sms-stats { margin-bottom: 20px; }
 #mdbk-sms-balance.is-loading { opacity: .4; transition: opacity .2s; }
+.mdbk-sms-validity { margin-top: -4px; font-size: 12px; font-weight: 500; color: #64748b; white-space: nowrap; }
+.mdbk-sms-validity[hidden] { display: none; }
+.mdbk-sms-validity.is-soon { color: #b45309; }
+.mdbk-sms-validity.is-expired { color: #b91c1c; font-weight: 600; }
+.mdbk-sms-balance-card { position: relative; padding-bottom: 54px; }
+.mdbk-sms-validity-date { position: absolute; top: 16px; right: 16px; font-size: 11px; font-weight: 600; color: #64748b; white-space: nowrap; }
+.mdbk-sms-validity-date[hidden] { display: none; }
+.mdbk-sms-validity-date.is-soon { color: #b45309; }
+.mdbk-sms-validity-date.is-expired { color: #b91c1c; }
+.mdbk-sms-recharge { position: absolute; right: 16px; bottom: 14px; display: inline-flex; width: auto; }
+.mdbk-sms-recharge.is-urgent { background: #0061d5; border-color: #0061d5; color: #fff; }
+.mdbk-sms-recharge.is-urgent:hover { background: #0052b8; border-color: #0052b8; }
 .mdbk-sms-log-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin: 0 0 14px; }
 .mdbk-sms-log-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 0 0 12px; }
 .mdbk-sms-log-filters .mdbk-filters-search { flex: 1 1 220px; max-width: 320px; }

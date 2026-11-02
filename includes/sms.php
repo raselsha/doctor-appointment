@@ -39,6 +39,8 @@ class MDBK_SMS {
     const API_SEND    = 'https://api.sms.net.bd/sendsms';
     const API_REPORT  = 'https://api.sms.net.bd/report/request/';
     const API_BALANCE = 'https://api.sms.net.bd/user/balance/';
+    // The gateway's customer portal — recharging happens there after login.
+    const PORTAL_URL  = 'https://portal.sms.net.bd/login/';
 
     // The gateway's own documented ceiling is per-request, not per-part;
     // this is a sanity guard so a runaway template can't post 4KB and be
@@ -577,9 +579,42 @@ class MDBK_SMS {
             'ok'      => $result['ok'],
             'message' => $result['message'],
             'balance' => isset($result['data']['balance']) ? (string) $result['data']['balance'] : '',
+            // When the account's credit expires — after that the balance
+            // can't be spent, so the clinic needs to see it coming.
+            'validity' => isset($result['data']['validity']) ? substr((string) $result['data']['validity'], 0, 10) : '',
         ];
         if ($out['ok']) set_transient('mdbk_sms_balance', $out, 5 * MINUTE_IN_SECONDS);
         return $out;
+    }
+
+    /**
+     * The expiry date as the card shows it: label, days left, and a state
+     * — 'ok', 'soon' (14 days or less) or 'expired'. Empty when unknown.
+     */
+    public static function validity_info($date) {
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) $date)) return null;
+        $days = (int) floor((strtotime($date) - strtotime(current_time('Y-m-d'))) / DAY_IN_SECONDS);
+        $short = date_i18n('j M Y', strtotime($date));
+        if ($days < 0) {
+            $text = sprintf(__('Expired on %s', 'doctor-appointment'), $short);
+        } else {
+            $text = sprintf(
+                /* translators: 1: date like "17 Nov 2026", 2: number of days */
+                _n('Valid till %1$s · %2$d day left', 'Valid till %1$s · %2$d days left', $days, 'doctor-appointment'),
+                $short,
+                $days
+            );
+        }
+        return [
+            'date'       => $date,
+            'days'       => $days,
+            'state'      => $days < 0 ? 'expired' : ($days <= 14 ? 'soon' : 'ok'),
+            'text'       => $text,
+            // Split for the balance card: the date sits top-right, the days under the amount.
+            /* translators: %s: date like "17 Nov 2026" */
+            'date_label' => $days < 0 ? sprintf(__('Expired %s', 'doctor-appointment'), $short) : sprintf(__('Valid till %s', 'doctor-appointment'), $short),
+            'days_label' => $days < 0 ? __('Credit expired — recharge to send', 'doctor-appointment') : sprintf(_n('%d day left', '%d days left', $days, 'doctor-appointment'), $days),
+        ];
     }
 
     /** Delivery report for one earlier send, by the request_id the gateway returned. */
@@ -1021,7 +1056,7 @@ class MDBK_SMS {
         }
         $result = self::balance(true);
         if (!$result['ok']) wp_send_json_error(['message' => $result['message']]);
-        wp_send_json_success(['balance' => $result['balance']]);
+        wp_send_json_success(['balance' => $result['balance'], 'validity' => self::validity_info(isset($result['validity']) ? $result['validity'] : '')]);
     }
 
     public function ajax_test_send() {

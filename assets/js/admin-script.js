@@ -3574,6 +3574,21 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(function(res) {
                 if (res && res.success) {
                     smsBalanceOut.textContent = res.data.balance;
+                    const validityEl = document.getElementById('mdbk-sms-validity');
+                    const v = res.data.validity;
+                    if (validityEl) {
+                        validityEl.hidden = !v;
+                        validityEl.textContent = v ? v.days_label : '';
+                        validityEl.className = 'mdbk-sms-validity' + (v ? ' is-' + v.state : '');
+                    }
+                    const validityDate = document.getElementById('mdbk-sms-validity-date');
+                    if (validityDate) {
+                        validityDate.hidden = !v;
+                        validityDate.textContent = v ? v.date_label : '';
+                        validityDate.className = 'mdbk-sms-validity-date' + (v ? ' is-' + v.state : '');
+                    }
+                    const rechargeEl = document.getElementById('mdbk-sms-recharge');
+                    if (rechargeEl) rechargeEl.classList.toggle('is-urgent', !!v && v.state !== 'ok');
                 } else {
                     msg.textContent = (res && res.data && res.data.message) || '';
                     msg.className = 'mdbk-sms-inline-msg mdbk-sms-inline-fail';

@@ -1823,13 +1823,18 @@ class MDBK_Admin_Dashboard {
 
                 <?php // Usage at a glance, above the tabs so it shows whichever tab is open. ?>
                 <div class="mdbk-stats-grid mdbk-stats-grid-compact mdbk-sms-stats">
-                    <div class="mdbk-stat-card mdbk-stat-card-blue">
+                    <?php $validity = is_array($balance) && !empty($balance['validity']) ? \MDBK\MDBK_SMS::validity_info($balance['validity']) : null; ?>
+                    <div class="mdbk-stat-card mdbk-stat-card-blue mdbk-sms-balance-card">
                         <div class="mdbk-stat-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="13" rx="2"></rect><path d="M2 10h20"></path><path d="M6 15h4"></path></svg></div>
+                        <?php // Expiry date top-right, days left under the amount, Recharge bottom-right. ?>
+                        <div class="mdbk-sms-validity-date<?php echo $validity ? ' is-' . esc_attr($validity['state']) : ''; ?>" id="mdbk-sms-validity-date"<?php echo $validity ? '' : ' hidden'; ?>><?php echo $validity ? esc_html($validity['date_label']) : ''; ?></div>
                         <div class="mdbk-stat-text">
                             <h4><?php _e('Balance', 'doctor-appointment'); ?></h4>
                             <div class="value"><span>৳</span><span id="mdbk-sms-balance" data-has-key="<?php echo $settings['api_key'] !== '' ? '1' : '0'; ?>"><?php echo is_array($balance) && $balance['balance'] !== '' ? esc_html($balance['balance']) : '—'; ?></span></div>
+                            <div class="mdbk-sms-validity<?php echo $validity ? ' is-' . esc_attr($validity['state']) : ''; ?>" id="mdbk-sms-validity"<?php echo $validity ? '' : ' hidden'; ?>><?php echo $validity ? esc_html($validity['days_label']) : ''; ?></div>
                             <span class="mdbk-sms-inline-msg" id="mdbk-sms-balance-msg"></span>
                         </div>
+                        <a class="mdbk-btn-outline mdbk-btn-sm mdbk-sms-recharge<?php echo $validity && $validity['state'] !== 'ok' ? ' is-urgent' : ''; ?>" id="mdbk-sms-recharge" href="<?php echo esc_url(\MDBK\MDBK_SMS::PORTAL_URL); ?>" target="_blank" rel="noopener noreferrer" title="<?php esc_attr_e('Opens your sms.bd account in a new tab — log in there to recharge.', 'doctor-appointment'); ?>"><?php _e('Recharge', 'doctor-appointment'); ?> <span aria-hidden="true">&#8599;</span></a>
                     </div>
                     <div class="mdbk-stat-card mdbk-stat-card-green">
                         <div class="mdbk-stat-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg></div>
