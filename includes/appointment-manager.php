@@ -94,6 +94,16 @@ class MDBK_Appointment_Manager {
      * to its registered post_status (mdbk_waiting/...). Unknown input falls
      * back to 'mdbk_waiting'.
      */
+    /**
+     * A schedule key ('Monday', …) as the visitor's language reads it —
+     * display only; the stored schedule keys themselves stay English.
+     */
+    public static function weekday_label($day) {
+        global $wp_locale;
+        $index = array_search($day, ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'], true);
+        return false === $index ? $day : $wp_locale->get_weekday($index);
+    }
+
     public static function status_slug_to_post_status($slug) {
         return isset(self::STATUS_SLUG_TO_POST_STATUS[$slug]) ? self::STATUS_SLUG_TO_POST_STATUS[$slug] : 'mdbk_waiting';
     }
@@ -1786,7 +1796,7 @@ class MDBK_Appointment_Manager {
                 if (is_array($schedule)) {
                     foreach ($schedule as $day => $time) {
                         if (!empty($time['active'])) {
-                            $available_days[] = $day;
+                            $available_days[] = self::weekday_label($day);
                         }
                     }
                 }
@@ -1841,7 +1851,7 @@ class MDBK_Appointment_Manager {
         if (is_array($schedule)) {
             foreach ($schedule as $day => $time) {
                 if (!empty($time['active'])) {
-                    $available_days[] = $day;
+                    $available_days[] = self::weekday_label($day);
                 }
             }
         }

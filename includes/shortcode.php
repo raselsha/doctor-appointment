@@ -730,8 +730,8 @@ class MDBK_Shortcode {
             <button type="button" class="mdbk-confirmation-close-btn" id="mdbk-confirmation-close"><?php _e('Close', 'doctor-appointment'); ?></button>
         </div>
         <form id="mdbk-modal-form">
-            <?php // Honeypot — hidden from people and screen readers; bots that fill every field get silently dropped (see ajax_handle_submission()). ?>
-            <div style="position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden;" aria-hidden="true">
+            <?php // Honeypot — hidden from people and screen readers; bots that fill every field get silently dropped (see ajax_handle_submission()). Clipped in place rather than pushed to left:-9999px, which on an RTL (Arabic) page widens the scroll area and blanks the view. ?>
+            <div style="position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;" aria-hidden="true">
                 <label for="mdbk-website">Website</label>
                 <input type="text" name="mdbk_website" id="mdbk-website" value="" tabindex="-1" autocomplete="off" />
             </div>

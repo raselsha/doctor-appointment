@@ -1,5 +1,3 @@
-# Copyright (C) 2026 Shahadat Hossain
-# This file is distributed under the GPL v2 or later.
 msgid ""
 msgstr ""
 "Project-Id-Version: Doctor Appointment Booking 1.2.0\n"
@@ -11,9 +9,9 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "POT-Creation-Date: 2026-07-29T15:56:27+00:00\n"
 "PO-Revision-Date: 2026-07-29 00:00+0000\n"
+"Language: bn_BD\n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: doctor-appointment\n"
-"Language: bn_BD\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
 #. Plugin Name of the plugin
@@ -41,1287 +39,1334 @@ msgstr "Shahadat Hossain"
 msgid "https://shahadat.com.bd"
 msgstr "https://shahadat.com.bd"
 
-#: doctor-appointment.php:232
-#: includes/admin-dashboard.php:2055
+#: doctor-appointment.php:268
+#: includes/admin-dashboard.php:4091
 msgid "Off"
 msgstr "বন্ধ"
 
-#: includes/admin-dashboard.php:149
-#: includes/shortcode.php:1312
-#: includes/shortcode.php:1345
+#: includes/admin-dashboard.php:266
+#: includes/admin-dashboard.php:285
+#: includes/shortcode.php:1591
+#: includes/shortcode.php:1625
 msgid "Invalid request."
 msgstr "অবৈধ রিকোয়েস্ট।"
 
-#: includes/admin-dashboard.php:156
-#: includes/admin-dashboard.php:189
-#: includes/admin-dashboard.php:210
-#: includes/admin-dashboard.php:299
-#: includes/admin-dashboard.php:345
-#: includes/admin-dashboard.php:382
+#: includes/admin-dashboard.php:107
+#: includes/admin-dashboard.php:212
+#: includes/admin-dashboard.php:245
+#: includes/admin-dashboard.php:264
+#: includes/admin-dashboard.php:283
+#: includes/admin-dashboard.php:306
+#: includes/admin-dashboard.php:410
+#: includes/admin-dashboard.php:456
+#: includes/admin-dashboard.php:530
+#: includes/admin-dashboard.php:578
+#: includes/admin-dashboard.php:624
+#: includes/admin-dashboard.php:661
+#: includes/admin-dashboard.php:700
+#: includes/admin-dashboard.php:3738
+#: includes/admin-dashboard.php:5245
+#: includes/admin-dashboard.php:5927
+#: includes/admin-dashboard.php:6112
+#: includes/admin-dashboard.php:6158
+#: includes/admin-dashboard.php:6293
+#: includes/sms.php:1055
+#: includes/sms.php:1065
+#: includes/sms.php:1112
 msgid "Unauthorized."
 msgstr "অননুমোদিত।"
 
-#: includes/admin-dashboard.php:158
-#: includes/admin-dashboard.php:175
+#: includes/admin-dashboard.php:214
+#: includes/admin-dashboard.php:231
 msgid "Invalid doctor."
 msgstr "অবৈধ ডাক্তার।"
 
-#: includes/admin-dashboard.php:179
+#: includes/admin-dashboard.php:235
 msgid "You can only control your own Live Queue."
 msgstr "আপনি শুধু নিজের লাইভ কিউ নিয়ন্ত্রণ করতে পারবেন।"
 
-#: includes/admin-dashboard.php:191
+#: includes/admin-dashboard.php:247
 msgid "Invalid specialty."
 msgstr "অবৈধ স্পেশালিটি।"
 
-#: includes/admin-dashboard.php:215
-#: includes/admin-dashboard.php:304
-#: includes/admin-dashboard.php:350
-#: includes/admin-dashboard.php:387
-#: includes/appointment-manager.php:687
-#: includes/appointment-manager.php:716
+#: includes/admin-dashboard.php:311
+#: includes/admin-dashboard.php:583
+#: includes/admin-dashboard.php:629
+#: includes/admin-dashboard.php:666
+#: includes/admin-dashboard.php:705
+#: includes/appointment-manager.php:908
+#: includes/appointment-manager.php:953
+#: includes/appointment-manager.php:984
 msgid "Invalid appointment."
 msgstr "অবৈধ অ্যাপয়েন্টমেন্ট।"
 
-#: includes/admin-dashboard.php:226
-#: includes/admin-dashboard.php:312
-#: includes/admin-dashboard.php:357
+#: includes/admin-dashboard.php:322
+#: includes/admin-dashboard.php:591
+#: includes/admin-dashboard.php:636
 msgid "You can only update your own patients."
 msgstr "আপনি শুধু নিজের রোগীদের তথ্য আপডেট করতে পারবেন।"
 
-#: includes/admin-dashboard.php:237
+#: includes/admin-dashboard.php:333
 msgid "Only today's patients can be marked as visited."
 msgstr "শুধুমাত্র আজকের রোগীদের ভিজিটেড হিসেবে চিহ্নিত করা যাবে।"
 
-#: includes/admin-dashboard.php:247
+#: includes/admin-dashboard.php:343
 msgid "This patient must be started (Start Visiting) before they can be marked as visited."
 msgstr "ভিজিটেড হিসেবে চিহ্নিত করার আগে এই রোগীর ভিজিট শুরু করতে হবে (Start Visiting)।"
 
-#: includes/admin-dashboard.php:318
+#: includes/admin-dashboard.php:597
 msgid "Only today's patients can be skipped."
 msgstr "শুধুমাত্র আজকের রোগীদের স্কিপ করা যাবে।"
 
-#: includes/admin-dashboard.php:321
+#: includes/admin-dashboard.php:600
 msgid "Only a checked-in, waiting patient can be skipped."
 msgstr "শুধুমাত্র চেক-ইন করা, অপেক্ষমাণ রোগীকে স্কিপ করা যাবে।"
 
-#: includes/admin-dashboard.php:414
-#: includes/admin-dashboard.php:446
-#: includes/admin-dashboard.php:602
-#: includes/admin-dashboard.php:628
-#: includes/admin-dashboard.php:652
-#: includes/admin-dashboard.php:713
-#: includes/admin-dashboard.php:804
-#: includes/admin-dashboard.php:821
-#: includes/admin-dashboard.php:1578
-#: includes/admin-dashboard.php:1633
-#: includes/admin-dashboard.php:1957
-#: includes/admin-dashboard.php:2087
-#: includes/appointment-manager.php:1195
+#: includes/admin-dashboard.php:741
+#: includes/admin-dashboard.php:774
+#: includes/admin-dashboard.php:989
+#: includes/admin-dashboard.php:997
+#: includes/admin-dashboard.php:1075
+#: includes/admin-dashboard.php:1099
+#: includes/admin-dashboard.php:1167
+#: includes/admin-dashboard.php:1253
+#: includes/admin-dashboard.php:1385
+#: includes/admin-dashboard.php:1414
+#: includes/admin-dashboard.php:1689
+#: includes/admin-dashboard.php:3325
+#: includes/admin-dashboard.php:3405
+#: includes/admin-dashboard.php:3938
+#: includes/admin-dashboard.php:4147
+#: includes/appointment-manager.php:1884
+#: includes/licensing.php:203
+#: includes/licensing.php:222
+#: includes/licensing.php:232
 msgid "You do not have permission to do this."
 msgstr "এই কাজ করার অনুমতি আপনার নেই।"
 
-#: includes/admin-dashboard.php:461
+#: includes/admin-dashboard.php:789
 msgid "Email is required for a doctor account."
 msgstr "ডাক্তার অ্যাকাউন্টের জন্য ইমেইল আবশ্যক।"
 
-#: includes/admin-dashboard.php:526
+#: includes/admin-dashboard.php:884
 msgid "An account with this email already exists. Please use a different email for this doctor."
 msgstr "এই ইমেইল দিয়ে ইতিমধ্যে একটি অ্যাকাউন্ট আছে। এই ডাক্তারের জন্য অন্য একটি ইমেইল ব্যবহার করুন।"
 
-#: includes/admin-dashboard.php:642
+#: includes/admin-dashboard.php:1089
 msgid "Name and email are required."
 msgstr "নাম এবং ইমেইল আবশ্যক।"
 
-#: includes/admin-dashboard.php:656
+#: includes/admin-dashboard.php:1103
 msgid "That email is already used by another account."
 msgstr "এই ইমেইল ইতিমধ্যে অন্য একটি অ্যাকাউন্টে ব্যবহৃত হচ্ছে।"
 
-#: includes/admin-dashboard.php:678
+#: includes/admin-dashboard.php:1125
 msgid "An account with this email already exists."
 msgstr "এই ইমেইল দিয়ে ইতিমধ্যে একটি অ্যাকাউন্ট আছে।"
 
-#: includes/admin-dashboard.php:758
+#: includes/admin-dashboard.php:1301
 msgid "That time slot is already booked."
 msgstr "এই টাইম স্লটটি ইতিমধ্যে বুক করা হয়েছে।"
 
-#: includes/admin-dashboard.php:860
-#: includes/admin-dashboard.php:2878
-msgid "Global Settings"
-msgstr "গ্লোবাল সেটিংস"
-
-#: includes/admin-dashboard.php:863
+#: includes/admin-dashboard.php:1572
 msgid "Settings saved."
 msgstr "সেটিংস সংরক্ষিত হয়েছে।"
 
-#: includes/admin-dashboard.php:869
+#: includes/admin-dashboard.php:1582
 msgid "Logo"
 msgstr "লোগো"
 
-#: includes/admin-dashboard.php:879
-#: includes/admin-dashboard.php:3203
+#: includes/admin-dashboard.php:1592
+#: includes/admin-dashboard.php:6588
 msgid "Select Image"
 msgstr "ছবি নির্বাচন করুন"
 
-#: includes/admin-dashboard.php:880
-#: includes/admin-dashboard.php:2895
-#: includes/admin-dashboard.php:3204
+#: includes/admin-dashboard.php:1593
+#: includes/admin-dashboard.php:1986
+#: includes/admin-dashboard.php:1997
+#: includes/admin-dashboard.php:5716
+#: includes/admin-dashboard.php:5849
+#: includes/admin-dashboard.php:6589
 msgid "Remove"
 msgstr "মুছুন"
 
-#: includes/admin-dashboard.php:884
+#: includes/admin-dashboard.php:1597
 msgid "Clinic Name"
 msgstr "ক্লিনিকের নাম"
 
-#: includes/admin-dashboard.php:884
+#: includes/admin-dashboard.php:1597
 msgid "e.g. Shafiul Amraz Medical Center"
 msgstr "যেমন: শফিউল আমরাজ মেডিকেল সেন্টার"
 
-#: includes/admin-dashboard.php:885
+#: includes/admin-dashboard.php:1598
 msgid "Contact Info"
 msgstr "যোগাযোগের তথ্য"
 
-#: includes/admin-dashboard.php:885
+#: includes/admin-dashboard.php:1598
 msgid "e.g. 01700-000000, info@clinic.com"
 msgstr "যেমন: 01700-000000, info@clinic.com"
 
-#: includes/admin-dashboard.php:886
-#: includes/admin-dashboard.php:2678
-#: includes/admin-dashboard.php:3036
+#: includes/admin-dashboard.php:1599
+#: includes/admin-dashboard.php:3080
+#: includes/admin-dashboard.php:5099
+#: includes/admin-dashboard.php:5996
 msgid "Address"
 msgstr "ঠিকানা"
 
-#: includes/admin-dashboard.php:886
+#: includes/admin-dashboard.php:1599
 msgid "e.g. House 12, Road 5, Dhaka"
 msgstr "যেমন: বাড়ি ১২, রোড ৫, ঢাকা"
 
-#: includes/admin-dashboard.php:889
+#: includes/admin-dashboard.php:1606
 msgid "Primary Color"
 msgstr "প্রাইমারি রং"
 
-#: includes/admin-dashboard.php:893
+#: includes/admin-dashboard.php:1610
 msgid "Secondary Color"
 msgstr "সেকেন্ডারি রং"
 
-#: includes/admin-dashboard.php:897
+#: includes/admin-dashboard.php:1615
 msgid "Used on the patient-facing booking pages (buttons, highlights, links) — match these to your site theme, or leave as the defaults."
 msgstr "রোগীমুখী বুকিং পেজে ব্যবহৃত হয় (বাটন, হাইলাইট, লিংক) — আপনার সাইট থিমের সাথে মিলিয়ে নিন, অথবা ডিফল্ট রেখে দিন।"
 
-#: includes/admin-dashboard.php:903
+#: includes/admin-dashboard.php:1621
 msgid "Enable Live Queue (the public [mdbk_queue_list] display)"
 msgstr "লাইভ কিউ চালু করুন (পাবলিক [mdbk_queue_list] ডিসপ্লে)"
 
-#: includes/admin-dashboard.php:905
+#: includes/admin-dashboard.php:1623
 msgid "When off, the Live Queue page(s) show a simple \"not available\" message instead of the queue — useful if you don't want walk-in patients' names visible on a public screen."
 msgstr "বন্ধ থাকলে, লাইভ কিউ পেজ(গুলো) কিউ এর বদলে একটা সাধারণ \"উপলব্ধ নেই\" মেসেজ দেখাবে — পাবলিক স্ক্রিনে ওয়াক-ইন রোগীদের নাম দেখাতে না চাইলে এটা কাজে লাগবে।"
 
-#: includes/admin-dashboard.php:906
+#: includes/admin-dashboard.php:1671
 msgid "Save Settings"
 msgstr "সেটিংস সংরক্ষণ করুন"
 
-#: includes/admin-dashboard.php:1089
+#: includes/admin-dashboard.php:2632
 msgid "Medical Overview"
 msgstr "মেডিকেল ওভারভিউ"
 
-#: includes/admin-dashboard.php:1089
+#: includes/admin-dashboard.php:2632
 msgid "Track your daily operations."
 msgstr "আপনার দৈনন্দিন কার্যক্রম ট্র্যাক করুন।"
 
-#: includes/admin-dashboard.php:1089
+#: includes/admin-dashboard.php:2632
 msgid "Quick search..."
 msgstr "দ্রুত অনুসন্ধান..."
 
-#: includes/admin-dashboard.php:1089
-#: includes/admin-dashboard.php:1686
+#: includes/admin-dashboard.php:2632
+#: includes/admin-dashboard.php:3461
 msgid "+ New Booking"
 msgstr "+ নতুন বুকিং"
 
-#: includes/admin-dashboard.php:1094
-#: includes/admin-dashboard.php:2850
-#: includes/cpt-register.php:123
-#: includes/cpt-register.php:125
-#: includes/cpt-register.php:138
+#: includes/admin-dashboard.php:2637
+#: includes/admin-dashboard.php:5554
+#: includes/cpt-register.php:133
+#: includes/cpt-register.php:135
+#: includes/cpt-register.php:148
 msgid "Doctors"
 msgstr "ডাক্তারগণ"
 
-#: includes/admin-dashboard.php:1101
-#: includes/admin-dashboard.php:2866
-#: includes/cpt-register.php:193
-#: includes/cpt-register.php:195
-#: includes/cpt-register.php:208
+#: includes/admin-dashboard.php:2644
+#: includes/admin-dashboard.php:5551
+#: includes/cpt-register.php:203
+#: includes/cpt-register.php:205
+#: includes/cpt-register.php:218
 msgid "Patients"
 msgstr "রোগীগণ"
 
-#: includes/admin-dashboard.php:1108
+#: includes/admin-dashboard.php:2651
 msgid "Bookings"
 msgstr "বুকিং"
 
-#: includes/admin-dashboard.php:1115
-#: includes/admin-dashboard.php:1865
+#: includes/admin-dashboard.php:2658
+#: includes/admin-dashboard.php:3631
 msgid "Today's Bookings"
 msgstr "আজকের বুকিং"
 
-#: includes/admin-dashboard.php:1123
+#: includes/admin-dashboard.php:2666
 msgid "Patient Bookings"
 msgstr "রোগীর বুকিং"
 
-#: includes/admin-dashboard.php:1124
-#: includes/admin-dashboard.php:1149
-#: includes/admin-dashboard.php:1744
+#: includes/admin-dashboard.php:2667
+#: includes/admin-dashboard.php:2695
+#: includes/admin-dashboard.php:3685
 msgid "View All"
 msgstr "সব দেখুন"
 
-#: includes/admin-dashboard.php:1128
+#: includes/admin-dashboard.php:2671
 msgid "No bookings today."
 msgstr "আজ কোনো বুকিং নেই।"
 
-#: includes/admin-dashboard.php:1145
+#: includes/admin-dashboard.php:2691
 #, php-format
 msgid "%sy"
 msgstr "%s বছর"
 
-#: includes/admin-dashboard.php:1160
+#: includes/admin-dashboard.php:2706
 #, php-format
 msgid "%s — All Patients Today"
 msgstr "%s — আজকের সব রোগী"
 
-#: includes/admin-dashboard.php:1180
+#: includes/admin-dashboard.php:2726
 msgid "Doctor Directory"
 msgstr "ডাক্তার ডিরেক্টরি"
 
-#: includes/admin-dashboard.php:1183
+#: includes/admin-dashboard.php:2729
 msgid "+ Add New Doctor"
 msgstr "+ নতুন ডাক্তার যোগ করুন"
 
-#: includes/admin-dashboard.php:1185
+#: includes/admin-dashboard.php:2734
 #, php-format
 msgid "Showing %1$d Doctors of %2$d Total"
 msgstr "মোট %2$d জনের মধ্যে %1$d জন ডাক্তার দেখানো হচ্ছে"
 
-#: includes/admin-dashboard.php:1188
+#: includes/admin-dashboard.php:2737
 msgid "Search doctors…"
 msgstr "ডাক্তার খুঁজুন…"
 
-#: includes/admin-dashboard.php:1190
-#: includes/admin-dashboard.php:2903
-#: includes/admin-dashboard.php:3065
+#: includes/admin-dashboard.php:2739
+#: includes/admin-dashboard.php:2942
+#: includes/admin-dashboard.php:5724
+#: includes/admin-dashboard.php:6380
 msgid "Specialty"
 msgstr "স্পেশালিটি"
 
-#: includes/admin-dashboard.php:1192
-#: includes/admin-dashboard.php:3068
-#: includes/admin-dashboard.php:3072
-#: includes/admin-dashboard.php:3078
+#: includes/admin-dashboard.php:2741
+#: includes/admin-dashboard.php:6383
+#: includes/admin-dashboard.php:6387
+#: includes/admin-dashboard.php:6393
 msgid "All Specialties"
 msgstr "সব স্পেশালিটি"
 
-#: includes/admin-dashboard.php:1197
+#: includes/admin-dashboard.php:2746
 msgid "Switch view"
 msgstr "ভিউ পরিবর্তন করুন"
 
-#: includes/admin-dashboard.php:1198
+#: includes/admin-dashboard.php:2747
 msgid "Grid view"
 msgstr "গ্রিড ভিউ"
 
-#: includes/admin-dashboard.php:1201
+#: includes/admin-dashboard.php:2750
 msgid "List view"
 msgstr "লিস্ট ভিউ"
 
-#: includes/admin-dashboard.php:1210
-#: includes/shortcode.php:313
-#: includes/shortcode.php:955
+#: includes/admin-dashboard.php:2759
+#: includes/shortcode.php:316
+#: includes/shortcode.php:1076
 msgid "No doctors found."
 msgstr "কোনো ডাক্তার পাওয়া যায়নি।"
 
-#: includes/admin-dashboard.php:1225
-#: includes/cpt-register.php:127
-#: includes/cpt-register.php:128
+#: includes/admin-dashboard.php:2774
+#: includes/cpt-register.php:137
+#: includes/cpt-register.php:138
 msgid "Add New Doctor"
 msgstr "নতুন ডাক্তার যোগ করুন"
 
-#: includes/admin-dashboard.php:1228
+#: includes/admin-dashboard.php:2777
 msgid "No doctors match your search or filters."
 msgstr "আপনার সার্চ বা ফিল্টারের সাথে কোনো ডাক্তার মিলেনি।"
 
-#: includes/admin-dashboard.php:1231
+#: includes/admin-dashboard.php:2780
+#: includes/admin-dashboard.php:5137
 msgid "Previous page"
 msgstr "পূর্ববর্তী পেজ"
 
-#: includes/admin-dashboard.php:1233
+#: includes/admin-dashboard.php:2782
+#: includes/admin-dashboard.php:5143
 msgid "Next page"
 msgstr "পরবর্তী পেজ"
 
-#: includes/admin-dashboard.php:1252
+#: includes/admin-dashboard.php:2804
 msgid "Chamber Check-In QR"
 msgstr "চেম্বার চেক-ইন কিউআর"
 
-#: includes/admin-dashboard.php:1254
-#: includes/appointment-manager.php:1148
-#: includes/appointment-manager.php:1152
-#: includes/appointment-manager.php:1201
+#: includes/admin-dashboard.php:536
+#: includes/admin-dashboard.php:2806
+#: includes/appointment-manager.php:1837
+#: includes/appointment-manager.php:1841
+#: includes/appointment-manager.php:1890
 msgid "Doctor not found."
 msgstr "ডাক্তার পাওয়া যায়নি।"
 
-#: includes/admin-dashboard.php:1261
+#: includes/admin-dashboard.php:2813
 msgid "Print this and post it in the chamber — patients scan it with their own phone to check themselves in."
 msgstr "এটা প্রিন্ট করে চেম্বারে টাঙিয়ে দিন — রোগীরা নিজেদের ফোন দিয়ে স্ক্যান করে নিজেই চেক-ইন করতে পারবে।"
 
-#: includes/admin-dashboard.php:1263
-#: includes/admin-dashboard.php:1761
-#: includes/admin-dashboard.php:2391
+#: includes/admin-dashboard.php:2815
+#: includes/admin-dashboard.php:2931
+#: includes/admin-dashboard.php:3702
+#: includes/admin-dashboard.php:3876
+#: includes/admin-dashboard.php:4550
 msgid "Print"
 msgstr "প্রিন্ট"
 
-#: includes/admin-dashboard.php:1292
-#: includes/admin-dashboard.php:2004
+#: includes/admin-dashboard.php:2854
+#: includes/admin-dashboard.php:3988
 msgid "General"
 msgstr "জেনারেল"
 
-#: includes/admin-dashboard.php:1339
-#: includes/admin-dashboard.php:3214
+#: includes/admin-dashboard.php:2947
+#: includes/admin-dashboard.php:2981
+#: includes/admin-dashboard.php:6599
 msgid "Active"
 msgstr "সক্রিয়"
 
-#: includes/admin-dashboard.php:1339
+#: includes/admin-dashboard.php:2947
+#: includes/admin-dashboard.php:2981
 msgid "Inactive"
 msgstr "নিষ্ক্রিয়"
 
-#: includes/admin-dashboard.php:1344
+#: includes/admin-dashboard.php:2986
+#: includes/admin-dashboard.php:4951
 msgid "View"
 msgstr "দেখুন"
 
-#: includes/admin-dashboard.php:1347
-#: includes/admin-dashboard.php:3185
+#: includes/admin-dashboard.php:2989
+#: includes/admin-dashboard.php:4886
+#: includes/admin-dashboard.php:6570
 msgid "Edit"
 msgstr "এডিট"
 
-#: includes/admin-dashboard.php:1351
+#: includes/admin-dashboard.php:2993
 msgid "Chamber QR"
 msgstr "চেম্বার কিউআর"
 
-#: includes/admin-dashboard.php:1356
-#: includes/admin-dashboard.php:3186
+#: includes/admin-dashboard.php:2998
+#: includes/admin-dashboard.php:6571
 msgid "Delete"
 msgstr "মুছে ফেলুন"
 
-#: includes/admin-dashboard.php:1356
+#: includes/admin-dashboard.php:2998
 msgid "Delete this doctor?"
 msgstr "এই ডাক্তারকে মুছে ফেলবেন?"
 
-#: includes/admin-dashboard.php:1420
-#: includes/admin-dashboard.php:1780
+#: includes/admin-dashboard.php:3062
+#: includes/admin-dashboard.php:3721
 msgid "No bookings found."
 msgstr "কোনো বুকিং পাওয়া যায়নি।"
 
-#: includes/admin-dashboard.php:1425
+#: includes/admin-dashboard.php:3080
+#: includes/admin-dashboard.php:4055
 msgid "Queue"
 msgstr "কিউ"
 
-#: includes/admin-dashboard.php:1425
-#: includes/cpt-register.php:194
+#: doctor-appointment.php:313
+#: includes/admin-dashboard.php:3080
+#: includes/admin-dashboard.php:6078
+#: includes/cpt-register.php:204
 #: includes/roles.php:46
-#: includes/shortcode.php:468
-#: includes/shortcode.php:702
+#: includes/shortcode.php:472
+#: includes/shortcode.php:710
 msgid "Patient"
 msgstr "রোগী"
 
-#: includes/admin-dashboard.php:1425
-#: includes/admin-dashboard.php:3084
-#: includes/appointment-manager.php:228
-#: includes/appointment-manager.php:314
-#: includes/cpt-register.php:124
+#: doctor-appointment.php:314
+#: includes/admin-dashboard.php:2078
+#: includes/admin-dashboard.php:3080
+#: includes/admin-dashboard.php:6029
+#: includes/admin-dashboard.php:6079
+#: includes/admin-dashboard.php:6399
+#: includes/appointment-manager.php:241
+#: includes/appointment-manager.php:327
+#: includes/cpt-register.php:134
 #: includes/roles.php:29
-#: includes/shortcode.php:469
-#: includes/shortcode.php:703
-#: includes/shortcode.php:868
+#: includes/shortcode.php:473
+#: includes/shortcode.php:711
+#: includes/shortcode.php:980
 msgid "Doctor"
 msgstr "ডাক্তার"
 
-#: includes/admin-dashboard.php:1425
-#: includes/admin-dashboard.php:3014
-#: includes/admin-dashboard.php:3140
-#: includes/appointment-manager.php:199
-#: includes/shortcode.php:786
-#: includes/shortcode.php:787
+#: includes/admin-dashboard.php:1562
+#: includes/admin-dashboard.php:3080
+#: includes/admin-dashboard.php:6252
+#: includes/admin-dashboard.php:6487
+#: includes/appointment-manager.php:213
+#: includes/shortcode.php:839
+#: includes/shortcode.php:840
 msgid "Age"
 msgstr "বয়স"
 
-#: includes/admin-dashboard.php:1425
-#: includes/admin-dashboard.php:2544
-#: includes/shortcode.php:472
-#: includes/shortcode.php:705
+#: doctor-appointment.php:316
+#: includes/admin-dashboard.php:3080
+#: includes/admin-dashboard.php:4826
+#: includes/admin-dashboard.php:6029
+#: includes/shortcode.php:476
+#: includes/shortcode.php:713
 msgid "Time"
 msgstr "সময়"
 
-#: includes/admin-dashboard.php:1425
-#: includes/admin-dashboard.php:3104
-#: includes/appointment-manager.php:218
-#: includes/appointment-manager.php:316
+#: includes/admin-dashboard.php:2947
+#: includes/admin-dashboard.php:3080
+#: includes/admin-dashboard.php:6029
+#: includes/admin-dashboard.php:6087
+#: includes/admin-dashboard.php:6419
+#: includes/appointment-manager.php:231
+#: includes/appointment-manager.php:329
 msgid "Status"
 msgstr "স্ট্যাটাস"
 
-#: includes/admin-dashboard.php:1431
-#: includes/admin-dashboard.php:1477
+#: includes/admin-dashboard.php:3103
+#: includes/admin-dashboard.php:3191
+#: includes/admin-dashboard.php:6034
+#: includes/admin-dashboard.php:6146
 msgid "N/A"
 msgstr "প্রযোজ্য নয়"
 
-#: includes/admin-dashboard.php:1474
-#: includes/admin-dashboard.php:2528
+#: includes/admin-dashboard.php:3183
+#: includes/admin-dashboard.php:4785
 msgid "Queue number"
 msgstr "কিউ নম্বর"
 
-#: includes/admin-dashboard.php:1476
-#: includes/admin-dashboard.php:2530
-#: includes/admin-dashboard.php:2603
+#: includes/admin-dashboard.php:3190
+#: includes/admin-dashboard.php:4926
 msgid "Patient ID"
 msgstr "রোগী আইডি"
 
-#: includes/admin-dashboard.php:1483
+#: includes/admin-dashboard.php:3198
+#: includes/admin-dashboard.php:4807
+#: includes/admin-dashboard.php:4813
 msgid "Visit"
 msgstr "ভিজিট"
 
-#: includes/admin-dashboard.php:1485
-#: includes/admin-dashboard.php:2566
-#: includes/shortcode.php:576
-#: includes/shortcode.php:588
+#: includes/admin-dashboard.php:3200
+#: includes/admin-dashboard.php:4869
+#: includes/shortcode.php:583
+#: includes/shortcode.php:595
 msgid "Check In"
 msgstr "চেক ইন"
 
-#: includes/admin-dashboard.php:1492
-#: includes/admin-dashboard.php:2612
+#: includes/admin-dashboard.php:3229
+#: includes/admin-dashboard.php:4959
 msgid "Delete?"
 msgstr "মুছে ফেলবেন?"
 
-#: includes/admin-dashboard.php:1640
-#: includes/admin-dashboard.php:1683
-#: includes/admin-dashboard.php:2857
+#: includes/admin-dashboard.php:3412
+#: includes/admin-dashboard.php:3454
+#: includes/admin-dashboard.php:5534
 msgid "Booking"
 msgstr "বুকিং"
 
-#: includes/admin-dashboard.php:1641
-#: includes/admin-dashboard.php:1986
+#: includes/admin-dashboard.php:3413
+#: includes/admin-dashboard.php:3742
+#: includes/admin-dashboard.php:3967
 msgid "This account is not linked to a doctor profile."
 msgstr "এই অ্যাকাউন্টটি কোনো ডাক্তার প্রোফাইলের সাথে যুক্ত নয়।"
 
-#: includes/admin-dashboard.php:1683
+#: includes/admin-dashboard.php:3454
 msgid "All dates"
 msgstr "সব তারিখ"
 
-#: includes/admin-dashboard.php:1683
-#: includes/admin-dashboard.php:2383
-#: includes/admin-dashboard.php:2649
+#: includes/admin-dashboard.php:513
+#: includes/admin-dashboard.php:3454
+#: includes/admin-dashboard.php:3761
+#: includes/admin-dashboard.php:4528
+#: includes/admin-dashboard.php:5287
 #, php-format
 msgid "%d patient"
 msgid_plural "%d patients"
 msgstr[0] "%d জন রোগী"
 msgstr[1] "%d জন রোগী"
 
-#: includes/admin-dashboard.php:1696
+#: includes/admin-dashboard.php:3505
 msgid "Previous day"
 msgstr "আগের দিন"
 
-#: includes/admin-dashboard.php:1697
-#: includes/shortcode.php:244
-#: includes/shortcode.php:263
+#: includes/admin-dashboard.php:3506
+#: includes/shortcode.php:247
+#: includes/shortcode.php:266
 msgid "Today"
 msgstr "আজ"
 
-#: includes/admin-dashboard.php:1698
+#: includes/admin-dashboard.php:3507
 msgid "Next day"
 msgstr "পরের দিন"
 
-#: includes/admin-dashboard.php:1703
-#: includes/admin-dashboard.php:2654
+#: includes/admin-dashboard.php:3519
+#: includes/admin-dashboard.php:5337
 msgid "Search name, phone, or email..."
 msgstr "নাম, ফোন বা ইমেইল দিয়ে খুঁজুন..."
 
-#: includes/admin-dashboard.php:1706
-#: includes/cpt-register.php:126
+#: includes/admin-dashboard.php:3542
+#: includes/admin-dashboard.php:3553
+#: includes/admin-dashboard.php:3559
+#: includes/cpt-register.php:136
 msgid "All Doctors"
 msgstr "সব ডাক্তার"
 
-#: includes/admin-dashboard.php:1713
+#: includes/admin-dashboard.php:3538
+#: includes/admin-dashboard.php:3572
+#: includes/admin-dashboard.php:3578
 msgid "All Statuses"
 msgstr "সব স্ট্যাটাস"
 
-#: includes/admin-dashboard.php:1714
-#: includes/admin-dashboard.php:3107
-#: includes/admin-dashboard.php:3111
-#: includes/admin-dashboard.php:3117
-#: includes/appointment-manager.php:116
-#: includes/appointment-manager.php:220
-#: includes/shortcode.php:1087
+#: includes/admin-dashboard.php:6422
+#: includes/admin-dashboard.php:6426
+#: includes/admin-dashboard.php:6432
+#: includes/appointment-manager.php:129
+#: includes/appointment-manager.php:233
+#: includes/shortcode.php:1301
 msgid "Waiting"
 msgstr "অপেক্ষমাণ"
 
-#: includes/admin-dashboard.php:1715
-#: includes/admin-dashboard.php:3112
-#: includes/admin-dashboard.php:3118
-#: includes/appointment-manager.php:117
-#: includes/appointment-manager.php:221
-#: includes/shortcode.php:1081
+#: includes/admin-dashboard.php:6427
+#: includes/admin-dashboard.php:6433
+#: includes/appointment-manager.php:130
+#: includes/appointment-manager.php:234
+#: includes/shortcode.php:1295
 msgid "Visiting"
 msgstr "ভিজিট চলছে"
 
-#: includes/admin-dashboard.php:1716
-#: includes/admin-dashboard.php:3113
-#: includes/admin-dashboard.php:3119
-#: includes/appointment-manager.php:222
+#: includes/admin-dashboard.php:6428
+#: includes/admin-dashboard.php:6434
+#: includes/appointment-manager.php:235
 msgid "Completed"
 msgstr "সম্পন্ন"
 
-#: includes/admin-dashboard.php:1717
-#: includes/admin-dashboard.php:3114
-#: includes/admin-dashboard.php:3120
-#: includes/appointment-manager.php:119
-#: includes/appointment-manager.php:223
-#: includes/shortcode.php:1185
-#: includes/shortcode.php:1234
+#: includes/admin-dashboard.php:6429
+#: includes/admin-dashboard.php:6435
+#: includes/appointment-manager.php:132
+#: includes/appointment-manager.php:236
+#: includes/shortcode.php:1436
+#: includes/shortcode.php:1497
 msgid "No Show"
 msgstr "অনুপস্থিত"
 
-#: includes/admin-dashboard.php:1719
-#: includes/admin-dashboard.php:2665
+#: includes/admin-dashboard.php:2211
+#: includes/admin-dashboard.php:3584
+#: includes/admin-dashboard.php:5359
 msgid "Filter"
 msgstr "ফিল্টার"
 
-#: includes/admin-dashboard.php:1722
+#: includes/admin-dashboard.php:2213
+#: includes/admin-dashboard.php:3586
 msgid "Clear"
 msgstr "পরিষ্কার করুন"
 
-#: includes/admin-dashboard.php:1725
-msgid "All Dates"
-msgstr "সব তারিখ"
-
-#: includes/admin-dashboard.php:1732
+#: includes/admin-dashboard.php:3673
 #, php-format
 msgid "No bookings for %s."
 msgstr "%s এর জন্য কোনো বুকিং নেই।"
 
-#: includes/admin-dashboard.php:1739
-#: includes/admin-dashboard.php:1759
-#: includes/admin-dashboard.php:2349
+#: includes/admin-dashboard.php:3680
+#: includes/admin-dashboard.php:3700
+#: includes/admin-dashboard.php:4477
 msgid "Unassigned"
 msgstr "নির্ধারিত নয়"
 
-#: includes/admin-dashboard.php:1759
+#: includes/admin-dashboard.php:3700
 #, php-format
 msgid "%1$s — %2$s"
 msgstr "%1$s — %2$s"
 
-#: includes/admin-dashboard.php:1762
-#: includes/admin-dashboard.php:2392
+#: includes/admin-dashboard.php:2932
+#: includes/admin-dashboard.php:3703
+#: includes/admin-dashboard.php:3883
+#: includes/admin-dashboard.php:4551
 msgid "Export CSV"
 msgstr "সিএসভি এক্সপোর্ট করুন"
 
-#: includes/admin-dashboard.php:1847
+#: includes/admin-dashboard.php:3816
 msgid "Expand All"
 msgstr "সব প্রসারিত করুন"
 
-#: includes/admin-dashboard.php:1847
+#: includes/admin-dashboard.php:3817
 msgid "Collapse All"
 msgstr "সব সংকুচিত করুন"
 
-#: includes/admin-dashboard.php:1858
+#: includes/admin-dashboard.php:3624
 msgid "Total Patients"
 msgstr "মোট রোগী"
 
-#: includes/admin-dashboard.php:1872
+#: includes/admin-dashboard.php:3638
 msgid "Visited Today"
 msgstr "আজ ভিজিট হয়েছে"
 
-#: includes/admin-dashboard.php:1879
+#: includes/admin-dashboard.php:3645
 msgid "No Show Today"
 msgstr "আজ অনুপস্থিত"
 
-#: includes/admin-dashboard.php:1886
-#: includes/admin-dashboard.php:2562
-#: includes/appointment-manager.php:121
+#: includes/admin-dashboard.php:3652
+#: includes/admin-dashboard.php:4865
+#: includes/appointment-manager.php:135
 msgid "Upcoming"
 msgstr "আসন্ন"
 
-#: includes/admin-dashboard.php:1893
+#: includes/admin-dashboard.php:3826
 msgid "Today's Queue"
 msgstr "আজকের কিউ"
 
-#: includes/admin-dashboard.php:1908
-#: includes/admin-dashboard.php:2386
+#: includes/admin-dashboard.php:2925
+#: includes/admin-dashboard.php:3871
+#: includes/admin-dashboard.php:4537
 msgid "Live Queue display for this doctor"
 msgstr "এই ডাক্তারের জন্য লাইভ কিউ প্রদর্শন"
 
-#: includes/admin-dashboard.php:1910
-#: includes/admin-dashboard.php:2388
+#: includes/admin-dashboard.php:2927
+#: includes/admin-dashboard.php:3873
+#: includes/admin-dashboard.php:4539
 msgid "Live Queue"
 msgstr "লাইভ কিউ"
 
-#: includes/admin-dashboard.php:1919
-#: includes/admin-dashboard.php:1930
-#: includes/admin-dashboard.php:2670
+#: includes/admin-dashboard.php:3901
+#: includes/admin-dashboard.php:3912
+#: includes/admin-dashboard.php:5091
 msgid "No patients match your search."
 msgstr "আপনার সার্চের সাথে কোনো রোগী মিলেনি।"
 
-#: includes/admin-dashboard.php:1919
-#: includes/shortcode.php:1103
+#: includes/admin-dashboard.php:3901
+#: includes/shortcode.php:1317
 msgid "No patients in queue today."
 msgstr "আজ কিউতে কোনো রোগী নেই।"
 
-#: includes/admin-dashboard.php:1924
-msgid "Other Dates"
-msgstr "অন্যান্য তারিখ"
-
-#: includes/admin-dashboard.php:1930
-msgid "No other bookings yet."
-msgstr "এখনো অন্য কোনো বুকিং নেই।"
-
-#: includes/admin-dashboard.php:1964
+#: includes/admin-dashboard.php:3945
 msgid "My Profile"
 msgstr "আমার প্রোফাইল"
 
-#: includes/admin-dashboard.php:1968
+#: includes/admin-dashboard.php:3949
 msgid "MANAGER"
 msgstr "ম্যানেজার"
 
-#: includes/admin-dashboard.php:1968
+#: includes/admin-dashboard.php:3949
 msgid "FRONT DESK STAFF"
 msgstr "ফ্রন্ট ডেস্ক স্টাফ"
 
-#: includes/admin-dashboard.php:1980
+#: includes/admin-dashboard.php:3961
 msgid "Username"
 msgstr "ইউজারনেম"
 
-#: includes/admin-dashboard.php:1981
-#: includes/admin-dashboard.php:2041
-#: includes/admin-dashboard.php:2677
-#: includes/admin-dashboard.php:2773
-#: includes/admin-dashboard.php:2924
-#: includes/admin-dashboard.php:3011
-#: includes/admin-dashboard.php:3136
-#: includes/shortcode.php:215
-#: includes/shortcode.php:779
+#: includes/admin-dashboard.php:1561
+#: includes/admin-dashboard.php:2943
+#: includes/admin-dashboard.php:3962
+#: includes/admin-dashboard.php:4037
+#: includes/admin-dashboard.php:5098
+#: includes/admin-dashboard.php:5457
+#: includes/admin-dashboard.php:5745
+#: includes/admin-dashboard.php:5993
+#: includes/admin-dashboard.php:6249
+#: includes/admin-dashboard.php:6468
+#: includes/shortcode.php:218
+#: includes/shortcode.php:829
 msgid "Email"
 msgstr "ইমেইল"
 
-#: includes/admin-dashboard.php:2042
-#: includes/admin-dashboard.php:2676
-#: includes/admin-dashboard.php:2774
-#: includes/admin-dashboard.php:2928
-#: includes/admin-dashboard.php:3010
-#: includes/admin-dashboard.php:3135
-#: includes/shortcode.php:206
+#: includes/admin-dashboard.php:2944
+#: includes/admin-dashboard.php:3080
+#: includes/admin-dashboard.php:4038
+#: includes/admin-dashboard.php:5097
+#: includes/admin-dashboard.php:5458
+#: includes/admin-dashboard.php:5749
+#: includes/admin-dashboard.php:5992
+#: includes/admin-dashboard.php:6248
+#: includes/admin-dashboard.php:6466
+#: includes/shortcode.php:209
 msgid "Phone"
 msgstr "ফোন"
 
-#: includes/admin-dashboard.php:2043
+#: includes/admin-dashboard.php:2945
 msgid "Slot Duration"
 msgstr "স্লট সময়কাল"
 
-#: includes/admin-dashboard.php:2043
+#: includes/admin-dashboard.php:2945
+#: includes/admin-dashboard.php:4064
 msgid "min"
 msgstr "মিনিট"
 
-#: includes/admin-dashboard.php:2046
+#: includes/admin-dashboard.php:4082
 msgid "Bio"
 msgstr "বায়ো"
 
-#: includes/admin-dashboard.php:2048
-#: includes/admin-dashboard.php:2950
+#: includes/admin-dashboard.php:4084
+#: includes/admin-dashboard.php:5811
 msgid "Weekly Availability"
 msgstr "সাপ্তাহিক সময়সূচি"
 
-#: includes/admin-dashboard.php:2050
+#: includes/admin-dashboard.php:4086
 msgid "Day"
 msgstr "দিন"
 
-#: includes/admin-dashboard.php:2050
+#: includes/admin-dashboard.php:4086
 msgid "Hours"
 msgstr "সময়"
 
-#: includes/admin-dashboard.php:2062
-#: includes/admin-dashboard.php:2968
+#: includes/admin-dashboard.php:4122
+#: includes/admin-dashboard.php:5855
 msgid "Monthly Availability"
 msgstr "মাসিক সময়সূচি"
 
-#: includes/admin-dashboard.php:2064
-#: includes/admin-dashboard.php:2971
+#: includes/admin-dashboard.php:4124
+#: includes/admin-dashboard.php:5858
 msgid "Extra Working Dates"
 msgstr "অতিরিক্ত কর্মদিবস"
 
-#: includes/admin-dashboard.php:2065
-#: includes/admin-dashboard.php:2977
+#: includes/admin-dashboard.php:4125
+#: includes/admin-dashboard.php:5864
 msgid "Off Dates"
 msgstr "ছুটির দিন"
 
-#: includes/admin-dashboard.php:2070
+#: includes/admin-dashboard.php:4130
 msgid "Edit Profile"
 msgstr "প্রোফাইল এডিট করুন"
 
-#: includes/admin-dashboard.php:2094
-#: includes/admin-dashboard.php:2874
+#: includes/admin-dashboard.php:4154
+#: includes/admin-dashboard.php:5563
 msgid "Change Password"
 msgstr "পাসওয়ার্ড পরিবর্তন করুন"
 
-#: includes/admin-dashboard.php:2097
+#: includes/admin-dashboard.php:4157
 msgid "Password updated successfully."
 msgstr "পাসওয়ার্ড সফলভাবে আপডেট হয়েছে।"
 
-#: includes/admin-dashboard.php:2106
+#: includes/admin-dashboard.php:4166
 msgid "New Password"
 msgstr "নতুন পাসওয়ার্ড"
 
-#: includes/admin-dashboard.php:2109
-#: includes/admin-dashboard.php:2121
-#: includes/admin-dashboard.php:2155
+#: includes/admin-dashboard.php:4169
+#: includes/admin-dashboard.php:4181
+#: includes/admin-dashboard.php:4215
 msgid "Show password"
 msgstr "পাসওয়ার্ড দেখান"
 
-#: includes/admin-dashboard.php:2113
+#: includes/admin-dashboard.php:4173
 msgid "At least 8 characters."
 msgstr "কমপক্ষে ৮ অক্ষর।"
 
-#: includes/admin-dashboard.php:2118
+#: includes/admin-dashboard.php:4178
 msgid "Confirm New Password"
 msgstr "নতুন পাসওয়ার্ড নিশ্চিত করুন"
 
-#: includes/admin-dashboard.php:2127
+#: includes/admin-dashboard.php:4187
 msgid "Update Password"
 msgstr "পাসওয়ার্ড আপডেট করুন"
 
-#: includes/admin-dashboard.php:2128
+#: includes/admin-dashboard.php:4188
 msgid "Tip: pressing Enter after typing also submits the form."
 msgstr "টিপস: টাইপ করার পর Enter চাপলেও ফর্ম সাবমিট হয়ে যায়।"
 
-#: includes/admin-dashboard.php:2154
+#: includes/admin-dashboard.php:4214
 msgid "Hide password"
 msgstr "পাসওয়ার্ড লুকান"
 
-#: includes/admin-dashboard.php:2173
+#: includes/admin-dashboard.php:4233
 msgid "at least 8 characters."
 msgstr "কমপক্ষে ৮ অক্ষর।"
 
-#: includes/admin-dashboard.php:2180
+#: includes/admin-dashboard.php:4240
 msgid "✓ Passwords match."
 msgstr "✓ পাসওয়ার্ড মিলেছে।"
 
-#: includes/admin-dashboard.php:2181
+#: includes/admin-dashboard.php:4241
 msgid "Passwords do not match yet."
 msgstr "পাসওয়ার্ড এখনো মিলছে না।"
 
-#: includes/admin-dashboard.php:2191
-#: includes/admin-dashboard.php:2192
+#: includes/admin-dashboard.php:4251
+#: includes/admin-dashboard.php:4252
 msgid "Very weak"
 msgstr "খুবই দুর্বল"
 
-#: includes/admin-dashboard.php:2193
+#: includes/admin-dashboard.php:4253
 msgid "Weak"
 msgstr "দুর্বল"
 
-#: includes/admin-dashboard.php:2194
+#: includes/admin-dashboard.php:4254
 msgid "Medium"
 msgstr "মাঝারি"
 
-#: includes/admin-dashboard.php:2195
+#: includes/admin-dashboard.php:4255
 msgid "Strong"
 msgstr "শক্তিশালী"
 
-#: includes/admin-dashboard.php:2219
+#: includes/admin-dashboard.php:4279
 msgid "Password strength unknown"
 msgstr "পাসওয়ার্ডের শক্তি অজানা"
 
-#: includes/admin-dashboard.php:2259
+#: includes/admin-dashboard.php:4319
 msgid "Password must be at least 8 characters."
 msgstr "পাসওয়ার্ড কমপক্ষে ৮ অক্ষরের হতে হবে।"
 
-#: includes/admin-dashboard.php:2263
+#: includes/admin-dashboard.php:4323
 msgid "Passwords do not match."
 msgstr "পাসওয়ার্ড মিলছে না।"
 
-#: includes/admin-dashboard.php:2381
-#: includes/shortcode.php:1056
+#: includes/admin-dashboard.php:4526
+#: includes/shortcode.php:1256
 msgid "Doctor is currently visiting a patient"
 msgstr "ডাক্তার বর্তমানে একজন রোগী দেখছেন"
 
-#: includes/admin-dashboard.php:2393
-#: includes/shortcode.php:485
-#: includes/shortcode.php:710
+#: includes/admin-dashboard.php:2933
+#: includes/admin-dashboard.php:3884
+#: includes/admin-dashboard.php:4552
+#: includes/shortcode.php:490
+#: includes/shortcode.php:727
 msgid "Download as Image"
 msgstr "ছবি হিসেবে ডাউনলোড করুন"
 
-#: includes/admin-dashboard.php:2539
-#: includes/admin-dashboard.php:3145
-#: includes/appointment-manager.php:315
-#: includes/shortcode.php:470
-#: includes/shortcode.php:704
+#: doctor-appointment.php:315
+#: includes/admin-dashboard.php:2098
+#: includes/admin-dashboard.php:3080
+#: includes/admin-dashboard.php:4821
+#: includes/admin-dashboard.php:6029
+#: includes/admin-dashboard.php:6077
+#: includes/admin-dashboard.php:6513
+#: includes/appointment-manager.php:328
+#: includes/shortcode.php:474
+#: includes/shortcode.php:712
 msgid "Date"
 msgstr "তারিখ"
 
-#: includes/admin-dashboard.php:2549
-#: includes/shortcode.php:1223
+#: includes/admin-dashboard.php:4831
+#: includes/shortcode.php:1486
 msgid "Recall to queue"
 msgstr "কিউতে ফিরিয়ে আনুন"
 
-#: includes/admin-dashboard.php:2549
-#: includes/shortcode.php:1223
+#: includes/admin-dashboard.php:4831
+#: includes/shortcode.php:1486
 msgid "Skip — temporarily away"
 msgstr "স্কিপ — সাময়িকভাবে অনুপস্থিত"
 
-#: includes/admin-dashboard.php:2552
+#: includes/admin-dashboard.php:4834
 msgid "Recall"
 msgstr "ফিরিয়ে আনুন"
 
-#: includes/admin-dashboard.php:2555
+#: includes/admin-dashboard.php:4837
 msgid "Skip"
 msgstr "স্কিপ"
 
-#: includes/admin-dashboard.php:2560
+#: includes/admin-dashboard.php:4863
 msgid "Currently Visiting — click to mark as visited"
 msgstr "বর্তমানে ভিজিট চলছে — ভিজিটেড হিসেবে চিহ্নিত করতে ক্লিক করুন"
 
-#: includes/admin-dashboard.php:2560
+#: includes/admin-dashboard.php:4863
 msgid "Mark Visited"
 msgstr "ভিজিটেড চিহ্নিত করুন"
 
-#: includes/admin-dashboard.php:2564
+#: includes/admin-dashboard.php:4867
 msgid "Waiting — click to start visiting"
 msgstr "অপেক্ষমাণ — ভিজিট শুরু করতে ক্লিক করুন"
 
-#: includes/admin-dashboard.php:2564
+#: includes/admin-dashboard.php:4867
 msgid "Start Visit"
 msgstr "ভিজিট শুরু করুন"
 
-#: includes/admin-dashboard.php:2568
-#: includes/appointment-manager.php:120
+#: includes/admin-dashboard.php:4871
+#: includes/appointment-manager.php:134
 msgid "Not Checked In"
 msgstr "চেক-ইন করেননি"
 
-#: includes/admin-dashboard.php:2570
+#: includes/admin-dashboard.php:4873
 msgid "Another patient is currently being seen"
 msgstr "বর্তমানে অন্য একজন রোগী দেখা হচ্ছে"
 
-#: includes/admin-dashboard.php:2609
+#: includes/admin-dashboard.php:4936
 msgid "Total visits"
 msgstr "মোট ভিজিট"
 
-#: includes/admin-dashboard.php:2649
+#: includes/admin-dashboard.php:5328
 msgid "Patient Directory"
 msgstr "রোগী ডিরেক্টরি"
 
-#: includes/admin-dashboard.php:2649
+#: includes/admin-dashboard.php:5332
 msgid "+ Add Patient"
 msgstr "+ রোগী যোগ করুন"
 
-#: includes/admin-dashboard.php:2655
-#: includes/admin-dashboard.php:3019
-#: includes/admin-dashboard.php:3023
-#: includes/admin-dashboard.php:3028
-#: includes/admin-dashboard.php:3141
-#: includes/shortcode.php:793
-#: includes/shortcode.php:797
-#: includes/shortcode.php:801
+#: includes/admin-dashboard.php:5338
+#: includes/admin-dashboard.php:6257
+#: includes/admin-dashboard.php:6261
+#: includes/admin-dashboard.php:6265
+#: includes/admin-dashboard.php:6494
+#: includes/admin-dashboard.php:6498
+#: includes/admin-dashboard.php:6502
+#: includes/shortcode.php:848
+#: includes/shortcode.php:852
+#: includes/shortcode.php:856
 msgid "Male"
 msgstr "পুরুষ"
 
-#: includes/admin-dashboard.php:2655
-#: includes/admin-dashboard.php:3024
-#: includes/admin-dashboard.php:3029
-#: includes/admin-dashboard.php:3141
-#: includes/shortcode.php:798
-#: includes/shortcode.php:802
+#: includes/admin-dashboard.php:5338
+#: includes/admin-dashboard.php:6262
+#: includes/admin-dashboard.php:6266
+#: includes/admin-dashboard.php:6499
+#: includes/admin-dashboard.php:6503
+#: includes/shortcode.php:853
+#: includes/shortcode.php:857
 msgid "Female"
 msgstr "মহিলা"
 
-#: includes/admin-dashboard.php:2655
-#: includes/admin-dashboard.php:3025
-#: includes/admin-dashboard.php:3030
-#: includes/admin-dashboard.php:3141
-msgid "Other"
-msgstr "অন্যান্য"
-
-#: includes/admin-dashboard.php:2657
+#: includes/admin-dashboard.php:5340
 msgid "All Genders"
 msgstr "সব লিঙ্গ"
 
-#: includes/admin-dashboard.php:2663
+#: includes/admin-dashboard.php:5354
 msgid "Clear filters"
 msgstr "ফিল্টার পরিষ্কার করুন"
 
-#: includes/admin-dashboard.php:2670
+#: includes/admin-dashboard.php:5091
 msgid "No patients yet."
 msgstr "এখনো কোনো রোগী নেই।"
 
-#: includes/admin-dashboard.php:2674
+#: includes/admin-dashboard.php:5095
 msgid "ID"
 msgstr "আইডি"
 
-#: includes/admin-dashboard.php:2675
-#: includes/admin-dashboard.php:3208
+#: includes/admin-dashboard.php:5096
+#: includes/admin-dashboard.php:6593
 msgid "Name"
 msgstr "নাম"
 
-#: includes/admin-dashboard.php:2679
+#: includes/admin-dashboard.php:5100
 msgid "Age/Gender"
 msgstr "বয়স/লিঙ্গ"
 
-#: includes/admin-dashboard.php:2680
+#: includes/admin-dashboard.php:5101
 msgid "Visits"
 msgstr "ভিজিট"
 
-#: includes/admin-dashboard.php:2702
+#: includes/admin-dashboard.php:5386
 #: includes/roles.php:16
 msgid "Front Desk"
 msgstr "ফ্রন্ট ডেস্ক"
 
-#: includes/admin-dashboard.php:2703
+#: includes/admin-dashboard.php:5387
 #: includes/roles.php:71
 msgid "Manager"
 msgstr "ম্যানেজার"
 
-#: includes/admin-dashboard.php:2715
+#: includes/admin-dashboard.php:5399
 msgid "User ID"
 msgstr "ইউজার আইডি"
 
-#: includes/admin-dashboard.php:2722
+#: includes/admin-dashboard.php:5406
 msgid "Remove this staff account?"
 msgstr "এই স্টাফ অ্যাকাউন্টটি মুছে ফেলবেন?"
 
-#: includes/admin-dashboard.php:2746
-#: includes/admin-dashboard.php:2851
+#: includes/admin-dashboard.php:5430
+#: includes/admin-dashboard.php:5555
 msgid "Staff"
 msgstr "স্টাফ"
 
-#: includes/admin-dashboard.php:2746
+#: includes/admin-dashboard.php:5430
 #, php-format
 msgid "%d staff account"
 msgid_plural "%d staff accounts"
 msgstr[0] "%d টি স্টাফ অ্যাকাউন্ট"
 msgstr[1] "%d টি স্টাফ অ্যাকাউন্ট"
 
-#: includes/admin-dashboard.php:2746
+#: includes/admin-dashboard.php:5430
 msgid "+ Add Staff"
 msgstr "+ স্টাফ যোগ করুন"
 
-#: includes/admin-dashboard.php:2751
+#: includes/admin-dashboard.php:5435
 msgid "No staff accounts yet."
 msgstr "এখনো কোনো স্টাফ অ্যাকাউন্ট নেই।"
 
-#: includes/admin-dashboard.php:2765
+#: includes/admin-dashboard.php:5449
 msgid "Add Staff"
 msgstr "স্টাফ যোগ করুন"
 
-#: includes/admin-dashboard.php:2769
-#: includes/admin-dashboard.php:2901
-#: includes/admin-dashboard.php:3006
-#: includes/shortcode.php:769
+#: includes/admin-dashboard.php:5453
+#: includes/admin-dashboard.php:5722
+#: includes/admin-dashboard.php:6244
+#: includes/shortcode.php:818
 msgid "Full Name"
 msgstr "পূর্ণ নাম"
 
-#: includes/admin-dashboard.php:2777
+#: includes/admin-dashboard.php:5461
 msgid "Role"
 msgstr "ভূমিকা"
 
-#: includes/admin-dashboard.php:2795
+#: includes/admin-dashboard.php:5479
 msgid "Front Desk: Booking + Patients panel only. Manager: same panel, but full admin-level access to everything (Doctors, Staff, Specialties, Dashboard, Settings)."
 msgstr "ফ্রন্ট ডেস্ক: শুধু Booking + Patients প্যানেল। ম্যানেজার: একই প্যানেল, কিন্তু সবকিছুতে (Doctors, Staff, Specialties, Dashboard, Settings) পূর্ণ অ্যাডমিন-লেভেল অ্যাক্সেস।"
 
-#: includes/admin-dashboard.php:2797
+#: includes/admin-dashboard.php:5481
 msgid "A new account gets an email with a link to set their own password."
 msgstr "নতুন অ্যাকাউন্টে নিজের পাসওয়ার্ড সেট করার লিংকসহ একটি ইমেইল যাবে।"
 
-#: includes/admin-dashboard.php:2800
-#: includes/admin-dashboard.php:2986
-#: includes/admin-dashboard.php:3041
-#: includes/admin-dashboard.php:3155
+#: includes/admin-dashboard.php:5484
+#: includes/admin-dashboard.php:5697
+#: includes/admin-dashboard.php:5873
+#: includes/admin-dashboard.php:6274
+#: includes/admin-dashboard.php:6540
 msgid "Cancel"
 msgstr "বাতিল করুন"
 
-#: includes/admin-dashboard.php:2801
+#: includes/admin-dashboard.php:5485
 msgid "Save Staff"
 msgstr "স্টাফ সংরক্ষণ করুন"
 
-#: includes/admin-dashboard.php:2813
+#: includes/admin-dashboard.php:5497
 msgid "Medical Specialties"
 msgstr "মেডিকেল স্পেশালিটি"
 
-#: includes/admin-dashboard.php:2813
+#: includes/admin-dashboard.php:5497
 msgid "+ Add Specialty"
 msgstr "+ স্পেশালিটি যোগ করুন"
 
-#: includes/admin-dashboard.php:2823
-#: includes/admin-dashboard.php:3195
+#: includes/admin-dashboard.php:5507
+#: includes/admin-dashboard.php:6580
 msgid "Add Specialty"
 msgstr "স্পেশালিটি যোগ করুন"
 
-#: includes/admin-dashboard.php:2849
+#: includes/admin-dashboard.php:5528
 msgid "Dashboard"
 msgstr "ড্যাশবোর্ড"
 
-#: includes/admin-dashboard.php:2873
+#: includes/admin-dashboard.php:5562
 msgid "Profile"
 msgstr "প্রোফাইল"
 
-#: includes/admin-dashboard.php:2877
+#: includes/admin-dashboard.php:5566
 msgid "Specialties"
 msgstr "স্পেশালিটি"
 
-#: includes/admin-dashboard.php:2880
-msgid "Medical Center"
-msgstr "মেডিকেল সেন্টার"
-
-#: includes/admin-dashboard.php:2886
+#: includes/admin-dashboard.php:5707
 msgid "Add Doctor"
 msgstr "ডাক্তার যোগ করুন"
 
-#: includes/admin-dashboard.php:2890
+#: includes/admin-dashboard.php:5711
 msgid "Photo"
 msgstr "ছবি"
 
-#: includes/admin-dashboard.php:2894
+#: includes/admin-dashboard.php:5715
 msgid "Upload Photo"
 msgstr "ছবি আপলোড করুন"
 
-#: includes/admin-dashboard.php:2924
-#: includes/admin-dashboard.php:2928
+#: includes/admin-dashboard.php:4060
+#: includes/admin-dashboard.php:5745
+#: includes/admin-dashboard.php:5749
+#: includes/admin-dashboard.php:5770
 msgid "Public"
 msgstr "পাবলিক"
 
-#: includes/admin-dashboard.php:2936
-msgid "Time Slot Booking"
-msgstr "টাইম স্লট বুকিং"
-
-#: includes/admin-dashboard.php:2937
-msgid "Enabled"
-msgstr "চালু"
-
-#: includes/admin-dashboard.php:2939
-msgid "Off: patients are booked serially by queue number — no time picker."
-msgstr "বন্ধ: রোগীদের সিরিয়াল অনুযায়ী কিউ নম্বর দিয়ে বুক করা হবে — কোনো টাইম পিকার থাকবে না।"
-
-#: includes/admin-dashboard.php:2941
+#: includes/admin-dashboard.php:5769
 msgid "Slot Duration (minutes)"
 msgstr "স্লট সময়কাল (মিনিট)"
 
-#: includes/admin-dashboard.php:2945
+#: includes/admin-dashboard.php:5755
 msgid "Bio / Description"
 msgstr "বায়ো / বর্ণনা"
 
-#: includes/admin-dashboard.php:2946
+#: includes/admin-dashboard.php:5756
 msgid "Specialty, experience, qualifications..."
 msgstr "স্পেশালিটি, অভিজ্ঞতা, যোগ্যতা..."
 
-#: includes/admin-dashboard.php:2972
+#: includes/admin-dashboard.php:5859
 msgid "Open for booking on these dates even if the weekday is normally off."
 msgstr "সপ্তাহের সেই দিনটা সাধারণত বন্ধ থাকলেও এই তারিখগুলোতে বুকিং খোলা থাকবে।"
 
-#: includes/admin-dashboard.php:2978
+#: includes/admin-dashboard.php:5865
 msgid "Closed on these dates even if the weekday is normally active."
 msgstr "সপ্তাহের সেই দিনটা সাধারণত সক্রিয় থাকলেও এই তারিখগুলোতে বন্ধ থাকবে।"
 
-#: includes/admin-dashboard.php:2987
+#: includes/admin-dashboard.php:5874
 msgid "Save Profile"
 msgstr "প্রোফাইল সংরক্ষণ করুন"
 
-#: includes/admin-dashboard.php:2997
+#: includes/admin-dashboard.php:5884
 msgid "Doctor Details"
 msgstr "ডাক্তারের বিস্তারিত"
 
-#: includes/admin-dashboard.php:3002
+#: includes/admin-dashboard.php:6240
 msgid "Add Patient"
 msgstr "রোগী যোগ করুন"
 
-#: includes/admin-dashboard.php:3016
-#: includes/admin-dashboard.php:3141
-#: includes/appointment-manager.php:209
-#: includes/shortcode.php:790
+#: includes/admin-dashboard.php:1563
+#: includes/admin-dashboard.php:3080
+#: includes/admin-dashboard.php:6254
+#: includes/admin-dashboard.php:6491
+#: includes/appointment-manager.php:223
+#: includes/shortcode.php:845
 msgid "Gender"
 msgstr "লিঙ্গ"
 
-#: includes/admin-dashboard.php:3042
+#: includes/admin-dashboard.php:6275
 msgid "Save Record"
 msgstr "রেকর্ড সংরক্ষণ করুন"
 
-#: includes/admin-dashboard.php:3059
+#: includes/admin-dashboard.php:6374
 msgid "Add Booking"
 msgstr "বুকিং যোগ করুন"
 
-#: includes/admin-dashboard.php:3130
-#: includes/appointment-manager.php:193
+#: includes/admin-dashboard.php:6461
+#: includes/appointment-manager.php:207
 msgid "Patient Name"
 msgstr "রোগীর নাম"
 
-#: includes/admin-dashboard.php:3147
-#: includes/appointment-manager.php:246
+#: includes/admin-dashboard.php:6529
+#: includes/appointment-manager.php:259
 msgid "Slot Time"
 msgstr "স্লট সময়"
 
-#: includes/admin-dashboard.php:3149
-msgid "Serial booking — queue number is assigned automatically."
-msgstr "সিরিয়াল বুকিং — কিউ নম্বর স্বয়ংক্রিয়ভাবে বরাদ্দ হবে।"
-
-#: includes/admin-dashboard.php:3156
+#: includes/admin-dashboard.php:6541
 msgid "Save Booking"
 msgstr "বুকিং সংরক্ষণ করুন"
 
-#: includes/admin-dashboard.php:3178
+#: includes/admin-dashboard.php:2726
+#: includes/admin-dashboard.php:6563
 #, php-format
 msgid "%d doctor"
 msgid_plural "%d doctors"
 msgstr[0] "%d জন ডাক্তার"
 msgstr[1] "%d জন ডাক্তার"
 
-#: includes/admin-dashboard.php:3180
+#: includes/admin-dashboard.php:6565
 msgid "Active/Inactive"
 msgstr "সক্রিয়/নিষ্ক্রিয়"
 
-#: includes/admin-dashboard.php:3186
+#: includes/admin-dashboard.php:6571
 msgid "Delete this specialty?"
 msgstr "এই স্পেশালিটি মুছে ফেলবেন?"
 
-#: includes/admin-dashboard.php:3199
+#: includes/admin-dashboard.php:6584
 msgid "Icon / Image (SVG or PNG)"
 msgstr "আইকন / ছবি (SVG বা PNG)"
 
-#: includes/admin-dashboard.php:3216
+#: includes/admin-dashboard.php:6601
 msgid "Save Specialty"
 msgstr "স্পেশালিটি সংরক্ষণ করুন"
 
-#: includes/appointment-manager.php:74
+#: includes/appointment-manager.php:77
 msgid "Your check-in details:"
 msgstr "আপনার চেক-ইন তথ্য:"
 
-#: includes/appointment-manager.php:76
+#: includes/appointment-manager.php:79
 #, php-format
 msgid "Ticket: %s"
 msgstr "টিকেট: %s"
 
-#: includes/appointment-manager.php:79
+#: includes/appointment-manager.php:82
 #, php-format
 msgid "Date: %s"
 msgstr "তারিখ: %s"
 
-#: includes/appointment-manager.php:82
+#: includes/appointment-manager.php:85
 #, php-format
 msgid "Time: %s"
 msgstr "সময়: %s"
 
-#: includes/appointment-manager.php:84
+#: includes/appointment-manager.php:87
 #, php-format
 msgid "View your booking and check in here: %s"
 msgstr "এখানে আপনার বুকিং দেখুন এবং চেক-ইন করুন: %s"
 
-#: includes/appointment-manager.php:118
+#: includes/appointment-manager.php:131
 msgid "Visited"
 msgstr "ভিজিট হয়েছে"
 
-#: includes/appointment-manager.php:158
+#: includes/appointment-manager.php:172
 msgid "Appointment Details"
 msgstr "অ্যাপয়েন্টমেন্টের বিস্তারিত"
 
-#: includes/appointment-manager.php:203
+#: includes/appointment-manager.php:217
 msgid "Phone Number"
 msgstr "ফোন নম্বর"
 
-#: includes/appointment-manager.php:230
+#: includes/appointment-manager.php:243
 msgid "Select Doctor"
 msgstr "ডাক্তার নির্বাচন করুন"
 
-#: includes/appointment-manager.php:242
+#: includes/appointment-manager.php:255
 msgid "Appointment Date"
 msgstr "অ্যাপয়েন্টমেন্টের তারিখ"
 
-#: includes/appointment-manager.php:253
+#: includes/appointment-manager.php:266
 msgid "Ticket Number"
 msgstr "টিকেট নম্বর"
 
-#: includes/appointment-manager.php:259
+#: includes/appointment-manager.php:272
 msgid "Symptoms"
 msgstr "লক্ষণসমূহ"
 
-#: includes/appointment-manager.php:313
+#: includes/appointment-manager.php:326
 msgid "Patient Info"
 msgstr "রোগীর তথ্য"
 
-#: includes/appointment-manager.php:690
+#: includes/appointment-manager.php:911
 msgid "This booking is not awaiting check-in (already checked in, served, or cancelled)."
 msgstr "এই বুকিং চেক-ইনের অপেক্ষায় নেই (ইতিমধ্যে চেক-ইন হয়েছে, দেখা হয়েছে, অথবা বাতিল হয়েছে)।"
 
-#: includes/appointment-manager.php:693
-#: includes/appointment-manager.php:725
+#: includes/appointment-manager.php:914
+#: includes/appointment-manager.php:993
 msgid "This booking is not for today."
 msgstr "এই বুকিং আজকের জন্য নয়।"
 
-#: includes/appointment-manager.php:719
+#: includes/appointment-manager.php:987
 msgid "Only a waiting patient can be started."
 msgstr "শুধুমাত্র অপেক্ষমাণ রোগীর ভিজিট শুরু করা যাবে।"
 
-#: includes/appointment-manager.php:722
+#: includes/appointment-manager.php:990
 msgid "This patient has not checked in yet."
 msgstr "এই রোগী এখনো চেক-ইন করেননি।"
 
-#: includes/appointment-manager.php:741
+#: includes/appointment-manager.php:1009
 msgid "Another patient is already being seen — mark them visited first."
 msgstr "ইতিমধ্যে অন্য একজন রোগী দেখা হচ্ছে — আগে তাকে ভিজিটেড হিসেবে চিহ্নিত করুন।"
 
-#: includes/appointment-manager.php:810
+#: includes/appointment-manager.php:1115
 msgid "Sunday"
 msgstr "রবিবার"
 
-#: includes/appointment-manager.php:811
+#: includes/appointment-manager.php:1116
 msgid "Monday"
 msgstr "সোমবার"
 
-#: includes/appointment-manager.php:812
+#: includes/appointment-manager.php:1117
 msgid "Tuesday"
 msgstr "মঙ্গলবার"
 
-#: includes/appointment-manager.php:813
+#: includes/appointment-manager.php:1118
 msgid "Wednesday"
 msgstr "বুধবার"
 
-#: includes/appointment-manager.php:814
+#: includes/appointment-manager.php:1119
 msgid "Thursday"
 msgstr "বৃহস্পতিবার"
 
-#: includes/appointment-manager.php:815
+#: includes/appointment-manager.php:1120
 msgid "Friday"
 msgstr "শুক্রবার"
 
-#: includes/appointment-manager.php:816
+#: includes/appointment-manager.php:1121
 msgid "Saturday"
 msgstr "শনিবার"
 
-#: includes/appointment-manager.php:912
+#: includes/admin-dashboard.php:1282
+#: includes/appointment-manager.php:1503
 msgid "This slot is being booked by someone else right now. Please try again."
 msgstr "এই স্লটটি এই মুহূর্তে অন্য কেউ বুক করছে। আবার চেষ্টা করুন।"
 
-#: includes/appointment-manager.php:917
+#: includes/appointment-manager.php:1519
 msgid "That time slot is no longer available. Please choose another."
 msgstr "এই টাইম স্লটটি আর উপলব্ধ নেই। অন্য একটি বেছে নিন।"
 
-#: includes/appointment-manager.php:929
+#: includes/appointment-manager.php:1539
 #, php-format
 msgid "Booking: %s"
 msgstr "বুকিং: %s"
 
-#: includes/appointment-manager.php:977
+#: includes/admin-dashboard.php:1180
+#: includes/admin-dashboard.php:1184
+#: includes/appointment-manager.php:1623
 msgid "Please fill in all required fields."
 msgstr "সব আবশ্যক ফিল্ড পূরণ করুন।"
 
-#: includes/appointment-manager.php:983
+#: includes/appointment-manager.php:1629
 msgid "Please enter a valid Bangladeshi mobile number (e.g. 01XXXXXXXXX)."
 msgstr "একটি সঠিক বাংলাদেশি মোবাইল নম্বর দিন (যেমন: 01XXXXXXXXX)।"
 
-#: includes/appointment-manager.php:988
+#: includes/appointment-manager.php:1634
 msgid "Please enter a valid email address."
 msgstr "একটি সঠিক ইমেইল ঠিকানা দিন।"
 
-#: includes/appointment-manager.php:1004
+#: includes/appointment-manager.php:1680
 msgid "Appointment booked successfully! We will contact you soon."
 msgstr "অ্যাপয়েন্টমেন্ট সফলভাবে বুক হয়েছে! আমরা শীঘ্রই আপনার সাথে যোগাযোগ করব।"
 
-#: includes/appointment-manager.php:1013
+#: doctor-appointment.php:333
+#: includes/appointment-manager.php:1694
 msgid "Something went wrong. Please try again."
 msgstr "কিছু একটা সমস্যা হয়েছে। আবার চেষ্টা করুন।"
 
-#: includes/appointment-manager.php:1130
+#: includes/appointment-manager.php:1819
 msgid "No doctors found for this specialty."
 msgstr "এই স্পেশালিটির জন্য কোনো ডাক্তার পাওয়া যায়নি।"
 
@@ -1373,149 +1418,149 @@ msgid_plural "No Show <span class=\"count\">(%s)</span>"
 msgstr[0] "অনুপস্থিত <span class=\"count\">(%s)</span>"
 msgstr[1] "অনুপস্থিত <span class=\"count\">(%s)</span>"
 
-#: includes/cpt-register.php:89
+#: includes/cpt-register.php:99
 msgctxt "taxonomy general name"
 msgid "Departments"
 msgstr "বিভাগসমূহ"
 
-#: includes/cpt-register.php:90
+#: includes/cpt-register.php:100
 msgctxt "taxonomy singular name"
 msgid "Department"
 msgstr "বিভাগ"
 
-#: includes/cpt-register.php:91
+#: includes/cpt-register.php:101
 msgid "Search Departments"
 msgstr "বিভাগ খুঁজুন"
 
-#: includes/cpt-register.php:92
+#: includes/cpt-register.php:102
 msgid "All Departments"
 msgstr "সব বিভাগ"
 
-#: includes/cpt-register.php:93
+#: includes/cpt-register.php:103
 msgid "Parent Department"
 msgstr "মূল বিভাগ"
 
-#: includes/cpt-register.php:94
+#: includes/cpt-register.php:104
 msgid "Parent Department:"
 msgstr "মূল বিভাগ:"
 
-#: includes/cpt-register.php:95
+#: includes/cpt-register.php:105
 msgid "Edit Department"
 msgstr "বিভাগ এডিট করুন"
 
-#: includes/cpt-register.php:96
+#: includes/cpt-register.php:106
 msgid "Update Department"
 msgstr "বিভাগ আপডেট করুন"
 
-#: includes/cpt-register.php:97
+#: includes/cpt-register.php:107
 msgid "Add New Department"
 msgstr "নতুন বিভাগ যোগ করুন"
 
-#: includes/cpt-register.php:98
+#: includes/cpt-register.php:108
 msgid "New Department Name"
 msgstr "নতুন বিভাগের নাম"
 
-#: includes/cpt-register.php:99
+#: includes/cpt-register.php:109
 msgid "Departments"
 msgstr "বিভাগসমূহ"
 
-#: includes/cpt-register.php:129
+#: includes/cpt-register.php:139
 msgid "Edit Doctor"
 msgstr "ডাক্তার এডিট করুন"
 
-#: includes/cpt-register.php:130
+#: includes/cpt-register.php:140
 msgid "New Doctor"
 msgstr "নতুন ডাক্তার"
 
-#: includes/cpt-register.php:131
+#: includes/cpt-register.php:141
 msgid "View Doctor"
 msgstr "ডাক্তার দেখুন"
 
-#: includes/cpt-register.php:132
+#: includes/cpt-register.php:142
 msgid "Search Doctors"
 msgstr "ডাক্তার খুঁজুন"
 
-#: includes/cpt-register.php:133
+#: includes/cpt-register.php:143
 msgid "No Doctors found"
 msgstr "কোনো ডাক্তার পাওয়া যায়নি"
 
-#: includes/cpt-register.php:134
+#: includes/cpt-register.php:144
 msgid "No Doctors found in Trash"
 msgstr "ট্র্যাশে কোনো ডাক্তার পাওয়া যায়নি"
 
-#: includes/cpt-register.php:160
-#: includes/cpt-register.php:162
-#: includes/cpt-register.php:175
+#: includes/cpt-register.php:170
+#: includes/cpt-register.php:172
+#: includes/cpt-register.php:185
 msgid "Appointments"
 msgstr "অ্যাপয়েন্টমেন্টসমূহ"
 
-#: includes/cpt-register.php:161
+#: includes/cpt-register.php:171
 msgid "Appointment"
 msgstr "অ্যাপয়েন্টমেন্ট"
 
-#: includes/cpt-register.php:163
+#: includes/cpt-register.php:173
 msgid "All Appointments"
 msgstr "সব অ্যাপয়েন্টমেন্ট"
 
-#: includes/cpt-register.php:164
-#: includes/cpt-register.php:165
+#: includes/cpt-register.php:174
+#: includes/cpt-register.php:175
 msgid "Add New Appointment"
 msgstr "নতুন অ্যাপয়েন্টমেন্ট যোগ করুন"
 
-#: includes/cpt-register.php:166
+#: includes/cpt-register.php:176
 msgid "Edit Appointment"
 msgstr "অ্যাপয়েন্টমেন্ট এডিট করুন"
 
-#: includes/cpt-register.php:167
+#: includes/cpt-register.php:177
 msgid "New Appointment"
 msgstr "নতুন অ্যাপয়েন্টমেন্ট"
 
-#: includes/cpt-register.php:168
+#: includes/cpt-register.php:178
 msgid "View Appointment"
 msgstr "অ্যাপয়েন্টমেন্ট দেখুন"
 
-#: includes/cpt-register.php:169
+#: includes/cpt-register.php:179
 msgid "Search Appointments"
 msgstr "অ্যাপয়েন্টমেন্ট খুঁজুন"
 
-#: includes/cpt-register.php:170
+#: includes/cpt-register.php:180
 msgid "No Appointments found"
 msgstr "কোনো অ্যাপয়েন্টমেন্ট পাওয়া যায়নি"
 
-#: includes/cpt-register.php:171
+#: includes/cpt-register.php:181
 msgid "No Appointments found in Trash"
 msgstr "ট্র্যাশে কোনো অ্যাপয়েন্টমেন্ট পাওয়া যায়নি"
 
-#: includes/cpt-register.php:196
+#: includes/cpt-register.php:206
 msgid "All Patients"
 msgstr "সব রোগী"
 
-#: includes/cpt-register.php:197
-#: includes/cpt-register.php:198
+#: includes/cpt-register.php:207
+#: includes/cpt-register.php:208
 msgid "Add New Patient"
 msgstr "নতুন রোগী যোগ করুন"
 
-#: includes/cpt-register.php:199
+#: includes/cpt-register.php:209
 msgid "Edit Patient"
 msgstr "রোগী এডিট করুন"
 
-#: includes/cpt-register.php:200
+#: includes/cpt-register.php:210
 msgid "New Patient"
 msgstr "নতুন রোগী"
 
-#: includes/cpt-register.php:201
+#: includes/cpt-register.php:211
 msgid "View Patient"
 msgstr "রোগী দেখুন"
 
-#: includes/cpt-register.php:202
+#: includes/cpt-register.php:212
 msgid "Search Patients"
 msgstr "রোগী খুঁজুন"
 
-#: includes/cpt-register.php:203
+#: includes/cpt-register.php:213
 msgid "No Patients found"
 msgstr "কোনো রোগী পাওয়া যায়নি"
 
-#: includes/cpt-register.php:204
+#: includes/cpt-register.php:214
 msgid "No Patients found in Trash"
 msgstr "ট্র্যাশে কোনো রোগী পাওয়া যায়নি"
 
@@ -1541,7 +1586,11 @@ msgstr "অ্যাপয়েন্টমেন্ট আপডেট"
 
 #: includes/notifications.php:70
 #, php-format
-msgid "A new appointment has been booked.\n\nPatient: %1$s\nWhen: %2$s"
+msgid ""
+"A new appointment has been booked.\n"
+"\n"
+"Patient: %1$s\n"
+"When: %2$s"
 msgstr ""
 "একটি নতুন অ্যাপয়েন্টমেন্ট বুক হয়েছে।\n"
 "\n"
@@ -1550,7 +1599,12 @@ msgstr ""
 
 #: includes/notifications.php:78
 #, php-format
-msgid "Hi %1$s,\n\nYour appointment with %2$s is confirmed for %3$s.\n\nSee you then!"
+msgid ""
+"Hi %1$s,\n"
+"\n"
+"Your appointment with %2$s is confirmed for %3$s.\n"
+"\n"
+"See you then!"
 msgstr ""
 "প্রিয় %1$s,\n"
 "\n"
@@ -1560,7 +1614,10 @@ msgstr ""
 
 #: includes/notifications.php:86
 #, php-format
-msgid "Hi %1$s,\n\nYou're up next with %2$s. Please head to the reception area."
+msgid ""
+"Hi %1$s,\n"
+"\n"
+"You're up next with %2$s. Please head to the reception area."
 msgstr ""
 "প্রিয় %1$s,\n"
 "\n"
@@ -1568,253 +1625,1776 @@ msgstr ""
 
 #: includes/notifications.php:93
 #, php-format
-msgid "Hi %1$s,\n\nThank you for visiting %2$s today. We hope you feel better soon!"
+msgid ""
+"Hi %1$s,\n"
+"\n"
+"Thank you for visiting %2$s today. We hope you feel better soon!"
 msgstr ""
 "প্রিয় %1$s,\n"
 "\n"
 "আজ %2$s কে ভিজিট করার জন্য ধন্যবাদ। আমরা আশা করি আপনি শীঘ্রই সুস্থ হয়ে উঠবেন!"
 
-#: includes/shortcode.php:232
+#: includes/shortcode.php:235
 msgid "Availability"
 msgstr "সময়সূচি"
 
-#: includes/shortcode.php:262
+#: includes/shortcode.php:265
 msgid "Special"
 msgstr "বিশেষ"
 
-#: includes/shortcode.php:288
-#: includes/shortcode.php:422
+#: includes/shortcode.php:291
+#: includes/shortcode.php:416
 msgid "Today's Patients"
 msgstr "আজকের রোগীগণ"
 
-#: includes/shortcode.php:295
-#: includes/shortcode.php:390
-#: includes/shortcode.php:815
+#: doctor-appointment.php:332
+#: includes/admin-dashboard.php:4946
+#: includes/shortcode.php:298
+#: includes/shortcode.php:388
+#: includes/shortcode.php:916
 msgid "Book Appointment"
 msgstr "অ্যাপয়েন্টমেন্ট বুক করুন"
 
-#: includes/shortcode.php:450
+#: includes/shortcode.php:444
 msgid "Your Booking"
 msgstr "আপনার বুকিং"
 
-#: includes/shortcode.php:455
+#: includes/shortcode.php:449
 msgid "We could not find that booking. The link may be old or the booking may have been removed."
 msgstr "আমরা সেই বুকিং খুঁজে পাইনি। লিংকটি পুরনো হতে পারে, অথবা বুকিং মুছে ফেলা হয়েছে।"
 
 #: includes/shortcode.php:465
-#: includes/shortcode.php:479
-#: includes/shortcode.php:1219
+#: includes/shortcode.php:483
+#: includes/shortcode.php:1482
 msgid "Checked In"
 msgstr "চেক-ইন হয়েছে"
 
+#: doctor-appointment.php:317
 #: includes/shortcode.php:465
-#: includes/shortcode.php:479
-#: includes/shortcode.php:699
+#: includes/shortcode.php:483
+#: includes/shortcode.php:707
 msgid "Booking Confirmed"
 msgstr "বুকিং কনফার্ম হয়েছে"
 
-#: includes/shortcode.php:467
-#: includes/shortcode.php:701
+#: doctor-appointment.php:311
+#: includes/shortcode.php:468
+#: includes/shortcode.php:709
 msgid "Ticket"
 msgstr "টিকেট"
 
-#: includes/shortcode.php:476
-#: includes/shortcode.php:708
+#: includes/shortcode.php:480
+#: includes/shortcode.php:725
 msgid "Show this QR code at check-in."
 msgstr "চেক-ইনের সময় এই কিউআর কোড দেখান।"
 
-#: includes/shortcode.php:486
-#: includes/shortcode.php:711
+#: includes/shortcode.php:491
+#: includes/shortcode.php:728
 msgid "Print / Save as PDF"
 msgstr "প্রিন্ট / পিডিএফ হিসেবে সংরক্ষণ করুন"
 
-#: includes/shortcode.php:581
-#: includes/shortcode.php:1407
+#: includes/shortcode.php:588
+#: includes/shortcode.php:1688
 msgid "This check-in QR code is not valid."
 msgstr "এই চেক-ইন কিউআর কোডটি বৈধ নয়।"
 
-#: includes/shortcode.php:583
+#: includes/shortcode.php:590
 #, php-format
 msgid "Checking in for %s"
 msgstr "%s এর জন্য চেক-ইন হচ্ছে"
 
-#: includes/shortcode.php:585
+#: includes/shortcode.php:592
 msgid "Enter the phone number you booked with"
 msgstr "যে ফোন নম্বর দিয়ে বুক করেছিলেন সেটি দিন"
 
-#: includes/shortcode.php:586
-#: includes/shortcode.php:776
+#: includes/shortcode.php:593
+#: includes/shortcode.php:825
 msgid "01XXXXXXXXX"
 msgstr "01XXXXXXXXX"
 
-#: includes/shortcode.php:633
+#: includes/shortcode.php:640
 msgid "Multiple bookings match this number — select yours:"
 msgstr "এই নম্বরের সাথে একাধিক বুকিং মিলেছে — আপনারটি বেছে নিন:"
 
-#: includes/shortcode.php:713
+#: includes/shortcode.php:730
 msgid "Close"
 msgstr "বন্ধ করুন"
 
-#: includes/shortcode.php:717
+#: includes/shortcode.php:739
 msgid "Choose Specialty & Doctor"
 msgstr "স্পেশালিটি ও ডাক্তার বেছে নিন"
 
-#: includes/shortcode.php:746
+#: includes/shortcode.php:768
 msgid "Pick Date & Time"
 msgstr "তারিখ ও সময় বেছে নিন"
 
-#: includes/shortcode.php:754
+#: doctor-appointment.php:319
+#: includes/admin-dashboard.php:6531
+#: includes/shortcode.php:776
 msgid "Select a date first"
 msgstr "প্রথমে একটি তারিখ নির্বাচন করুন"
 
-#: includes/shortcode.php:759
+#: includes/shortcode.php:781
 msgid "Selected:"
 msgstr "নির্বাচিত:"
 
-#: includes/shortcode.php:761
+#: includes/shortcode.php:783
 msgid "Change"
 msgstr "পরিবর্তন করুন"
 
-#: includes/shortcode.php:770
+#: includes/shortcode.php:819
 msgid "e.g. Shafiul Islam"
 msgstr "যেমন: শফিউল ইসলাম"
 
-#: includes/shortcode.php:775
+#: includes/shortcode.php:824
 msgid "Mobile Number"
 msgstr "মোবাইল নম্বর"
 
-#: includes/shortcode.php:776
+#: includes/shortcode.php:825
 msgid "Enter a valid Bangladeshi mobile number, e.g. 01XXXXXXXXX"
 msgstr "একটি সঠিক বাংলাদেশি মোবাইল নম্বর দিন, যেমন: 01XXXXXXXXX"
 
-#: includes/shortcode.php:779
+#: includes/shortcode.php:829
+#: includes/shortcode.php:839
+#: includes/shortcode.php:845
+#: includes/shortcode.php:881
+#: includes/shortcode.php:901
 msgid "(optional)"
 msgstr "(ঐচ্ছিক)"
 
-#: includes/shortcode.php:780
+#: includes/shortcode.php:830
 msgid "you@example.com"
 msgstr "you@example.com"
 
-#: includes/shortcode.php:809
-msgid "Description of Symptoms"
-msgstr "লক্ষণের বর্ণনা"
-
-#: includes/shortcode.php:810
-msgid "Briefly describe your symptoms..."
-msgstr "সংক্ষেপে আপনার লক্ষণ বর্ণনা করুন..."
-
-#: includes/shortcode.php:853
+#: includes/shortcode.php:965
 msgid "Queue Management"
 msgstr "কিউ ব্যবস্থাপনা"
 
-#: includes/shortcode.php:854
+#: includes/shortcode.php:966
 msgid "Real-time patient flow."
 msgstr "রিয়েল-টাইম রোগী প্রবাহ।"
 
-#: includes/shortcode.php:858
+#: includes/shortcode.php:970
 msgid "Check-In"
 msgstr "চেক-ইন"
 
-#: includes/shortcode.php:860
+#: includes/shortcode.php:972
 msgid "Scan or paste check-in code"
 msgstr "চেক-ইন কোড স্ক্যান করুন বা পেস্ট করুন"
 
-#: includes/shortcode.php:861
+#: includes/shortcode.php:973
 msgid "Verify"
 msgstr "যাচাই করুন"
 
-#: includes/shortcode.php:898
+#: includes/shortcode.php:1010
 msgid "The live queue display is currently turned off."
 msgstr "লাইভ কিউ প্রদর্শন বর্তমানে বন্ধ আছে।"
 
-#: includes/shortcode.php:912
+#: includes/shortcode.php:1024
 msgid "This doctor's live queue display is currently turned off."
 msgstr "এই ডাক্তারের লাইভ কিউ প্রদর্শন বর্তমানে বন্ধ আছে।"
 
-#: includes/shortcode.php:1063
+#: includes/shortcode.php:1263
 msgid "patients"
 msgstr "রোগী"
 
-#: includes/shortcode.php:1084
-#: includes/shortcode.php:1217
+#: includes/shortcode.php:1298
+#: includes/shortcode.php:1480
 msgid "Away"
 msgstr "অনুপস্থিত"
 
-#: includes/shortcode.php:1107
-#: includes/shortcode.php:1243
+#: includes/shortcode.php:1321
+#: includes/shortcode.php:1506
 #, php-format
 msgid "Updated %s"
 msgstr "%s এ আপডেট হয়েছে"
 
-#: includes/shortcode.php:1164
+#: includes/shortcode.php:1415
 msgid "Active Queue"
 msgstr "সক্রিয় কিউ"
 
-#: includes/shortcode.php:1167
+#: includes/shortcode.php:1418
 msgid "Patients waiting"
 msgstr "অপেক্ষমাণ রোগী"
 
-#: includes/shortcode.php:1170
+#: includes/shortcode.php:1421
 msgid "Live"
 msgstr "লাইভ"
 
-#: includes/shortcode.php:1174
+#: includes/shortcode.php:1425
 msgid "Now Visiting"
 msgstr "এখন ভিজিট চলছে"
 
-#: includes/shortcode.php:1184
+#: includes/shortcode.php:1435
 msgid "Complete"
 msgstr "সম্পন্ন করুন"
 
-#: includes/shortcode.php:1188
+#: includes/shortcode.php:1439
 msgid "No patient currently visiting."
 msgstr "বর্তমানে কোনো রোগীর ভিজিট চলছে না।"
 
-#: includes/shortcode.php:1190
+#: includes/shortcode.php:1441
 msgid "Call Next Patient"
 msgstr "পরবর্তী রোগী ডাকুন"
 
-#: includes/shortcode.php:1198
+#: includes/shortcode.php:1449
 msgid "Upcoming Patients"
 msgstr "আসন্ন রোগীগণ"
 
-#: includes/shortcode.php:1232
+#: includes/shortcode.php:1495
 msgid "Visit Now"
 msgstr "এখনই ভিজিট করুন"
 
-#: includes/shortcode.php:1239
+#: includes/shortcode.php:1502
 msgid "No upcoming patients."
 msgstr "কোনো আসন্ন রোগী নেই।"
 
-#: includes/shortcode.php:1285
+#: includes/shortcode.php:1563
 msgid "Someone is already visiting. Complete or mark no-show first."
 msgstr "ইতিমধ্যে একজনের ভিজিট চলছে। আগে সম্পন্ন করুন বা নো-শো হিসেবে চিহ্নিত করুন।"
 
-#: includes/shortcode.php:1293
+#: includes/shortcode.php:1571
 msgid "No patients waiting."
 msgstr "কোনো রোগী অপেক্ষায় নেই।"
 
-#: includes/shortcode.php:1321
+#: includes/shortcode.php:1600
 msgid "Someone is already visiting."
 msgstr "ইতিমধ্যে একজনের ভিজিট চলছে।"
 
-#: includes/shortcode.php:1373
+#: includes/shortcode.php:1654
 msgid "Check-in code not found."
 msgstr "চেক-ইন কোড পাওয়া যায়নি।"
 
-#: includes/shortcode.php:1412
+#: includes/shortcode.php:1693
 msgid "Please enter your phone number."
 msgstr "আপনার ফোন নম্বর দিন।"
 
-#: includes/shortcode.php:1426
+#: includes/shortcode.php:1707
 msgid "Booking not found."
 msgstr "বুকিং পাওয়া যায়নি।"
 
-#: includes/shortcode.php:1443
+#: includes/shortcode.php:1724
 msgid "No waiting booking found for today with this phone number."
 msgstr "এই ফোন নম্বর দিয়ে আজকের জন্য কোনো অপেক্ষমাণ বুকিং পাওয়া যায়নি।"
 
-#: includes/shortcode.php:1466
+#: doctor-appointment.php:312
+#: includes/admin-dashboard.php:3183
+#: includes/admin-dashboard.php:4785
+#: includes/shortcode.php:470
+#, php-format
+msgid "Booking ID"
+msgstr "বুকিং আইডি"
+
+#: includes/admin-dashboard.php:6203
+#: includes/shortcode.php:881
+msgid "District"
+msgstr "জেলা"
+
+#: doctor-appointment.php:243
+#: includes/admin-dashboard.php:6206
+#: includes/admin-dashboard.php:6210
+#: includes/shortcode.php:884
+msgid "Select district"
+msgstr "জেলা নির্বাচন করুন"
+
+#: includes/admin-dashboard.php:6224
+#: includes/shortcode.php:901
+msgid "Thana"
+msgstr "থানা"
+
+#: doctor-appointment.php:246
+#: doctor-appointment.php:397
+#: includes/admin-dashboard.php:6227
+#: includes/shortcode.php:904
+msgid "Select district first"
+msgstr "আগে জেলা নির্বাচন করুন"
+
+#. translators: %s: login URL
+#: includes/shortcode.php:937
+#, php-format
+msgid "Please <a href=\"%s\">log in</a> as clinic staff to manage the queue."
+msgstr "কিউ পরিচালনা করতে অনুগ্রহ করে ক্লিনিক স্টাফ হিসেবে <a href=\"%s\">লগইন</a> করুন।"
+
+#: includes/shortcode.php:1036
+#: includes/shortcode.php:1269
+#, php-format
+msgid "On break — %s. Back shortly."
+msgstr "বিরতিতে — %s। একটু পরেই ফিরবেন।"
+
+#: includes/shortcode.php:1521
+msgid "You do not have permission to manage the queue."
+msgstr "কিউ পরিচালনার অনুমতি আপনার নেই।"
+
+#: includes/shortcode.php:1755
+#, php-format
+msgid "%s checked in."
+msgstr "%s চেক-ইন করেছেন।"
+
+#: includes/appointment-manager.php:133
+msgid "Cancelled"
+msgstr "বাতিল"
+
+#: includes/admin-dashboard.php:974
+#: includes/appointment-manager.php:589
+msgid "Break"
+msgstr "বিরতি"
+
+#: includes/appointment-manager.php:956
+msgid "Only a waiting, not-yet-checked-in booking can be cancelled."
+msgstr "শুধু অপেক্ষমাণ ও এখনো চেক-ইন না করা বুকিং বাতিল করা যায়।"
+
+#: includes/appointment-manager.php:959
+msgid "This patient has already checked in and can no longer be cancelled."
+msgstr "এই রোগী ইতিমধ্যে চেক-ইন করেছেন, তাই আর বাতিল করা যাবে না।"
+
+#: doctor-appointment.php:250
+#: doctor-appointment.php:401
+#: includes/appointment-manager.php:1324
+msgid "Please choose a district and thana."
+msgstr "অনুগ্রহ করে জেলা ও থানা নির্বাচন করুন।"
+
+#: includes/appointment-manager.php:1327
+msgid "Please choose both a district and thana."
+msgstr "অনুগ্রহ করে জেলা ও থানা দুটোই নির্বাচন করুন।"
+
+#: includes/appointment-manager.php:1330
+msgid "That thana does not belong to the chosen district. Please choose again."
+msgstr "এই থানা নির্বাচিত জেলার মধ্যে নয়। অনুগ্রহ করে আবার নির্বাচন করুন।"
+
+#: includes/appointment-manager.php:1510
+msgid "No available time could be assigned for this doctor on this date. Please choose a different date, or contact the clinic directly."
+msgstr "এই তারিখে এই ডাক্তারের জন্য কোনো খালি সময় দেওয়া যায়নি। অনুগ্রহ করে অন্য তারিখ বেছে নিন, অথবা সরাসরি ক্লিনিকে যোগাযোগ করুন।"
+
+#: includes/appointment-manager.php:1589
+msgid "Appointment booked."
+msgstr "অ্যাপয়েন্টমেন্ট বুক হয়েছে।"
+
+#: includes/appointment-manager.php:1599
+msgid "Too many bookings from your network. Please try again later or call the clinic."
+msgstr "আপনার নেটওয়ার্ক থেকে অনেক বেশি বুকিং হয়েছে। অনুগ্রহ করে পরে আবার চেষ্টা করুন অথবা ক্লিনিকে ফোন করুন।"
+
+#: includes/admin-dashboard.php:1190
+#: includes/appointment-manager.php:1646
+msgid "Please enter the patient's age."
+msgstr "অনুগ্রহ করে রোগীর বয়স দিন।"
+
+#: includes/admin-dashboard.php:1194
+#: includes/appointment-manager.php:1652
+msgid "Please enter a valid age."
+msgstr "অনুগ্রহ করে সঠিক বয়স দিন।"
+
+#: doctor-appointment.php:244
+#: doctor-appointment.php:395
+msgid "Select thana"
+msgstr "থানা নির্বাচন করুন"
+
+#: doctor-appointment.php:245
+#: doctor-appointment.php:396
+msgid "No thana found"
+msgstr "কোনো থানা পাওয়া যায়নি"
+
+#: doctor-appointment.php:247
+#: doctor-appointment.php:398
+msgid "Search…"
+msgstr "খুঁজুন…"
+
+#: doctor-appointment.php:248
+#: doctor-appointment.php:399
+msgid "No match found"
+msgstr "কিছু মেলেনি"
+
+#: doctor-appointment.php:249
+#: doctor-appointment.php:400
+msgid "Clear selection"
+msgstr "নির্বাচন মুছুন"
+
+#: doctor-appointment.php:318
+msgid "Approximate visiting time:"
+msgstr "আনুমানিক দেখানোর সময়:"
+
+#: doctor-appointment.php:320
+msgid "Loading times..."
+msgstr "সময় লোড হচ্ছে..."
+
+#: doctor-appointment.php:321
+msgid "No time slots available on this date."
+msgstr "এই তারিখে কোনো খালি সময় নেই।"
+
+#: doctor-appointment.php:322
+msgid "Error loading time slots."
+msgstr "সময় লোড করতে সমস্যা হয়েছে।"
+
+#: doctor-appointment.php:323
+msgid "No time slot needed — you'll be added to the queue automatically."
+msgstr "সময় বাছাই করতে হবে না — আপনি নিজে থেকেই কিউতে যুক্ত হয়ে যাবেন।"
+
+#: doctor-appointment.php:324
+msgid "No doctors available for this specialty."
+msgstr "এই বিভাগে কোনো ডাক্তার নেই।"
+
+#: doctor-appointment.php:325
+msgid "& more"
+msgstr "ও আরও"
+
+#: doctor-appointment.php:326
+msgid "Loading doctors..."
+msgstr "ডাক্তারদের তালিকা লোড হচ্ছে..."
+
+#: doctor-appointment.php:327
+msgid "Error loading doctors."
+msgstr "ডাক্তারদের তালিকা লোড করতে সমস্যা হয়েছে।"
+
+#: doctor-appointment.php:328
+msgid "Loading..."
+msgstr "লোড হচ্ছে..."
+
+#: doctor-appointment.php:329
+msgid "Could not load today’s patients."
+msgstr "আজকের রোগীদের তালিকা লোড করা যায়নি।"
+
+#: doctor-appointment.php:330
+msgid "No patients today."
+msgstr "আজ কোনো রোগী নেই।"
+
+#: doctor-appointment.php:331
+msgid "Booking..."
+msgstr "বুক হচ্ছে..."
+
+#: doctor-appointment.php:197
+#: includes/admin-dashboard.php:1970
+msgid "English"
+msgstr "ইংরেজি"
+
+#: doctor-appointment.php:198
+#: includes/admin-dashboard.php:1970
+msgid "Unicode"
+msgstr "ইউনিকোড"
+
+#: doctor-appointment.php:199
+#: includes/admin-dashboard.php:1971
+#, php-format
+msgid "%d characters"
+msgstr "%d অক্ষর"
+
+#: doctor-appointment.php:200
+#: includes/admin-dashboard.php:1972
+#, php-format
+msgid "%d SMS"
+msgid_plural "%d SMS"
+msgstr[0] "%dটি SMS"
+msgstr[1] "%dটি SMS"
+
+#: doctor-appointment.php:201
+msgid "Could not reach the server. Please try again."
+msgstr "সার্ভারে পৌঁছানো যায়নি। আবার চেষ্টা করুন।"
+
+#: doctor-appointment.php:202
+msgid "Sending…"
+msgstr "পাঠানো হচ্ছে…"
+
+#: doctor-appointment.php:203
+#: doctor-appointment.php:225
+#: includes/admin-dashboard.php:2175
+#: includes/admin-dashboard.php:2278
+#: includes/admin-dashboard.php:2283
+msgid "Sent"
+msgstr "পাঠানো হয়েছে"
+
+#: doctor-appointment.php:204
+#: includes/admin-dashboard.php:2292
+msgid "Retry"
+msgstr "আবার পাঠান"
+
+#: doctor-appointment.php:205
+msgid "Retried"
+msgstr "আবার পাঠানো হয়েছে"
+
+#: doctor-appointment.php:206
+#: includes/admin-dashboard.php:2291
+#, php-format
+msgid "%d tries"
+msgstr "%d বার চেষ্টা"
+
+#: doctor-appointment.php:207
+#: includes/admin-dashboard.php:2183
+#, php-format
+msgid "Retry selected (%d)"
+msgstr "বাছাই করাগুলো আবার পাঠান (%d)"
+
+#: doctor-appointment.php:208
+#, php-format
+msgid "Resend %d messages? Each one is billed."
+msgstr "%dটি মেসেজ আবার পাঠাবেন? প্রতিটির জন্য চার্জ কাটা হবে।"
+
+#: doctor-appointment.php:209
+#: includes/admin-dashboard.php:2278
+msgid "(retried)"
+msgstr "(আবার পাঠানো)"
+
+#: doctor-appointment.php:210
+#, php-format
+msgid "Earlier try failed: %s"
+msgstr "আগের চেষ্টা ব্যর্থ হয়েছিল: %s"
+
+#: doctor-appointment.php:211
+#: includes/admin-dashboard.php:2287
+msgid "Why it failed"
+msgstr "কেন ব্যর্থ হলো"
+
+#: doctor-appointment.php:212
+msgid "Loading bookings…"
+msgstr "বুকিং লোড হচ্ছে…"
+
+#: doctor-appointment.php:213
+msgid "No bookings with a mobile number for this doctor on this date."
+msgstr "এই তারিখে এই ডাক্তারের মোবাইল নম্বরসহ কোনো বুকিং নেই।"
+
+#: doctor-appointment.php:214
+#, php-format
+msgid "%d recipients"
+msgstr "%d জন প্রাপক"
+
+#: doctor-appointment.php:215
+#, php-format
+msgid "Send to %d"
+msgstr "%d জনকে পাঠান"
+
+#: doctor-appointment.php:216
+#, php-format
+msgid "Send this message to %d numbers? Each message is billed."
+msgstr "এই মেসেজটি %dটি নম্বরে পাঠাবেন? প্রতিটি মেসেজের জন্য চার্জ কাটা হবে।"
+
+#: doctor-appointment.php:217
+#, php-format
+msgid "Sending… %1$d of %2$d"
+msgstr "পাঠানো হচ্ছে… %2$dটির মধ্যে %1$dটি"
+
+#: doctor-appointment.php:218
+#, php-format
+msgid "Done: %1$d sent, %2$d failed. Failed ones are in the Log tab with the reason."
+msgstr "শেষ: %1$dটি পাঠানো হয়েছে, %2$dটি ব্যর্থ। ব্যর্থগুলো কারণসহ লগ ট্যাবে আছে।"
+
+#: doctor-appointment.php:219
+#: includes/sms.php:1078
+#: includes/sms.php:1242
+msgid "Write a message to send."
+msgstr "পাঠানোর জন্য একটি মেসেজ লিখুন।"
+
+#: doctor-appointment.php:220
+msgid "Select all"
+msgstr "সব বাছাই করুন"
+
+#: doctor-appointment.php:221
+msgid "Unselect all"
+msgstr "সব বাছাই বাতিল করুন"
+
+#: doctor-appointment.php:222
+#: includes/sms.php:1072
+msgid "Enter a mobile number."
+msgstr "একটি মোবাইল নম্বর দিন।"
+
+#: doctor-appointment.php:223
+#, php-format
+msgid "%1$d of %2$d selected"
+msgstr "%2$d জনের মধ্যে %1$d জন বাছাই করা"
+
+#: doctor-appointment.php:226
+#: includes/admin-dashboard.php:2285
+msgid "Failed"
+msgstr "ব্যর্থ"
+
+#: doctor-appointment.php:227
+msgid "No SMS yet"
+msgstr "এখনো কোনো SMS যায়নি"
+
+#: doctor-appointment.php:232
+msgid "Cancel this booking?"
+msgstr "এই বুকিংটি বাতিল করবেন?"
+
+#: includes/admin-dashboard.php:1295
+msgid "No available time could be assigned for this doctor on this date."
+msgstr "এই তারিখে এই ডাক্তারের জন্য কোনো খালি সময় দেওয়া গেল না।"
+
+#: includes/admin-dashboard.php:1564
+msgid "Address (District/Thana)"
+msgstr "ঠিকানা (জেলা/থানা)"
+
+#: includes/admin-dashboard.php:1569
+#: includes/admin-dashboard.php:5567
+msgid "Settings"
+msgstr "সেটিংস"
+
+#: includes/admin-dashboard.php:1580
+msgid "Clinic Information"
+msgstr "ক্লিনিকের তথ্য"
+
+#: includes/admin-dashboard.php:1603
+msgid "Booking Page Appearance"
+msgstr "বুকিং পেজের চেহারা"
+
+#: includes/admin-dashboard.php:1614
+msgid "Reset to Default Colors"
+msgstr "ডিফল্ট রং ফিরিয়ে আনুন"
+
+#: includes/admin-dashboard.php:1627
+msgid "Email Notifications"
+msgstr "ইমেইল নোটিফিকেশন"
+
+#: includes/admin-dashboard.php:1628
+msgid "Controls the \"From\" name and address on appointment emails sent to patients and doctors. Leave blank to use the site defaults."
+msgstr "রোগী ও ডাক্তারদের কাছে যাওয়া অ্যাপয়েন্টমেন্ট ইমেইলের \"From\" নাম ও ঠিকানা এখান থেকে ঠিক হয়। সাইটের ডিফল্ট ব্যবহার করতে খালি রাখুন।"
+
+#: includes/admin-dashboard.php:1631
+msgid "From Name"
+msgstr "প্রেরকের নাম"
+
+#: includes/admin-dashboard.php:1635
+msgid "From Email"
+msgstr "প্রেরকের ইমেইল"
+
+#: includes/admin-dashboard.php:1642
+msgid "Booking Form Fields"
+msgstr "বুকিং ফর্মের ঘর"
+
+#: includes/admin-dashboard.php:1643
+msgid "Controls the public booking page and the Add/Edit Booking modal alike — Full Name, Phone, Doctor and Date always show and are always required. A field turned off here disappears from both forms entirely; \"Required\" only applies while its own field is shown."
+msgstr "পাবলিক বুকিং পেজ আর বুকিং যোগ/এডিট উইন্ডো, দুটোতেই প্রযোজ্য — পুরো নাম, ফোন, ডাক্তার আর তারিখ সবসময় দেখায় ও সবসময় বাধ্যতামূলক। এখানে বন্ধ করা ঘর দুই ফর্ম থেকেই পুরোপুরি সরে যায়; \"বাধ্যতামূলক\" শুধু তখনই কাজ করে যখন ঘরটি দেখানো হয়।"
+
+#: includes/admin-dashboard.php:1645
+msgid "Field"
+msgstr "ঘর"
+
+#: includes/admin-dashboard.php:1645
+msgid "Show"
+msgstr "দেখান"
+
+#: includes/admin-dashboard.php:1645
+msgid "Required"
+msgstr "বাধ্যতামূলক"
+
+#: includes/admin-dashboard.php:1747
+#: includes/admin-dashboard.php:2314
+msgid "You do not have permission to access this page."
+msgstr "এই পেজ দেখার অনুমতি আপনার নেই।"
+
+#: includes/admin-dashboard.php:1774
+#: includes/admin-dashboard.php:1877
+msgid "Gateway"
+msgstr "গেটওয়ে"
+
+#: includes/admin-dashboard.php:1775
+#: includes/admin-dashboard.php:1936
+msgid "Messages"
+msgstr "মেসেজ"
+
+#: includes/admin-dashboard.php:1776
+msgid "Send SMS"
+msgstr "SMS পাঠান"
+
+#: includes/admin-dashboard.php:1777
+msgid "Log"
+msgstr "লগ"
+
+#: includes/admin-dashboard.php:1792
+#, php-format
+msgid "Today — %s"
+msgstr "আজ — %s"
+
+#: includes/admin-dashboard.php:1793
+#, php-format
+msgid "Tomorrow — %s"
+msgstr "আগামীকাল — %s"
+
+#: includes/admin-dashboard.php:1807
+#: includes/sms.php:912
+msgid "Manual"
+msgstr "ম্যানুয়াল"
+
+#: includes/admin-dashboard.php:1808
+#: includes/sms.php:912
+msgid "Bulk"
+msgstr "বাল্ক"
+
+#: includes/admin-dashboard.php:1809
+msgid "Test"
+msgstr "টেস্ট"
+
+#: includes/admin-dashboard.php:1818
+#: includes/admin-dashboard.php:2232
+#: includes/admin-dashboard.php:5568
+msgid "SMS"
+msgstr "SMS"
+
+#: includes/admin-dashboard.php:1821
+msgid "SMS settings saved."
+msgstr "SMS সেটিংস সেভ হয়েছে।"
+
+#: includes/admin-dashboard.php:1832
+msgid "Balance"
+msgstr "ব্যালেন্স"
+
+#: includes/admin-dashboard.php:1837
+msgid "Opens your sms.bd account in a new tab — log in there to recharge."
+msgstr "নতুন ট্যাবে আপনার sms.bd অ্যাকাউন্ট খুলবে — রিচার্জ করতে সেখানে লগইন করুন।"
+
+#: includes/admin-dashboard.php:1837
+msgid "Recharge"
+msgstr "রিচার্জ"
+
+#: includes/admin-dashboard.php:1842
+msgid "Sent this month"
+msgstr "এই মাসে পাঠানো"
+
+#: includes/admin-dashboard.php:1849
+msgid "Failed this month"
+msgstr "এই মাসে ব্যর্থ"
+
+#: includes/admin-dashboard.php:1856
+msgid "SMS billed this month"
+msgstr "এই মাসে বিল হওয়া SMS"
+
+#. translators: %s = link to the SMS provider's API page
+#: includes/admin-dashboard.php:1881
+#, php-format
+msgid "Messages are sent through %s. Create an account there, then paste the API key from its \"API\" page below."
+msgstr "মেসেজ যায় %s-এর মাধ্যমে। সেখানে একটি অ্যাকাউন্ট খুলুন, তারপর তাদের \"API\" পেজ থেকে API কী নিচে পেস্ট করুন।"
+
+#: includes/admin-dashboard.php:1892
+msgid "Send SMS notifications"
+msgstr "SMS নোটিফিকেশন পাঠান"
+
+#: includes/admin-dashboard.php:1893
+msgid "The master switch. With this off nothing is sent, whatever the individual messages below say."
+msgstr "মূল সুইচ। এটি বন্ধ থাকলে নিচের আলাদা মেসেজগুলো চালু থাকলেও কিছুই পাঠানো হবে না।"
+
+#: includes/admin-dashboard.php:1899
+msgid "API Key"
+msgstr "API কী"
+
+#: includes/admin-dashboard.php:1902
+msgid "Paste your sms.bd API key"
+msgstr "আপনার sms.bd API কী পেস্ট করুন"
+
+#: includes/admin-dashboard.php:1903
+msgid "Leave the dots untouched to keep the saved key."
+msgstr "সেভ করা কী রাখতে ডটগুলো যেমন আছে তেমন রাখুন।"
+
+#: includes/admin-dashboard.php:1906
+msgid "Sender ID"
+msgstr "সেন্ডার আইডি"
+
+#: includes/admin-dashboard.php:1909
+msgid "Optional — e.g. MedBook"
+msgstr "ঐচ্ছিক — যেমন MedBook"
+
+#: includes/admin-dashboard.php:1910
+msgid "Only use a Sender ID the gateway has approved for your account, or every send is rejected."
+msgstr "শুধু গেটওয়ে আপনার অ্যাকাউন্টের জন্য অনুমোদন করেছে এমন সেন্ডার আইডি ব্যবহার করুন, নইলে প্রতিটি মেসেজ বাতিল হবে।"
+
+#: includes/admin-dashboard.php:1917
+msgid "Timing & history"
+msgstr "সময় ও ইতিহাস"
+
+#: includes/admin-dashboard.php:1918
+msgid "Applies to the reminder message below, and to how long sent messages are kept."
+msgstr "নিচের রিমাইন্ডার মেসেজ আর পাঠানো মেসেজ কতদিন রাখা হবে, দুটোতেই প্রযোজ্য।"
+
+#: includes/admin-dashboard.php:1921
+msgid "Send the reminder this many hours before"
+msgstr "কত ঘণ্টা আগে রিমাইন্ডার পাঠাবে"
+
+#: includes/admin-dashboard.php:1923
+msgid "Counted from the appointment time. Checked every 15 minutes, and never sent twice for the same booking."
+msgstr "অ্যাপয়েন্টমেন্টের সময় থেকে গোনা হয়। প্রতি ১৫ মিনিটে দেখা হয়, আর একই বুকিংয়ে কখনো দুবার পাঠানো হয় না।"
+
+#: includes/admin-dashboard.php:1926
+msgid "Keep the SMS log for this many days"
+msgstr "SMS লগ কত দিন রাখা হবে"
+
+#: includes/admin-dashboard.php:1928
+msgid "0 keeps every message forever."
+msgstr "0 দিলে সব মেসেজ চিরকাল থাকবে।"
+
+#: includes/admin-dashboard.php:1937
+msgid "Switch on only the moments worth paying for. Each message is billed separately, per recipient."
+msgstr "শুধু যে মুহূর্তগুলোর জন্য খরচ করা দরকার সেগুলো চালু করুন। প্রতিটি প্রাপকের প্রতিটি মেসেজ আলাদা করে বিল হয়।"
+
+#: includes/admin-dashboard.php:1939
+msgid "Length matters:"
+msgstr "দৈর্ঘ্য গুরুত্বপূর্ণ:"
+
+#: includes/admin-dashboard.php:1940
+msgid "an English message fits 160 characters in one SMS, but any Bangla character at all switches it to Unicode, where one SMS is only 70 characters. The counter under each box shows what you will actually be charged."
+msgstr "ইংরেজি মেসেজে এক SMS-এ ১৬০ অক্ষর ধরে, কিন্তু একটিও বাংলা অক্ষর থাকলে মেসেজ ইউনিকোড হয়ে যায়, তখন এক SMS-এ মাত্র ৭০ অক্ষর। প্রতিটি ঘরের নিচের গণনা দেখায় আসলে কত চার্জ হবে।"
+
+#: includes/admin-dashboard.php:1944
+#: includes/admin-dashboard.php:2153
+msgid "Click to insert:"
+msgstr "যোগ করতে ক্লিক করুন:"
+
+#: includes/admin-dashboard.php:1963
+msgid "to doctor"
+msgstr "ডাক্তারকে"
+
+#: includes/admin-dashboard.php:1963
+msgid "to patient"
+msgstr "রোগীকে"
+
+#: includes/admin-dashboard.php:1979
+msgid "Bulk SMS templates"
+msgstr "বাল্ক SMS টেমপ্লেট"
+
+#: includes/admin-dashboard.php:1980
+msgid "Ready-made messages to pick from in Send SMS → Bulk. The same placeholders work here, filled in for each patient. Save to keep changes."
+msgstr "SMS পাঠান → বাল্ক থেকে বাছাই করার জন্য তৈরি মেসেজ। একই প্লেসহোল্ডার এখানেও কাজ করে, প্রতিটি রোগীর জন্য পূরণ হয়। পরিবর্তন রাখতে সেভ করুন।"
+
+#: includes/admin-dashboard.php:1985
+#: includes/admin-dashboard.php:1996
+msgid "Template name"
+msgstr "টেমপ্লেটের নাম"
+
+#: includes/admin-dashboard.php:2003
+msgid "+ Add template"
+msgstr "+ টেমপ্লেট যোগ করুন"
+
+#: includes/admin-dashboard.php:2008
+msgid "Save SMS Settings"
+msgstr "SMS সেটিংস সেভ করুন"
+
+#: includes/admin-dashboard.php:2018
+msgid "Send to one number"
+msgstr "একটি নম্বরে পাঠান"
+
+#: includes/admin-dashboard.php:2019
+msgid "Sends immediately using the saved key — save your changes first. Each message is billed. {clinic_name} and {clinic_contact} are filled in for you; replace any other {placeholder} with the real words before sending."
+msgstr "সেভ করা কী দিয়ে সাথে সাথে পাঠানো হয় — আগে আপনার পরিবর্তন সেভ করুন। প্রতিটি মেসেজের জন্য চার্জ কাটা হয়। {clinic_name} আর {clinic_contact} নিজে থেকে পূরণ হয়; অন্য কোনো {placeholder} থাকলে পাঠানোর আগে আসল লেখা দিয়ে বদলে দিন।"
+
+#: includes/admin-dashboard.php:2022
+msgid "Mobile number"
+msgstr "মোবাইল নম্বর"
+
+#: includes/admin-dashboard.php:2023
+msgid "e.g. 01700000000"
+msgstr "যেমন 01700000000"
+
+#: includes/admin-dashboard.php:2036
+#: includes/admin-dashboard.php:2124
+msgid "Template"
+msgstr "টেমপ্লেট"
+
+#: includes/admin-dashboard.php:2040
+#: includes/admin-dashboard.php:2044
+#: includes/admin-dashboard.php:2128
+#: includes/admin-dashboard.php:2132
+msgid "No template — type your own"
+msgstr "কোনো টেমপ্লেট নয় — নিজে লিখুন"
+
+#: includes/admin-dashboard.php:2047
+#: includes/admin-dashboard.php:2135
+msgid "Bulk templates"
+msgstr "বাল্ক টেমপ্লেট"
+
+#: includes/admin-dashboard.php:2047
+#: includes/admin-dashboard.php:2135
+msgid "Automatic messages"
+msgstr "স্বয়ংক্রিয় মেসেজ"
+
+#: includes/admin-dashboard.php:2062
+#: includes/admin-dashboard.php:2151
+#: includes/admin-dashboard.php:2231
+msgid "Message"
+msgstr "মেসেজ"
+
+#: includes/admin-dashboard.php:2068
+msgid "Send"
+msgstr "পাঠান"
+
+#: includes/admin-dashboard.php:2074
+msgid "Bulk SMS to a doctor's patients"
+msgstr "ডাক্তারের রোগীদের বাল্ক SMS"
+
+#: includes/admin-dashboard.php:2075
+msgid "Pick a doctor and a date to message everyone booked with them that day — for example when the doctor will be late or away. Cancelled bookings are left out, and a phone number shared by several bookings gets one message."
+msgstr "একজন ডাক্তার ও একটি তারিখ বেছে নিন, সেদিন তাঁর কাছে বুক করা সবাইকে মেসেজ পাঠাতে — যেমন ডাক্তার দেরিতে আসবেন বা আসবেন না। বাতিল বুকিং বাদ যায়, আর কয়েকটি বুকিংয়ে একই ফোন নম্বর থাকলে একটি মেসেজই যায়।"
+
+#: includes/admin-dashboard.php:2081
+msgid "Choose a doctor"
+msgstr "একজন ডাক্তার বেছে নিন"
+
+#: includes/admin-dashboard.php:2119
+msgid "Choose a doctor to see who will receive the message. It goes to every ticked patient below, whichever template you pick."
+msgstr "কারা মেসেজ পাবেন দেখতে একজন ডাক্তার বেছে নিন। যে টেমপ্লেটই বাছুন, নিচে টিক দেওয়া প্রত্যেক রোগীর কাছে যাবে।"
+
+#: includes/admin-dashboard.php:2158
+msgid "Dear {patient_name}, {doctor_name} will be 1 hour late today. Sorry for the wait. - {clinic_name}"
+msgstr "প্রিয় {patient_name}, {doctor_name} আজ ১ ঘণ্টা দেরিতে আসবেন। অপেক্ষার জন্য দুঃখিত। - {clinic_name}"
+
+#: includes/admin-dashboard.php:2162
+msgid "Send to all"
+msgstr "সবাইকে পাঠান"
+
+#: includes/admin-dashboard.php:2175
+msgid "Failed (needs retry)"
+msgstr "ব্যর্থ (আবার পাঠাতে হবে)"
+
+#: includes/admin-dashboard.php:2175
+msgid "Sent (retried)"
+msgstr "পাঠানো হয়েছে (আবার চেষ্টায়)"
+
+#: includes/admin-dashboard.php:2179
+msgid "Message log"
+msgstr "মেসেজ লগ"
+
+#: includes/admin-dashboard.php:2189
+msgid "Search number or message…"
+msgstr "নম্বর বা মেসেজ খুঁজুন…"
+
+#: includes/admin-dashboard.php:2190
+msgid "All results"
+msgstr "সব ফলাফল"
+
+#: includes/admin-dashboard.php:2190
+msgid "All events"
+msgstr "সব ইভেন্ট"
+
+#: includes/admin-dashboard.php:2219
+#, php-format
+msgid "Showing %1$s–%2$s of %3$s"
+msgstr "%3$s-এর মধ্যে %1$s–%2$s দেখানো হচ্ছে"
+
+#: includes/admin-dashboard.php:2222
+msgid "No messages match these filters."
+msgstr "এই ফিল্টারে কোনো মেসেজ মেলেনি।"
+
+#: includes/admin-dashboard.php:2222
+msgid "Nothing sent yet."
+msgstr "এখনো কিছু পাঠানো হয়নি।"
+
+#: includes/admin-dashboard.php:2227
+msgid "Select every failed message on this page"
+msgstr "এই পেজের সব ব্যর্থ মেসেজ বাছাই করুন"
+
+#: includes/admin-dashboard.php:2228
+msgid "When"
+msgstr "কখন"
+
+#: includes/admin-dashboard.php:2229
+msgid "To"
+msgstr "প্রাপক"
+
+#: includes/admin-dashboard.php:2230
+msgid "Event"
+msgstr "ইভেন্ট"
+
+#: includes/admin-dashboard.php:2233
+msgid "Result"
+msgstr "ফলাফল"
+
+#: includes/admin-dashboard.php:2246
+msgid "Select to retry"
+msgstr "আবার পাঠানোর জন্য বাছাই করুন"
+
+#: includes/admin-dashboard.php:2264
+#, php-format
+msgid "Earlier try failed: %1$s. Sent on try %2$d."
+msgstr "আগের চেষ্টা ব্যর্থ হয়েছিল: %1$s। %2$d নম্বর চেষ্টায় পাঠানো হয়েছে।"
+
+#: includes/admin-dashboard.php:2264
+#: includes/admin-dashboard.php:2271
+msgid "reason not recorded"
+msgstr "কারণ লেখা নেই"
+
+#. translators: 1: why it failed, 2: event label, 3: date and time
+#: includes/admin-dashboard.php:2270
+#, php-format
+msgid "Failed: %1$s. Sent later by %2$s on %3$s."
+msgstr "ব্যর্থ: %1$s। পরে %3$s তারিখে %2$s দিয়ে পাঠানো হয়েছে।"
+
+#: includes/admin-dashboard.php:2279
+msgid "Details"
+msgstr "বিস্তারিত"
+
+#: includes/admin-dashboard.php:2323
+#: includes/admin-dashboard.php:5569
+msgid "License"
+msgstr "লাইসেন্স"
+
+#: includes/admin-dashboard.php:2328
+#: includes/admin-dashboard.php:2353
+msgid "License Key"
+msgstr "লাইসেন্স কী"
+
+#: includes/admin-dashboard.php:2342
+#, php-format
+msgid "Expires %s"
+msgstr "মেয়াদ শেষ %s"
+
+#: includes/admin-dashboard.php:2346
+msgid "Refresh Status"
+msgstr "স্ট্যাটাস রিফ্রেশ করুন"
+
+#: includes/admin-dashboard.php:2347
+msgid "Deactivate"
+msgstr "নিষ্ক্রিয় করুন"
+
+#: includes/admin-dashboard.php:2354
+msgid "e.g. A1B2C3D4-E5F6A7B8-C9D0E1F2-A3B4C5D6"
+msgstr "যেমন A1B2C3D4-E5F6A7B8-C9D0E1F2-A3B4C5D6"
+
+#: includes/admin-dashboard.php:2356
+msgid "Activate"
+msgstr "সক্রিয় করুন"
+
+#: includes/admin-dashboard.php:2731
+msgid "Drag cards to reorder"
+msgstr "ক্রম বদলাতে কার্ড টেনে সরান"
+
+#: includes/admin-dashboard.php:2930
+#: includes/admin-dashboard.php:3875
+msgid "Refresh"
+msgstr "রিফ্রেশ"
+
+#: includes/admin-dashboard.php:2946
+msgid "Consultation Fee"
+msgstr "কনসালটেশন ফি"
+
+#: includes/admin-dashboard.php:2953
+#: includes/admin-dashboard.php:5690
+msgid "Drag to reorder"
+msgstr "ক্রম বদলাতে টেনে সরান"
+
+#: includes/admin-dashboard.php:3080
+msgid "Visit Time"
+msgstr "ভিজিটের সময়"
+
+#: includes/admin-dashboard.php:3184
+#: includes/admin-dashboard.php:4787
+#: includes/admin-dashboard.php:6447
+msgid "Emergency"
+msgstr "জরুরি"
+
+#: includes/admin-dashboard.php:3186
+#: includes/admin-dashboard.php:4789
+#: includes/admin-dashboard.php:4927
+msgid "View patient"
+msgstr "রোগী দেখুন"
+
+#: includes/admin-dashboard.php:3214
+#: includes/admin-dashboard.php:4860
+#: includes/admin-dashboard.php:6044
+#: includes/admin-dashboard.php:6071
+msgid "Invoice"
+msgstr "ইনভয়েস"
+
+#: includes/admin-dashboard.php:3225
+#: includes/admin-dashboard.php:4902
+msgid "Cancel booking"
+msgstr "বুকিং বাতিল করুন"
+
+#: includes/admin-dashboard.php:3469
+#: includes/admin-dashboard.php:3478
+msgid "Filters"
+msgstr "ফিল্টার"
+
+#: includes/admin-dashboard.php:3906
+msgid "Upcoming Dates"
+msgstr "আসন্ন তারিখ"
+
+#: includes/admin-dashboard.php:3912
+msgid "No upcoming bookings."
+msgstr "আসন্ন কোনো বুকিং নেই।"
+
+#: includes/admin-dashboard.php:4056
+#: includes/admin-dashboard.php:5804
+msgid "Check-in order"
+msgstr "চেক-ইনের ক্রমে"
+
+#: includes/admin-dashboard.php:4056
+#: includes/admin-dashboard.php:5797
+msgid "Booking order"
+msgstr "বুকিংয়ের ক্রমে"
+
+#: includes/admin-dashboard.php:4059
+msgid "Time Slot"
+msgstr "টাইম স্লট"
+
+#: includes/admin-dashboard.php:4060
+msgid "Hidden"
+msgstr "লুকানো"
+
+#: includes/admin-dashboard.php:4063
+msgid "Duration"
+msgstr "সময়কাল"
+
+#: includes/admin-dashboard.php:4067
+msgid "Fee"
+msgstr "ফি"
+
+#: includes/admin-dashboard.php:4109
+#: includes/admin-dashboard.php:5829
+msgid "Break Times"
+msgstr "বিরতির সময়"
+
+#: includes/admin-dashboard.php:4549
+msgid "Refresh this doctor's list"
+msgstr "এই ডাক্তারের তালিকা রিফ্রেশ করুন"
+
+#: includes/admin-dashboard.php:4805
+msgid "Visit in progress"
+msgstr "ভিজিট চলছে"
+
+#: includes/admin-dashboard.php:4811
+msgid "How long this visit took"
+msgstr "এই ভিজিটে কত সময় লেগেছে"
+
+#: includes/admin-dashboard.php:4936
+msgid "Visits with you"
+msgstr "আপনার কাছে ভিজিট"
+
+#: includes/admin-dashboard.php:4946
+msgid "Book"
+msgstr "বুক করুন"
+
+#: includes/admin-dashboard.php:5280
+msgid "0 patients"
+msgstr "০ জন রোগী"
+
+#. translators: 1: first row number, 2: last row number, 3: total patients
+#: includes/admin-dashboard.php:5291
+#, php-format
+msgid "Showing %1$d–%2$d of %3$d patients"
+msgstr "%3$d জন রোগীর মধ্যে %1$d–%2$d দেখানো হচ্ছে"
+
+#: includes/admin-dashboard.php:5305
+msgid "Sorry, you are not allowed to access this page."
+msgstr "দুঃখিত, এই পেজ দেখার অনুমতি আপনার নেই।"
+
+#: includes/admin-dashboard.php:5328
+#: includes/admin-dashboard.php:5551
+msgid "My Patients"
+msgstr "আমার রোগী"
+
+#: includes/admin-dashboard.php:5345
+msgid "Rows per page"
+msgstr "প্রতি পেজে সারি"
+
+#: includes/admin-dashboard.php:5347
+#, php-format
+msgid "%d / page"
+msgstr "%d / পেজ"
+
+#: includes/admin-dashboard.php:5454
+msgid "e.g. Rahim Uddin"
+msgstr "যেমন রহিম উদ্দিন"
+
+#: includes/admin-dashboard.php:5457
+msgid "e.g. staff@clinic.com"
+msgstr "যেমন staff@clinic.com"
+
+#: includes/admin-dashboard.php:5458
+#: includes/admin-dashboard.php:5750
+#: includes/admin-dashboard.php:6248
+#: includes/admin-dashboard.php:6466
+msgid "e.g. 01700-000000"
+msgstr "যেমন 01700-000000"
+
+#: includes/admin-dashboard.php:5497
+#, php-format
+msgid "%d specialty"
+msgid_plural "%d specialties"
+msgstr[0] "%dটি স্পেশালিটি"
+msgstr[1] "%dটি স্পেশালিটি"
+
+#: includes/admin-dashboard.php:5497
+msgid "Reorder"
+msgstr "ক্রম বদলান"
+
+#: includes/admin-dashboard.php:5521
+msgid "Menu"
+msgstr "মেনু"
+
+#: includes/admin-dashboard.php:5526
+msgid "Toggle sidebar"
+msgstr "সাইডবার খুলুন/বন্ধ করুন"
+
+#: includes/admin-dashboard.php:5579
+#: includes/admin-dashboard.php:5581
+msgid "Back to WordPress"
+msgstr "WordPress-এ ফিরে যান"
+
+#: includes/admin-dashboard.php:5628
+msgid "Visit site"
+msgstr "সাইট দেখুন"
+
+#: includes/admin-dashboard.php:5628
+msgid "Visit site (opens in a new tab)"
+msgstr "সাইট দেখুন (নতুন ট্যাবে খুলবে)"
+
+#: includes/admin-dashboard.php:5643
+#: includes/admin-dashboard.php:5645
+msgid "Logout"
+msgstr "লগআউট"
+
+#: includes/admin-dashboard.php:5671
+msgid "Reorder Doctors"
+msgstr "ডাক্তারদের ক্রম বদলান"
+
+#: includes/admin-dashboard.php:5671
+msgid "Reorder Specialties"
+msgstr "স্পেশালিটির ক্রম বদলান"
+
+#: includes/admin-dashboard.php:5681
+msgid "Drag to reorder — this is the order patients see on the booking form and doctor list."
+msgstr "ক্রম বদলাতে টেনে সরান — রোগীরা বুকিং ফর্ম আর ডাক্তারের তালিকায় এই ক্রমেই দেখেন।"
+
+#: includes/admin-dashboard.php:5683
+msgid "A → Z"
+msgstr "A → Z"
+
+#: includes/admin-dashboard.php:5684
+msgid "Z → A"
+msgstr "Z → A"
+
+#: includes/admin-dashboard.php:5698
+msgid "Save Order"
+msgstr "ক্রম সেভ করুন"
+
+#: includes/admin-dashboard.php:5722
+msgid "e.g. Dr. Karim Ahmed"
+msgstr "যেমন ডা. করিম আহমেদ"
+
+#: includes/admin-dashboard.php:5746
+msgid "e.g. doctor@clinic.com"
+msgstr "যেমন doctor@clinic.com"
+
+#: includes/admin-dashboard.php:5765
+msgid "Time Slot & Fee"
+msgstr "টাইম স্লট ও ফি"
+
+#: includes/admin-dashboard.php:5772
+msgid "e.g. 20"
+msgstr "যেমন 20"
+
+#: includes/admin-dashboard.php:5773
+msgid "When off, patients won't see a time picker — they're queued automatically and still get a real appointment time behind the scenes."
+msgstr "বন্ধ থাকলে রোগীরা সময় বাছাইয়ের ঘর দেখবেন না — তাঁরা নিজে থেকে কিউতে যুক্ত হবেন, আর পেছনে একটি আসল অ্যাপয়েন্টমেন্টের সময়ও পাবেন।"
+
+#: includes/admin-dashboard.php:5776
+#: includes/admin-dashboard.php:6083
+msgid "Consultation Fee (৳)"
+msgstr "কনসালটেশন ফি (৳)"
+
+#: includes/admin-dashboard.php:5778
+msgid "Decrease"
+msgstr "কমান"
+
+#: includes/admin-dashboard.php:5779
+#: includes/admin-dashboard.php:6084
+msgid "e.g. 800"
+msgstr "যেমন 800"
+
+#: includes/admin-dashboard.php:5780
+msgid "Increase"
+msgstr "বাড়ান"
+
+#: includes/admin-dashboard.php:5792
+msgid "Queue & Ticketing"
+msgstr "কিউ ও টিকেট"
+
+#: includes/admin-dashboard.php:5793
+msgid "Queue Serial Numbering"
+msgstr "কিউ সিরিয়াল নম্বর"
+
+#: includes/admin-dashboard.php:5798
+msgid "The queue number (\"Q01\") is assigned the moment someone books."
+msgstr "কেউ বুক করার সাথে সাথেই কিউ নম্বর (\"Q01\") দেওয়া হয়।"
+
+#: includes/admin-dashboard.php:5805
+msgid "The number is assigned only when the patient actually checks in, reflecting arrival order instead of booking order. The booking confirmation shows a Booking ID until then."
+msgstr "রোগী আসলে চেক-ইন করলে তবেই নম্বর দেওয়া হয়, তাই বুকিংয়ের ক্রম নয়, আসার ক্রম অনুযায়ী নম্বর হয়। ততক্ষণ বুকিং নিশ্চিতকরণে একটি বুকিং আইডি দেখায়।"
+
+#: includes/admin-dashboard.php:5830
+msgid "Optional, doctor-wide — applies inside every active day in Weekly Availability above (e.g. lunch, prayer). Booking slots inside a break show its name and can't be selected."
+msgstr "ঐচ্ছিক, ডাক্তারের সব দিনের জন্য — উপরের সাপ্তাহিক সময়সূচির প্রতিটি চালু দিনে প্রযোজ্য (যেমন দুপুরের খাবার, নামাজ)। বিরতির মধ্যে পড়া বুকিং স্লটে বিরতির নাম দেখায় আর বাছাই করা যায় না।"
+
+#: includes/admin-dashboard.php:5838
+msgid "+ Add Break"
+msgstr "+ বিরতি যোগ করুন"
+
+#: includes/admin-dashboard.php:5845
+msgid "e.g. Lunch Break"
+msgstr "যেমন দুপুরের বিরতি"
+
+#: includes/admin-dashboard.php:5902
+#: includes/admin-dashboard.php:5998
+msgid "Visit History"
+msgstr "ভিজিটের ইতিহাস"
+
+#: includes/admin-dashboard.php:5921
+#: includes/admin-dashboard.php:5964
+msgid "Patient not found."
+msgstr "রোগী পাওয়া যায়নি।"
+
+#: includes/admin-dashboard.php:5983
+msgid "Unknown patient"
+msgstr "অজানা রোগী"
+
+#: includes/admin-dashboard.php:5989
+msgid "This patient is no longer in the registry — showing the details saved with their bookings."
+msgstr "এই রোগী আর তালিকায় নেই — তাঁর বুকিংয়ের সাথে সেভ করা তথ্য দেখানো হচ্ছে।"
+
+#: includes/admin-dashboard.php:5994
+msgid "Age / Gender"
+msgstr "বয়স / লিঙ্গ"
+
+#: includes/admin-dashboard.php:5995
+msgid "Total Visits"
+msgstr "মোট ভিজিট"
+
+#: includes/admin-dashboard.php:6004
+#, php-format
+msgid "%s — Visit History"
+msgstr "%s — ভিজিটের ইতিহাস"
+
+#: includes/admin-dashboard.php:6018
+msgid "No visits yet."
+msgstr "এখনো কোনো ভিজিট নেই।"
+
+#: includes/admin-dashboard.php:6076
+msgid "Invoice No."
+msgstr "ইনভয়েস নম্বর"
+
+#: includes/admin-dashboard.php:6089
+msgid "Unpaid"
+msgstr "অপরিশোধিত"
+
+#: includes/admin-dashboard.php:6090
+msgid "Paid"
+msgstr "পরিশোধিত"
+
+#: includes/admin-dashboard.php:6097
+msgid "Print Invoice"
+msgstr "ইনভয়েস প্রিন্ট করুন"
+
+#: includes/admin-dashboard.php:6098
+msgid "Save"
+msgstr "সেভ করুন"
+
+#: includes/admin-dashboard.php:6117
+#: includes/admin-dashboard.php:6163
+msgid "Appointment not found."
+msgstr "অ্যাপয়েন্টমেন্ট পাওয়া যায়নি।"
+
+#: includes/admin-dashboard.php:6129
+#: includes/admin-dashboard.php:6167
+msgid "This appointment has not been marked Visited yet."
+msgstr "এই অ্যাপয়েন্টমেন্ট এখনো ভিজিট হয়েছে হিসেবে চিহ্নিত হয়নি।"
+
+#: includes/admin-dashboard.php:6245
+#: includes/admin-dashboard.php:6462
+msgid "e.g. Karim Ahmed"
+msgstr "যেমন করিম আহমেদ"
+
+#: includes/admin-dashboard.php:6249
+#: includes/admin-dashboard.php:6468
+msgid "e.g. patient@example.com"
+msgstr "যেমন patient@example.com"
+
+#: includes/admin-dashboard.php:6252
+#: includes/admin-dashboard.php:6487
+msgid "e.g. 32"
+msgstr "যেমন 32"
+
+#: includes/admin-dashboard.php:6453
+msgid "Highlights this patient's row for the doctor"
+msgstr "ডাক্তারের জন্য এই রোগীর সারি হাইলাইট করে"
+
+#: includes/admin-dashboard.php:6534
+msgid "No time slot shown — a time and queue position are assigned automatically."
+msgstr "কোনো টাইম স্লট দেখানো হয় না — সময় আর কিউয়ের অবস্থান নিজে থেকে দেওয়া হয়।"
+
+#: includes/admin-dashboard.php:6593
+msgid "e.g. Cardiology"
+msgstr "যেমন কার্ডিওলজি"
+
+#: includes/cpt-register.php:76
+msgctxt "appointment status"
+msgid "Cancelled"
+msgstr "বাতিল"
+
+#: includes/cpt-register.php:82
+#, php-format
+msgid "Cancelled <span class=\"count\">(%s)</span>"
+msgid_plural "Cancelled <span class=\"count\">(%s)</span>"
+msgstr[0] "বাতিল <span class=\"count\">(%s)</span>"
+msgstr[1] "বাতিল <span class=\"count\">(%s)</span>"
+
+#: includes/licensing.php:40
+msgid "Once Weekly"
+msgstr "সপ্তাহে একবার"
+
+#: includes/licensing.php:88
+msgid "Unexpected response from the license server."
+msgstr "লাইসেন্স সার্ভার থেকে অপ্রত্যাশিত উত্তর এসেছে।"
+
+#: includes/licensing.php:96
+msgid "This license key is not valid."
+msgstr "এই লাইসেন্স কী সঠিক নয়।"
+
+#: includes/licensing.php:97
+msgid "This license key has been revoked."
+msgstr "এই লাইসেন্স কী বাতিল করা হয়েছে।"
+
+#: includes/licensing.php:98
+msgid "This license key is already active on the maximum number of sites."
+msgstr "এই লাইসেন্স কী ইতিমধ্যে সর্বোচ্চ সংখ্যক সাইটে চালু আছে।"
+
+#: includes/licensing.php:99
+msgid "This license key has expired."
+msgstr "এই লাইসেন্স কী-এর মেয়াদ শেষ হয়ে গেছে।"
+
+#: includes/licensing.php:101
+msgid "Could not activate this license key."
+msgstr "এই লাইসেন্স কী সক্রিয় করা যায়নি।"
+
+#: includes/licensing.php:107
+msgid "Please enter a license key."
+msgstr "একটি লাইসেন্স কী দিন।"
+
+#. translators: %s: license status message
+#: includes/licensing.php:183
+#, php-format
+msgid "Doctor Appointment Booking license: %s Please renew to keep receiving updates and support."
+msgstr "Doctor Appointment Booking লাইসেন্স: %s আপডেট ও সাপোর্ট পেতে নবায়ন করুন।"
+
+#: includes/licensing.php:187
+msgid "Doctor Appointment Booking: couldn't verify your license — this site hasn't reached the license server in a while. Please connect it to the internet briefly so it can check in."
+msgstr "Doctor Appointment Booking: আপনার লাইসেন্স যাচাই করা যায়নি — এই সাইট অনেকদিন লাইসেন্স সার্ভারে পৌঁছায়নি। যাচাইয়ের জন্য কিছুক্ষণের জন্য ইন্টারনেটে যুক্ত করুন।"
+
+#: includes/shortcode.php:1754
 #, php-format
 msgid "%1$s checked in — ticket %2$s."
 msgstr "%1$s চেক-ইন করেছেন — টিকেট %2$s।"
+
+#: includes/sms.php:90
+msgid "Booking confirmed"
+msgstr "বুকিং নিশ্চিত"
+
+#: includes/sms.php:91
+msgid "Sent to the patient the moment a booking is created, from the public form or the front desk."
+msgstr "বুকিং তৈরি হওয়ার সাথে সাথে রোগীকে পাঠানো হয়, পাবলিক ফর্ম বা রিসেপশন যেখান থেকেই হোক।"
+
+#: includes/sms.php:94
+msgid "Dear {patient_name}, your appointment with {doctor_name} is confirmed for {date} at {time}. Serial: {ticket}. - {clinic_name}"
+msgstr "প্রিয় {patient_name}, {doctor_name}-এর সাথে আপনার অ্যাপয়েন্টমেন্ট {date} {time}-এ নিশ্চিত হয়েছে। সিরিয়াল: {ticket}। - {clinic_name}"
+
+#: includes/sms.php:97
+msgid "New booking (to doctor)"
+msgstr "নতুন বুকিং (ডাক্তারকে)"
+
+#: includes/sms.php:98
+msgid "Sent to the doctor's own number when a new booking lands in their queue."
+msgstr "ডাক্তারের কিউতে নতুন বুকিং এলে তাঁর নিজের নম্বরে পাঠানো হয়।"
+
+#: includes/sms.php:101
+msgid "New booking: {patient_name} ({patient_phone}) on {date} at {time}. Serial: {ticket}."
+msgstr "নতুন বুকিং: {patient_name} ({patient_phone}), {date} {time}। সিরিয়াল: {ticket}।"
+
+#: includes/sms.php:104
+#: includes/sms.php:198
+msgid "Appointment reminder"
+msgstr "অ্যাপয়েন্টমেন্ট রিমাইন্ডার"
+
+#: includes/sms.php:105
+msgid "Sent once, a set number of hours before the appointment time. Never sent for a booking that is already checked in, served or cancelled."
+msgstr "অ্যাপয়েন্টমেন্টের নির্দিষ্ট ঘণ্টা আগে একবার পাঠানো হয়। যে বুকিং ইতিমধ্যে চেক-ইন, ভিজিট শেষ বা বাতিল হয়েছে, তার জন্য কখনো পাঠানো হয় না।"
+
+#: includes/sms.php:108
+msgid "Reminder: {patient_name}, your appointment with {doctor_name} is today at {time}. Serial: {ticket}. - {clinic_name}"
+msgstr "রিমাইন্ডার: {patient_name}, {doctor_name}-এর সাথে আপনার অ্যাপয়েন্টমেন্ট আজ {time}-এ। সিরিয়াল: {ticket}। - {clinic_name}"
+
+#: includes/sms.php:111
+msgid "Checked in"
+msgstr "চেক-ইন হয়েছে"
+
+#: includes/sms.php:112
+msgid "Sent when the patient is checked in at the desk or by QR scan."
+msgstr "রিসেপশনে বা QR স্ক্যান করে রোগী চেক-ইন করলে পাঠানো হয়।"
+
+#: includes/sms.php:115
+msgid "{patient_name}, you are checked in. Your serial is {ticket}. Please wait to be called. - {clinic_name}"
+msgstr "{patient_name}, আপনার চেক-ইন হয়েছে। আপনার সিরিয়াল {ticket}। ডাকা পর্যন্ত অপেক্ষা করুন। - {clinic_name}"
+
+#: includes/sms.php:118
+msgid "Patient's turn"
+msgstr "রোগীর পালা"
+
+#: includes/sms.php:119
+msgid "Sent when the doctor starts the visit — the \"you are next, please come in\" message."
+msgstr "ডাক্তার ভিজিট শুরু করলে পাঠানো হয় — \"আপনার পালা, ভেতরে আসুন\" মেসেজ।"
+
+#: includes/sms.php:122
+msgid "{patient_name}, it is your turn now. Please go to {doctor_name}'s room. - {clinic_name}"
+msgstr "{patient_name}, এখন আপনার পালা। অনুগ্রহ করে {doctor_name}-এর কক্ষে যান। - {clinic_name}"
+
+#: includes/sms.php:125
+msgid "Visit completed"
+msgstr "ভিজিট সম্পন্ন"
+
+#: includes/sms.php:126
+msgid "Sent after the visit is marked complete."
+msgstr "ভিজিট সম্পন্ন হিসেবে চিহ্নিত হওয়ার পর পাঠানো হয়।"
+
+#: includes/sms.php:129
+msgid "Thank you for visiting {clinic_name}, {patient_name}. Get well soon. For any query: {clinic_contact}"
+msgstr "{clinic_name}-এ আসার জন্য ধন্যবাদ, {patient_name}। দ্রুত সুস্থ হয়ে উঠুন। যেকোনো প্রশ্নে: {clinic_contact}"
+
+#: includes/sms.php:132
+msgid "Marked absent"
+msgstr "অনুপস্থিত চিহ্নিত"
+
+#: includes/sms.php:133
+msgid "Sent when a booking is marked as a no-show."
+msgstr "কোনো বুকিং অনুপস্থিত হিসেবে চিহ্নিত হলে পাঠানো হয়।"
+
+#: includes/sms.php:136
+msgid "{patient_name}, we missed you at {clinic_name} on {date}. Please contact {clinic_contact} to rebook."
+msgstr "{patient_name}, {date}-এ {clinic_name}-এ আপনাকে পাইনি। আবার বুক করতে {clinic_contact}-এ যোগাযোগ করুন।"
+
+#: includes/sms.php:139
+msgid "Rescheduled"
+msgstr "সময় বদলানো হয়েছে"
+
+#: includes/sms.php:140
+msgid "Sent when a booking's date or time is changed from the admin panel."
+msgstr "অ্যাডমিন প্যানেল থেকে বুকিংয়ের তারিখ বা সময় বদলালে পাঠানো হয়।"
+
+#: includes/sms.php:143
+msgid "{patient_name}, your appointment with {doctor_name} has been moved to {date} at {time}. - {clinic_name}"
+msgstr "{patient_name}, {doctor_name}-এর সাথে আপনার অ্যাপয়েন্টমেন্ট {date} {time}-এ সরানো হয়েছে। - {clinic_name}"
+
+#: includes/sms.php:190
+msgid "Doctor running late"
+msgstr "ডাক্তার দেরিতে আসছেন"
+
+#: includes/sms.php:191
+msgid "Dear {patient_name}, {doctor_name} is running late today. Your appointment at {time} may be delayed. Sorry for the wait. - {clinic_name}"
+msgstr "প্রিয় {patient_name}, {doctor_name} আজ দেরিতে আসছেন। {time}-এর অ্যাপয়েন্টমেন্টে দেরি হতে পারে। অপেক্ষার জন্য দুঃখিত। - {clinic_name}"
+
+#: includes/sms.php:194
+msgid "Doctor not available"
+msgstr "ডাক্তার অনুপস্থিত"
+
+#: includes/sms.php:195
+msgid "Dear {patient_name}, {doctor_name} will not be available on {date}. Please call {clinic_contact} to rebook. Sorry for the trouble. - {clinic_name}"
+msgstr "প্রিয় {patient_name}, {doctor_name} {date}-এ থাকবেন না। আবার বুক করতে {clinic_contact}-এ ফোন করুন। অসুবিধার জন্য দুঃখিত। - {clinic_name}"
+
+#: includes/sms.php:199
+msgid "Reminder: {patient_name}, your appointment with {doctor_name} is on {date} at {time}. Serial: {ticket}. - {clinic_name}"
+msgstr "রিমাইন্ডার: {patient_name}, {doctor_name}-এর সাথে আপনার অ্যাপয়েন্টমেন্ট {date} {time}-এ। সিরিয়াল: {ticket}। - {clinic_name}"
+
+#: includes/sms.php:213
+#, php-format
+msgid "Template %d"
+msgstr "টেমপ্লেট %d"
+
+#: includes/sms.php:246
+msgid "Patient's name"
+msgstr "রোগীর নাম"
+
+#: includes/sms.php:247
+msgid "Patient's phone number"
+msgstr "রোগীর ফোন নম্বর"
+
+#: includes/sms.php:248
+msgid "Doctor's name"
+msgstr "ডাক্তারের নাম"
+
+#: includes/sms.php:249
+msgid "Appointment date"
+msgstr "অ্যাপয়েন্টমেন্টের তারিখ"
+
+#: includes/sms.php:250
+msgid "Appointment time"
+msgstr "অ্যাপয়েন্টমেন্টের সময়"
+
+#: includes/sms.php:251
+msgid "Queue serial, e.g. Q01"
+msgstr "কিউ সিরিয়াল, যেমন Q01"
+
+#: includes/sms.php:252
+msgid "Booking ID, e.g. B000123"
+msgstr "বুকিং আইডি, যেমন B000123"
+
+#: includes/sms.php:253
+msgid "Current booking status"
+msgstr "বুকিংয়ের বর্তমান স্ট্যাটাস"
+
+#: includes/sms.php:254
+msgid "Clinic name from Settings"
+msgstr "সেটিংস থেকে ক্লিনিকের নাম"
+
+#: includes/sms.php:255
+msgid "Clinic contact from Settings"
+msgstr "সেটিংস থেকে ক্লিনিকের যোগাযোগ"
+
+#: includes/sms.php:436
+msgid "Success"
+msgstr "সফল"
+
+#: includes/sms.php:437
+msgid "Request rejected — a parameter is missing or invalid."
+msgstr "অনুরোধ বাতিল — কোনো তথ্য নেই বা ভুল।"
+
+#: includes/sms.php:438
+msgid "Permission denied for this request."
+msgstr "এই অনুরোধের অনুমতি নেই।"
+
+#: includes/sms.php:439
+msgid "The requested resource was not found."
+msgstr "যা চাওয়া হয়েছে তা পাওয়া যায়নি।"
+
+#: includes/sms.php:440
+msgid "Authorization required — check the API key."
+msgstr "অনুমোদন দরকার — API কী দেখুন।"
+
+#: includes/sms.php:441
+msgid "Unknown error on the SMS gateway."
+msgstr "SMS গেটওয়েতে অজানা সমস্যা।"
+
+#: includes/sms.php:442
+msgid "SMS account expired."
+msgstr "SMS অ্যাকাউন্টের মেয়াদ শেষ।"
+
+#: includes/sms.php:443
+msgid "Reseller account expired or suspended."
+msgstr "রিসেলার অ্যাকাউন্টের মেয়াদ শেষ বা স্থগিত।"
+
+#: includes/sms.php:444
+msgid "Invalid schedule time."
+msgstr "সময়সূচির সময় সঠিক নয়।"
+
+#: includes/sms.php:445
+msgid "Invalid Sender ID — it must be approved by the gateway first."
+msgstr "সেন্ডার আইডি সঠিক নয় — আগে গেটওয়ে থেকে অনুমোদন নিতে হবে।"
+
+#: includes/sms.php:446
+msgid "Message is empty."
+msgstr "মেসেজ খালি।"
+
+#: includes/sms.php:447
+msgid "Message is too long."
+msgstr "মেসেজ অনেক লম্বা।"
+
+#: includes/sms.php:448
+msgid "No valid number found."
+msgstr "কোনো সঠিক নম্বর পাওয়া যায়নি।"
+
+#: includes/sms.php:449
+msgid "Insufficient balance."
+msgstr "ব্যালেন্স যথেষ্ট নয়।"
+
+#: includes/sms.php:450
+msgid "Content blocked by the gateway."
+msgstr "গেটওয়ে কনটেন্ট আটকে দিয়েছে।"
+
+#: includes/sms.php:458
+#, php-format
+msgid "Gateway error %1$d: %2$s"
+msgstr "গেটওয়ে ত্রুটি %1$d: %2$s"
+
+#: includes/sms.php:459
+#, php-format
+msgid "Gateway error %d."
+msgstr "গেটওয়ে ত্রুটি %d।"
+
+#: includes/sms.php:496
+#, php-format
+msgid "Unreadable response from the SMS gateway (HTTP %s)."
+msgstr "SMS গেটওয়ে থেকে অপাঠযোগ্য উত্তর (HTTP %s)।"
+
+#: includes/sms.php:525
+msgid "SMS is turned off, or no API key is set."
+msgstr "SMS বন্ধ আছে, অথবা কোনো API কী দেওয়া নেই।"
+
+#: includes/sms.php:569
+#: includes/sms.php:624
+msgid "No API key set."
+msgstr "কোনো API কী দেওয়া নেই।"
+
+#: includes/sms.php:599
+#, php-format
+msgid "Expired on %s"
+msgstr "মেয়াদ শেষ হয়েছে %s"
+
+#. translators: 1: date like "17 Nov 2026", 2: number of days
+#: includes/sms.php:603
+#, php-format
+msgid "Valid till %1$s · %2$d day left"
+msgid_plural "Valid till %1$s · %2$d days left"
+msgstr[0] "মেয়াদ %1$s পর্যন্ত · আর %2$d দিন"
+msgstr[1] "মেয়াদ %1$s পর্যন্ত · আর %2$d দিন"
+
+#. translators: %s: date like "17 Nov 2026"
+#: includes/sms.php:615
+#, php-format
+msgid "Expired %s"
+msgstr "মেয়াদ শেষ %s"
+
+#. translators: %s: date like "17 Nov 2026"
+#: includes/sms.php:615
+#, php-format
+msgid "Valid till %s"
+msgstr "মেয়াদ %s পর্যন্ত"
+
+#: includes/sms.php:616
+msgid "Credit expired — recharge to send"
+msgstr "ক্রেডিটের মেয়াদ শেষ — পাঠাতে রিচার্জ করুন"
+
+#: includes/sms.php:616
+#, php-format
+msgid "%d day left"
+msgid_plural "%d days left"
+msgstr[0] "আর %d দিন"
+msgstr[1] "আর %d দিন"
+
+#: includes/sms.php:742
+msgid "Every 15 minutes (MedBook SMS)"
+msgstr "প্রতি ১৫ মিনিটে (MedBook SMS)"
+
+#: includes/sms.php:826
+msgid "SMS Log"
+msgstr "SMS লগ"
+
+#: includes/sms.php:1075
+msgid "That mobile number is not valid. Use a format like 01700000000."
+msgstr "মোবাইল নম্বরটি সঠিক নয়। 01700000000-এর মতো করে লিখুন।"
+
+#: includes/sms.php:1088
+#, php-format
+msgid "Replace %s with the real words first — there is no booking to fill it from."
+msgstr "আগে %s আসল লেখা দিয়ে বদলান — এটি পূরণ করার মতো কোনো বুকিং নেই।"
+
+#: includes/sms.php:1099
+#, php-format
+msgid "Message sent to %s."
+msgstr "%s নম্বরে মেসেজ পাঠানো হয়েছে।"
+
+#: includes/sms.php:1126
+msgid "Log entry not found."
+msgstr "লগ এন্ট্রি পাওয়া যায়নি।"
+
+#: includes/sms.php:1129
+msgid "This message was already sent."
+msgstr "এই মেসেজ ইতিমধ্যে পাঠানো হয়েছে।"
+
+#: includes/sms.php:1134
+msgid "This message has already been delivered by a later send."
+msgstr "পরের একটি পাঠানোতে এই মেসেজ ইতিমধ্যে পৌঁছে গেছে।"
+
+#: includes/sms.php:1161
+msgid "Sent."
+msgstr "পাঠানো হয়েছে।"
+
+#: includes/sms.php:1198
+msgid "Choose a doctor and a date."
+msgstr "একজন ডাক্তার ও একটি তারিখ বেছে নিন।"

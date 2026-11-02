@@ -1,4 +1,14 @@
 /**
+ * Translated UI string from mdbk_form_obj.i18n (filled server-side with
+ * __()), falling back to the English literal so a page that never got the
+ * localized object still reads correctly.
+ */
+function mdbkT(key, fallback) {
+    var i18n = (typeof mdbk_form_obj !== 'undefined' && mdbk_form_obj.i18n) || {};
+    return i18n[key] || fallback;
+}
+
+/**
  * Draws the booking summary + QR onto an offscreen <canvas> so it can be
  * saved as a single image. Defined at top level (not inside the
  * DOMContentLoaded wrapper below) so it's already available the moment
@@ -21,12 +31,12 @@ function mdbkBuildBookingCardImage(details, qrImgSrc, callback) {
     // No ticket yet under check-in-order queue mode (assigned only once
     // this patient actually checks in) — Booking ID fills the row instead.
     var rows = [
-        details.ticket ? ['Ticket', details.ticket] : ['Booking ID', details.booking_id],
-        ['Patient', details.patient_name],
-        ['Doctor', details.doctor_name],
-        ['Date', details.date]
+        details.ticket ? [mdbkT('ticket', 'Ticket'), details.ticket] : [mdbkT('booking_id', 'Booking ID'), details.booking_id],
+        [mdbkT('patient', 'Patient'), details.patient_name],
+        [mdbkT('doctor', 'Doctor'), details.doctor_name],
+        [mdbkT('date', 'Date'), details.date]
     ];
-    if (details.slot_time) rows.push(['Time', details.slot_time]);
+    if (details.slot_time) rows.push([mdbkT('time', 'Time'), details.slot_time]);
 
     var rowH = 34;
     var boxTop = 66;
@@ -51,7 +61,7 @@ function mdbkBuildBookingCardImage(details, qrImgSrc, callback) {
     ctx.font = 'bold 20px sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'alphabetic';
-    ctx.fillText(details.title || 'Booking Confirmed', W / 2, 40);
+    ctx.fillText(details.title || mdbkT('booking_confirmed', 'Booking Confirmed'), W / 2, 40);
 
     roundRect(ctx, 24, boxTop, W - 48, boxH, 12);
     ctx.fillStyle = '#f8fafc';
@@ -158,14 +168,14 @@ function mdbkBuildClinicHeaderHtml() {
  * invisible on a real physical printout.
  */
 function mdbkPrintBookingCard(details, qrImgSrc) {
-    var titleText = details.title || 'Booking Confirmed';
+    var titleText = details.title || mdbkT('booking_confirmed', 'Booking Confirmed');
     var rows = [
-        details.ticket ? ['Ticket', details.ticket] : ['Booking ID', details.booking_id],
-        ['Patient', details.patient_name],
-        ['Doctor', details.doctor_name],
-        ['Date', details.date]
+        details.ticket ? [mdbkT('ticket', 'Ticket'), details.ticket] : [mdbkT('booking_id', 'Booking ID'), details.booking_id],
+        [mdbkT('patient', 'Patient'), details.patient_name],
+        [mdbkT('doctor', 'Doctor'), details.doctor_name],
+        [mdbkT('date', 'Date'), details.date]
     ];
-    if (details.slot_time) rows.push(['Time', details.slot_time]);
+    if (details.slot_time) rows.push([mdbkT('time', 'Time'), details.slot_time]);
 
     var rowsHtml = rows.map(function(r) {
         return '<div class="mdbk-confirmation-row"><span>' + mdbkEscHtml(r[0]) + '</span><strong>' + mdbkEscHtml(r[1]) + '</strong></div>';
@@ -218,7 +228,7 @@ document.addEventListener('DOMContentLoaded', function() {
         var parts = time24.split(':');
         var hour = parseInt(parts[0], 10);
         var minute = parts[1];
-        var suffix = hour >= 12 ? 'PM' : 'AM';
+        var suffix = hour >= 12 ? mdbkT('pm', 'PM') : mdbkT('am', 'AM');
         var hour12 = hour % 12;
         if (hour12 === 0) hour12 = 12;
         return hour12 + ':' + minute + ' ' + suffix;
@@ -227,7 +237,7 @@ document.addEventListener('DOMContentLoaded', function() {
     function formatDisplayDate(dateStr) {
         var parts = dateStr.split('-');
         var d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
-        var monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+        var monthNames = mdbkT('months', ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']);
         return monthNames[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear();
     }
 
@@ -244,12 +254,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
         if (!doctorId || !dateStr) {
             pickerEl.classList.add('mdbk-slot-picker-disabled');
-            pickerEl.innerHTML = '<p class="mdbk-time-placeholder">Select a date first</p>';
+            pickerEl.innerHTML = '<p class="mdbk-time-placeholder">' + mdbkT('select_date_first', 'Select a date first') + '</p>';
             return;
         }
 
         pickerEl.classList.remove('mdbk-slot-picker-disabled');
-        pickerEl.innerHTML = '<div class="mdbk-slot-loading">Loading times...</div>';
+        pickerEl.innerHTML = '<div class="mdbk-slot-loading">' + mdbkT('loading_times', 'Loading times...') + '</div>';
 
         var formData = new FormData();
         formData.append('action', 'mdbk_get_doctor_slots');
@@ -262,7 +272,7 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(function(data) {
             var slots = (data.success && data.data) ? data.data : [];
             if (!slots.length) {
-                pickerEl.innerHTML = '<div class="mdbk-no-slots">No time slots available on this date.</div>';
+                pickerEl.innerHTML = '<div class="mdbk-no-slots">' + mdbkT('no_slots', 'No time slots available on this date.') + '</div>';
                 return;
             }
 
@@ -316,7 +326,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         })
         .catch(function() {
-            pickerEl.innerHTML = '<div class="mdbk-no-slots">Error loading time slots.</div>';
+            pickerEl.innerHTML = '<div class="mdbk-no-slots">' + mdbkT('slots_error', 'Error loading time slots.') + '</div>';
         });
     }
 
@@ -741,10 +751,10 @@ document.addEventListener('DOMContentLoaded', function() {
         // then.
         var ticketLabelEl = document.getElementById('mdbk-conf-ticket-label');
         if (booking.ticket) {
-            if (ticketLabelEl) ticketLabelEl.textContent = 'Ticket';
+            if (ticketLabelEl) ticketLabelEl.textContent = mdbkT('ticket', 'Ticket');
             document.getElementById('mdbk-conf-ticket').textContent = booking.ticket;
         } else {
-            if (ticketLabelEl) ticketLabelEl.textContent = 'Booking ID';
+            if (ticketLabelEl) ticketLabelEl.textContent = mdbkT('booking_id', 'Booking ID');
             document.getElementById('mdbk-conf-ticket').textContent = booking.booking_id || '';
         }
         document.getElementById('mdbk-conf-patient').textContent = booking.patient_name || '';
@@ -761,7 +771,7 @@ document.addEventListener('DOMContentLoaded', function() {
         var confApproxValueEl = document.getElementById('mdbk-conf-approx-time-value');
         if (booking.slot_time && !currentDoctorSlotEnabled) {
             if (timeRow) timeRow.style.display = 'none';
-            if (confApproxValueEl) confApproxValueEl.textContent = 'Approximate visiting time: ' + booking.slot_time;
+            if (confApproxValueEl) confApproxValueEl.textContent = mdbkT('approx_time', 'Approximate visiting time:') + ' ' + booking.slot_time;
             if (confApproxEl) confApproxEl.style.display = 'flex';
         } else {
             if (confApproxEl) confApproxEl.style.display = 'none';
@@ -848,7 +858,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!calendarEl) return;
         var firstDay = firstDayOfMonth(calYear, calMonth);
         var days = daysInMonth(calYear, calMonth);
-        var monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+        var monthNames = mdbkT('months', ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']);
         var todayStr = today.getFullYear() + '-' + pad2(today.getMonth() + 1) + '-' + pad2(today.getDate());
 
         var html = '<div class="mdbk-cal-nav">' +
@@ -858,7 +868,7 @@ document.addEventListener('DOMContentLoaded', function() {
             '</div>';
 
         html += '<div class="mdbk-cal-grid">';
-        ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].forEach(function(label) {
+        mdbkT('weekdays_short', ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']).forEach(function(label) {
             html += '<span class="mdbk-cal-day-header">' + label + '</span>';
         });
 
@@ -979,7 +989,7 @@ document.addEventListener('DOMContentLoaded', function() {
     function showSerialBookingNotice() {
         if (!modalSlotPicker) return;
         modalSlotPicker.classList.remove('mdbk-slot-picker-disabled');
-        modalSlotPicker.innerHTML = '<p class="mdbk-time-placeholder">No time slot needed — you\'ll be added to the queue automatically.</p>';
+        modalSlotPicker.innerHTML = '<p class="mdbk-time-placeholder">' + mdbkT('no_slot_needed', 'No time slot needed — you\'ll be added to the queue automatically.') + '</p>';
         if (modalSlotValue) modalSlotValue.value = '';
     }
 
@@ -1019,7 +1029,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 hideApproxTimeNotice();
                 return;
             }
-            approxTimeValueEl.textContent = 'Approximate visiting time: ' + formatTime12h(next.time);
+            approxTimeValueEl.textContent = mdbkT('approx_time', 'Approximate visiting time:') + ' ' + formatTime12h(next.time);
             approxTimeNoticeEl.style.display = 'flex';
         })
         .catch(hideApproxTimeNotice);
@@ -1085,7 +1095,7 @@ document.addEventListener('DOMContentLoaded', function() {
     function resetSlotPicker() {
         if (modalSlotPicker) {
             modalSlotPicker.classList.add('mdbk-slot-picker-disabled');
-            modalSlotPicker.innerHTML = '<p class="mdbk-time-placeholder">Select a date first</p>';
+            modalSlotPicker.innerHTML = '<p class="mdbk-time-placeholder">' + mdbkT('select_date_first', 'Select a date first') + '</p>';
         }
         if (modalSlotValue) modalSlotValue.value = '';
         if (dateValue) dateValue.value = '';
@@ -1149,7 +1159,7 @@ document.addEventListener('DOMContentLoaded', function() {
     function renderDoctors(doctors) {
         doctorList.innerHTML = '';
         if (!doctors || !doctors.length) {
-            doctorList.innerHTML = '<div class="mdbk-no-doctors-modal">No doctors available for this specialty.</div>';
+            doctorList.innerHTML = '<div class="mdbk-no-doctors-modal">' + mdbkT('no_doctors', 'No doctors available for this specialty.') + '</div>';
             return;
         }
         doctors.forEach(function(doc) {
@@ -1159,7 +1169,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
             var daysHtml = '';
             if (doc.available_days && doc.available_days.length) {
-                daysHtml = '<span class="mdbk-doc-days">' + doc.available_days.slice(0, 3).join(', ') + (doc.available_days.length > 3 ? ' & more' : '') + '</span>';
+                daysHtml = '<span class="mdbk-doc-days">' + doc.available_days.slice(0, 3).join(', ') + (doc.available_days.length > 3 ? ' ' + mdbkT('and_more', '& more') : '') + '</span>';
             }
 
             var specsHtml = '';
@@ -1192,7 +1202,7 @@ document.addEventListener('DOMContentLoaded', function() {
         selectedDoctorEl.innerHTML = '';
         doctorIdInput.value = '';
         doctorList.style.display = '';
-        doctorList.innerHTML = '<div class="mdbk-doc-loading">Loading doctors...</div>';
+        doctorList.innerHTML = '<div class="mdbk-doc-loading">' + mdbkT('loading_doctors', 'Loading doctors...') + '</div>';
         bookingSection.style.display = 'none';
         detailsSection.style.display = 'none';
 
@@ -1207,11 +1217,11 @@ document.addEventListener('DOMContentLoaded', function() {
             if (data.success) {
                 renderDoctors(data.data);
             } else {
-                doctorList.innerHTML = '<div class="mdbk-no-doctors-modal">No doctors available for this specialty.</div>';
+                doctorList.innerHTML = '<div class="mdbk-no-doctors-modal">' + mdbkT('no_doctors', 'No doctors available for this specialty.') + '</div>';
             }
         })
         .catch(function() {
-            doctorList.innerHTML = '<div class="mdbk-no-doctors-modal">Error loading doctors.</div>';
+            doctorList.innerHTML = '<div class="mdbk-no-doctors-modal">' + mdbkT('doctors_error', 'Error loading doctors.') + '</div>';
         });
     }
 
@@ -1228,7 +1238,7 @@ document.addEventListener('DOMContentLoaded', function() {
     function preselectDoctor(doctorId) {
         doctorList.style.display = '';
         selectedDoctorEl.style.display = 'none';
-        doctorList.innerHTML = '<div class="mdbk-doc-loading">Loading...</div>';
+        doctorList.innerHTML = '<div class="mdbk-doc-loading">' + mdbkT('loading', 'Loading...') + '</div>';
 
         var formData = new FormData();
         formData.append('action', 'mdbk_get_doctor_info');
@@ -1331,7 +1341,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (todayPatientsTitle) {
             todayPatientsTitle.textContent = doctorName ? (doctorName + ' — Today’s Patients') : 'Today’s Patients';
         }
-        todayPatientsList.innerHTML = '<p class="mdbk-today-patients-loading">Loading...</p>';
+        todayPatientsList.innerHTML = '<p class="mdbk-today-patients-loading">' + mdbkT('loading', 'Loading...') + '</p>';
         todayPatientsModal.style.display = 'flex';
 
         var formData = new FormData();
@@ -1343,12 +1353,12 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(function(r) { return r.json(); })
             .then(function(data) {
                 if (!data.success) {
-                    todayPatientsList.innerHTML = '<p class="mdbk-today-patients-loading">Could not load today’s patients.</p>';
+                    todayPatientsList.innerHTML = '<p class="mdbk-today-patients-loading">' + mdbkT('today_error', 'Could not load today’s patients.') + '</p>';
                     return;
                 }
                 var d = data.data;
                 if (!d.patients.length) {
-                    todayPatientsList.innerHTML = '<p class="mdbk-today-patients-loading">No patients today.</p>';
+                    todayPatientsList.innerHTML = '<p class="mdbk-today-patients-loading">' + mdbkT('no_patients_today', 'No patients today.') + '</p>';
                     return;
                 }
                 var rows = d.patients.map(function(p) {
@@ -1369,7 +1379,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     '<div class="mdbk-today-patients-rows">' + rows + '</div>';
             })
             .catch(function() {
-                todayPatientsList.innerHTML = '<p class="mdbk-today-patients-loading">Could not load today’s patients.</p>';
+                todayPatientsList.innerHTML = '<p class="mdbk-today-patients-loading">' + mdbkT('today_error', 'Could not load today’s patients.') + '</p>';
             });
     });
 
@@ -1471,7 +1481,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
             var submitBtn = modalForm.querySelector('.mdbk-submit-btn');
             submitBtn.disabled = true;
-            submitBtn.textContent = 'Booking...';
+            submitBtn.textContent = mdbkT('booking', 'Booking...');
 
             if (msgBox) {
                 msgBox.innerHTML = '';
@@ -1482,7 +1492,7 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(function(r) { return r.json(); })
             .then(function(data) {
                 submitBtn.disabled = false;
-                submitBtn.textContent = 'Book Appointment';
+                submitBtn.textContent = mdbkT('book_appointment', 'Book Appointment');
                 if (data.success) {
                     modalForm.reset();
                     showBookingConfirmation(data.data);
@@ -1493,10 +1503,10 @@ document.addEventListener('DOMContentLoaded', function() {
             })
             .catch(function() {
                 submitBtn.disabled = false;
-                submitBtn.textContent = 'Book Appointment';
+                submitBtn.textContent = mdbkT('book_appointment', 'Book Appointment');
                 if (msgBox) {
                     msgBox.className = 'mdbk-modal-message mdbk-error';
-                    msgBox.textContent = 'Something went wrong. Please try again.';
+                    msgBox.textContent = mdbkT('generic_error', 'Something went wrong. Please try again.');
                 }
             });
         });

@@ -293,6 +293,51 @@ if ( ! class_exists( 'MDBK_Doctor_Appointment' ) ) {
         /**
          * Enqueue Styles and Scripts
          */
+        /**
+         * Translated strings for form-script.js — see the 'i18n' key of
+         * mdbk_form_obj in enqueue_scripts().
+         */
+        private static function form_script_i18n() {
+            global $wp_locale;
+            $months = [];
+            for ( $m = 1; $m <= 12; $m++ ) {
+                $months[] = $wp_locale->get_month( $m );
+            }
+            $weekdays = [];
+            for ( $d = 0; $d < 7; $d++ ) {
+                $weekdays[] = $wp_locale->get_weekday_abbrev( $wp_locale->get_weekday( $d ) );
+            }
+            return [
+                'ticket'            => __( 'Ticket', 'doctor-appointment' ),
+                'booking_id'        => __( 'Booking ID', 'doctor-appointment' ),
+                'patient'           => __( 'Patient', 'doctor-appointment' ),
+                'doctor'            => __( 'Doctor', 'doctor-appointment' ),
+                'date'              => __( 'Date', 'doctor-appointment' ),
+                'time'              => __( 'Time', 'doctor-appointment' ),
+                'booking_confirmed' => __( 'Booking Confirmed', 'doctor-appointment' ),
+                'approx_time'       => __( 'Approximate visiting time:', 'doctor-appointment' ),
+                'select_date_first' => __( 'Select a date first', 'doctor-appointment' ),
+                'loading_times'     => __( 'Loading times...', 'doctor-appointment' ),
+                'no_slots'          => __( 'No time slots available on this date.', 'doctor-appointment' ),
+                'slots_error'       => __( 'Error loading time slots.', 'doctor-appointment' ),
+                'no_slot_needed'    => __( "No time slot needed — you'll be added to the queue automatically.", 'doctor-appointment' ),
+                'no_doctors'        => __( 'No doctors available for this specialty.', 'doctor-appointment' ),
+                'and_more'          => __( '& more', 'doctor-appointment' ),
+                'loading_doctors'   => __( 'Loading doctors...', 'doctor-appointment' ),
+                'doctors_error'     => __( 'Error loading doctors.', 'doctor-appointment' ),
+                'loading'           => __( 'Loading...', 'doctor-appointment' ),
+                'today_error'       => __( 'Could not load today’s patients.', 'doctor-appointment' ),
+                'no_patients_today' => __( 'No patients today.', 'doctor-appointment' ),
+                'booking'           => __( 'Booking...', 'doctor-appointment' ),
+                'book_appointment'  => __( 'Book Appointment', 'doctor-appointment' ),
+                'generic_error'     => __( 'Something went wrong. Please try again.', 'doctor-appointment' ),
+                'am'                => $wp_locale->get_meridiem( 'AM' ),
+                'pm'                => $wp_locale->get_meridiem( 'PM' ),
+                'months'            => $months,
+                'weekdays_short'    => $weekdays,
+            ];
+        }
+
         public function enqueue_scripts() {
             $form_js_ver = filemtime(MDBK_PATH . 'assets/js/form-script.js');
             // Same Google Fonts Hind Siliguri as admin_enqueue_scripts() —
@@ -354,6 +399,12 @@ if ( ! class_exists( 'MDBK_Doctor_Appointment' ) ) {
                 'i18n_no_match'     => __( 'No match found', 'doctor-appointment' ),
                 'i18n_clear'        => __( 'Clear selection', 'doctor-appointment' ),
                 'i18n_location_required' => __( 'Please choose a district and thana.', 'doctor-appointment' ),
+                // Every other string form-script.js writes into the page
+                // (read there through mdbkT(), which falls back to the
+                // English literal). Month/weekday/AM-PM names come from
+                // core's own WP_Locale, so they follow the site language
+                // without needing entries in this plugin's .po files.
+                'i18n' => self::form_script_i18n(),
                 // Global Settings > Booking Form Fields — read by the
                 // public form's own submit-guard (form-script.js); the
                 // template's own PHP conditional (render_booking_widget_fields())
